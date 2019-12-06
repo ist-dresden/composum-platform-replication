@@ -45,7 +45,7 @@
         <!-- Composum Platform -->
         <dependency>
             <groupId>com.composum.platform</groupId>
-            <artifactId>composum-platform-models-bundle</artifactId>
+            <artifactId>composum-platform-staging-bundle</artifactId>
         </dependency>
         <dependency>
             <groupId>com.composum.platform</groupId>
@@ -56,6 +56,10 @@
         <dependency>
             <groupId>com.composum.sling.core</groupId>
             <artifactId>composum-sling-core-commons</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.composum.sling.core</groupId>
+            <artifactId>composum-sling-core-console</artifactId>
         </dependency>
 
         <!-- Apache Sling -->
@@ -109,6 +113,10 @@
             <groupId>commons-codec</groupId>
             <artifactId>commons-codec</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient-osgi</artifactId>
+        </dependency>
 
         <!-- OSGi, Felix -->
         <dependency>
@@ -136,11 +144,48 @@
             <artifactId>slf4j-simple</artifactId>
         </dependency>
 
+        <!-- Java Annotations -->
+        <dependency>
+            <groupId>com.google.code.findbugs</groupId>
+            <artifactId>jsr305</artifactId>
+        </dependency>
+
         <!-- JUnit -->
+        <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-library</artifactId>
+        </dependency>
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.apache.sling</groupId>
+            <artifactId>org.apache.sling.testing.sling-mock-oak</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.sling</groupId>
+            <artifactId>org.apache.sling.testing.sling-mock.junit4</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.sling</groupId>
+            <artifactId>org.apache.sling.testing.logging-mock</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.sling</groupId>
+            <artifactId>org.apache.sling.testing.hamcrest</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.composum.platform</groupId>
+            <artifactId>composum-platform-testing-testutil</artifactId>
+            <version>${composum.platform.version}</version>
+            <scope>test</scope>
+        </dependency>
+
 
     </dependencies>
     <profiles>
