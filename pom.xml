@@ -60,6 +60,12 @@
                 <version>${composum.platform.version}</version>
                 <scope>provided</scope>
             </dependency>
+            <dependency>
+                <groupId>com.composum.platform</groupId>
+                <artifactId>composum-platform-security-bundle</artifactId>
+                <version>${composum.platform.version}</version>
+                <scope>provided</scope>
+            </dependency>
 
         </dependencies>
     </dependencyManagement>
