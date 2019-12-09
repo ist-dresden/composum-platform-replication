@@ -91,14 +91,15 @@ public class ContentStateOperationTest {
         ec.checkThat(response.getOutputAsString(),
                 is("{\"status\":200,\"success\":true,\"warning\":false,\"title\":\"Result\"," +
                         "\"messages\":[]," +
-                        "\"versionabledata\":{\"siblingorder\":{\"/content/some/site/folder1\":[\"folder1\",\"folder2\"]}},\"versionables\":{}}"));
+                        "\"versionables\":[{\"path\":\"/content/some/site/folder1/page11/jcr:content\",\"version\":\"f1p11uuid\"}," +
+                        "{\"path\":\"/content/some/site/folder1/page11/sub111/jcr:content\",\"version\":\"f1p11s111uuid\"}," +
+                        "{\"path\":\"/content/some/site/folder1/page11/sub112/jcr:content\",\"version\":\"f1p11s212uuid\"}]}"));
 
         Gson gson = new GsonBuilder().create();
         TestStatusWithAttributes status = gson.fromJson(response.getOutputAsString(), TestStatusWithAttributes.class);
         ec.checkThat(status.getStatus(), is(200));
-        ec.checkThat((List<String>) status.versionabledata.get(ContentStateOperation.STATUSDATA_SIBLINGORDER).get("/content/some/site/folder1"),
-                contains("folder1", "folder2"));
-
+        ec.checkThat(status.versionables.size(), is(3));
+        ec.checkThat(status.versionables.get(1).get("version"), is("f1p11s111uuid"));
     }
 
     private static class TestStatusWithAttributes extends Status {
@@ -107,7 +108,7 @@ public class ContentStateOperationTest {
             super(request, response);
         }
 
-        Map<String, Map<String, Object>> versionabledata;
+        List<Map<String, Object>> versionables;
     }
 
 }

@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.jcr.RepositoryException;
 import javax.servlet.ServletException;
 import java.io.IOException;
@@ -34,12 +35,6 @@ public class ContentStateOperation extends AbstractContentUpdateOperation {
     private static final Logger LOG = LoggerFactory.getLogger(ContentStateOperation.class);
 
     /**
-     * Status data variable that contains a map of parent paths of the requested resource to the order of nodes
-     * there.
-     */
-    public static final String STATUSDATA_SIBLINGORDER = "siblingorder";
-
-    /**
      * Status data variable that contains an array of the versions of all versionables below the given path,
      * in the order they appear in a resource scan.
      */
@@ -51,19 +46,13 @@ public class ContentStateOperation extends AbstractContentUpdateOperation {
     }
 
     @Override
-    public void doIt(SlingHttpServletRequest request, SlingHttpServletResponse response, ResourceHandle resource) throws RepositoryException, IOException, ServletException {
+    public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response,
+                     @Nullable ResourceHandle resource) throws RepositoryException, IOException, ServletException {
         StatusWithVersionableListing status = new StatusWithVersionableListing(request, response);
         // FIXME(hps,09.12.19) we possibly should use a service resolver here. Not sure yet.
         //  -> Override AbstractServiceServlet.getResource.
-        if (resource.isValid()) {
-            Map<String, List<String>> siblingOrderData = new LinkedHashMap<>();
-            Resource releaseRoot = addParentSiblings(resource, siblingOrderData);
-            if (releaseRoot == null) {
-                status.withLogging(LOG).error("Not in a release root: {}", resource.getPath());
-            } else {
-                status.data(STATUSDATA_SIBLINGORDER).putAll(siblingOrderData);
-                status.resource = resource;
-            }
+        if (resource != null && resource.isValid()) {
+            status.resource = resource;
         } else {
             status.withLogging(LOG).error("No readable path given as suffix: {}", request.getRequestPathInfo().getSuffix());
         }
@@ -77,6 +66,8 @@ public class ContentStateOperation extends AbstractContentUpdateOperation {
      *
      * @return the release root
      */
+    @Deprecated
+    // FIXME(hps,09.12.19) remove this later - probably not needed.
     protected Resource addParentSiblings(@Nonnull ResourceHandle resource, @Nonnull Map<String, List<String>> data) {
         Resource releaseRoot = null;
         if (resource.isOfType(StagingConstants.TYPE_MIX_RELEASE_ROOT)) {
