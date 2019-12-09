@@ -29,6 +29,7 @@ import java.io.InputStreamReader;
 import java.util.List;
 import java.util.Map;
 
+import static com.composum.sling.core.util.CoreConstants.TYPE_VERSIONABLE;
 import static com.composum.sling.platform.staging.StagingConstants.TYPE_MIX_RELEASE_ROOT;
 import static com.composum.sling.platform.staging.StagingConstants.TYPE_MIX_REPLICATEDVERSIONABLE;
 import static com.composum.sling.platform.testing.testutil.JcrTestUtils.array;
@@ -67,16 +68,16 @@ public class ContentStateOperationTest {
         ResourceBuilder releaseRootBuilder = context.build().resource("/content/some/site", ResourceUtil.PROP_MIXINTYPES,
                 array(TYPE_MIX_RELEASE_ROOT)).commit();
         releaseRootBuilder.resource("folder1/page11/jcr:content",
-                ResourceUtil.PROP_MIXINTYPES, new String[]{TYPE_MIX_RELEASE_ROOT, TYPE_MIX_REPLICATEDVERSIONABLE},
+                ResourceUtil.PROP_MIXINTYPES, new String[]{TYPE_VERSIONABLE, TYPE_MIX_REPLICATEDVERSIONABLE},
                 StagingConstants.PROP_REPLICATED_VERSION, "f1p11uuid");
         releaseRootBuilder.resource("folder2/page21/jcr:content",
-                ResourceUtil.PROP_MIXINTYPES, new String[]{TYPE_MIX_RELEASE_ROOT, TYPE_MIX_REPLICATEDVERSIONABLE},
+                ResourceUtil.PROP_MIXINTYPES, new String[]{TYPE_VERSIONABLE, TYPE_MIX_REPLICATEDVERSIONABLE},
                 StagingConstants.PROP_REPLICATED_VERSION, "f2p21uuid");
         releaseRootBuilder.resource("folder1/page11/sub111/jcr:content",
-                ResourceUtil.PROP_MIXINTYPES, new String[]{TYPE_MIX_RELEASE_ROOT, TYPE_MIX_REPLICATEDVERSIONABLE},
+                ResourceUtil.PROP_MIXINTYPES, new String[]{TYPE_VERSIONABLE, TYPE_MIX_REPLICATEDVERSIONABLE},
                 StagingConstants.PROP_REPLICATED_VERSION, "f1p11s111uuid");
         releaseRootBuilder.resource("folder1/page11/sub112/jcr:content",
-                ResourceUtil.PROP_MIXINTYPES, new String[]{TYPE_MIX_RELEASE_ROOT, TYPE_MIX_REPLICATEDVERSIONABLE},
+                ResourceUtil.PROP_MIXINTYPES, new String[]{TYPE_VERSIONABLE, TYPE_MIX_REPLICATEDVERSIONABLE},
                 StagingConstants.PROP_REPLICATED_VERSION, "f1p11s212uuid");
         Resource releaseRoot = releaseRootBuilder.commit().getCurrentParent();
         ResourceHandle page11 = ResourceHandle.use(releaseRoot.getChild("folder1/page11"));
@@ -88,13 +89,14 @@ public class ContentStateOperationTest {
         cso.doIt(request, response, page11);
         ec.checkThat(response.getStatus(), is(200));
         ec.checkThat(response.getOutputAsString(),
-                is("{\"status\":200,\"success\":true,\"warning\":false," +
-                        "\"title\":\"Result\",\"messages\":[],\"siblingorder\":{\"/content/some/site/folder1\":[\"folder1\",\"folder2\"]}}"));
+                is("{\"status\":200,\"success\":true,\"warning\":false,\"title\":\"Result\"," +
+                        "\"messages\":[]," +
+                        "\"versionabledata\":{\"siblingorder\":{\"/content/some/site/folder1\":[\"folder1\",\"folder2\"]}},\"versionables\":{}}"));
 
         Gson gson = new GsonBuilder().create();
         TestStatusWithAttributes status = gson.fromJson(response.getOutputAsString(), TestStatusWithAttributes.class);
         ec.checkThat(status.getStatus(), is(200));
-        ec.checkThat((List<String>) status.siblingorder.get("/content/some/site/folder1"),
+        ec.checkThat((List<String>) status.versionabledata.get(ContentStateOperation.STATUSDATA_SIBLINGORDER).get("/content/some/site/folder1"),
                 contains("folder1", "folder2"));
 
     }
@@ -105,7 +107,7 @@ public class ContentStateOperationTest {
             super(request, response);
         }
 
-        Map<String, Object> siblingorder;
+        Map<String, Map<String, Object>> versionabledata;
     }
 
 }
