@@ -33,7 +33,7 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
 /** Reproduces weird ConstraintViolationExceptions when moving around versionables. */
-public class ReplacementStrategyExploration {
+public class ReplacementStrategyExplorationTest {
 
     @Rule
     public final SlingContext context = new SlingContext(ResourceResolverType.JCR_OAK);
