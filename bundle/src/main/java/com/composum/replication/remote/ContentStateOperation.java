@@ -117,17 +117,10 @@ public class ContentStateOperation extends AbstractContentUpdateOperation {
 
         protected void traverseTree(@Nonnull Resource resource, JsonWriter writer) throws IOException {
             if (ResourceUtil.isNodeType(resource, ResourceUtil.TYPE_VERSIONABLE)) {
-                String version = resource.getValueMap().get(PROP_REPLICATED_VERSION, String.class);
-                if (StringUtils.isNotBlank(version)) {
-                    writer.beginObject();
-                    writer.name("path").value(resource.getPath());
-                    writer.name("version").value(version);
-                    writer.endObject();
-                } else { // that shouldn't happen in the intended usecase.
-                    LOG.warn("Something's wrong here: {} has no {}", resource.getPath(), PROP_REPLICATED_VERSION);
-                }
+                VersionableInfo info = VersionableInfo.of(resource);
+                if (info != null) { gson.toJson(info, VersionableInfo.class, writer);}
             } else if (ResourceUtil.CONTENT_NODE.equals(resource.getName())) {
-                // that shouldn't happen in the intended usecase.
+                // that shouldn't happen in the intended usecase: non-versionable jcr:content
                 LOG.warn("Something's wrong here: {} has no {}", resource.getPath(), PROP_REPLICATED_VERSION);
             } else { // traverse tree
                 for (Resource child: resource.getChildren()) {
