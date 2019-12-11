@@ -1,5 +1,7 @@
 package com.composum.replication.remote;
 
+import com.composum.replication.remotereceiver.ContentStateOperation;
+import com.composum.replication.remotereceiver.RemotePublicationReceiverServlet;
 import com.composum.sling.core.ResourceHandle;
 import com.composum.sling.core.servlet.Status;
 import com.composum.sling.core.util.ResourceUtil;

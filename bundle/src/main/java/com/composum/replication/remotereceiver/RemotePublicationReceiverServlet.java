@@ -1,4 +1,4 @@
-package com.composum.replication.remote;
+package com.composum.replication.remotereceiver;
 
 import com.composum.sling.core.servlet.AbstractServiceServlet;
 import com.composum.sling.core.servlet.ServletOperationSet;

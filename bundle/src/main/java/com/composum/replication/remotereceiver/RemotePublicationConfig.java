@@ -1,4 +1,4 @@
-package com.composum.replication.remote;
+package com.composum.replication.remotereceiver;
 
 import com.composum.sling.core.AbstractSlingBean;
 import org.apache.commons.lang3.StringUtils;

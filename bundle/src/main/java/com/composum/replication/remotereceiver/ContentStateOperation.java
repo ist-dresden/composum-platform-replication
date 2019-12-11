@@ -1,11 +1,11 @@
-package com.composum.replication.remote;
+package com.composum.replication.remotereceiver;
 
+import com.composum.replication.remote.VersionableInfo;
 import com.composum.sling.core.ResourceHandle;
 import com.composum.sling.core.servlet.Status;
 import com.composum.sling.core.util.ResourceUtil;
 import com.composum.sling.platform.staging.StagingConstants;
 import com.google.gson.stream.JsonWriter;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.SlingHttpServletResponse;
 import org.apache.sling.api.resource.Resource;
@@ -19,7 +19,6 @@ import javax.jcr.RepositoryException;
 import javax.servlet.ServletException;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -40,7 +39,7 @@ public class ContentStateOperation extends AbstractContentUpdateOperation {
      */
     public static final String STATUSDATA_VERSIONABLES = "versionables";
 
-    public ContentStateOperation(@Nonnull Supplier<RemotePublicationReceiverServlet.Configuration> getConfig,
+    ContentStateOperation(@Nonnull Supplier<RemotePublicationReceiverServlet.Configuration> getConfig,
                                  @Nonnull ResourceResolverFactory resolverFactory) {
         super(getConfig, resolverFactory);
     }

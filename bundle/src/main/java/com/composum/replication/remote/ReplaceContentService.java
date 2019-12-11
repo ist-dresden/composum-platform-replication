@@ -2,6 +2,8 @@ package com.composum.replication.remote;
 
 import com.composum.platform.commons.crypt.CryptoService;
 import com.composum.platform.commons.util.LazyInputStream;
+import com.composum.replication.remotereceiver.RemotePublicationConfig;
+import com.composum.replication.remotereceiver.RemotePublicationReceiverServlet;
 import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.util.SlingResourceUtil;
 import com.composum.sling.nodes.NodesConfiguration;
@@ -121,7 +123,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             for (RemotePublicationConfig replicationConfig : replicationConfigs) {
                 HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                         passwordDecryptor());
-                HttpPost post = new HttpPost(replicationConfig.getReceiverUri());
+                HttpPost post = new HttpPost(replicationConfig.getReceiverUri() + ".replaceContent.zip");
                 post.setEntity(builder.build());
                 try (CloseableHttpResponse response = httpClient.execute(post, httpClientContext)) {
                     StatusLine statusLine = response.getStatusLine();

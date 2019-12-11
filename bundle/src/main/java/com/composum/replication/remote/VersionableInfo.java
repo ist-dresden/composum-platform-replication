@@ -24,12 +24,6 @@ public class VersionableInfo {
         // empty
     }
 
-    /** Constructor when reading from content. */
-    public VersionableInfo(Resource resource) {
-        this.path = resource.getPath();
-        this.version = resource.getValueMap().get(StagingConstants.PROP_REPLICATED_VERSION, String.class);
-    }
-
     public String getPath() {
         return path;
     }
