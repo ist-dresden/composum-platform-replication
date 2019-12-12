@@ -1,6 +1,7 @@
 package com.composum.replication.remotereceiver;
 
 import com.composum.sling.core.AbstractSlingBean;
+import com.composum.sling.platform.security.AccessMode;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.http.HttpHost;
@@ -24,7 +25,7 @@ import static org.apache.commons.lang3.StringUtils.isNotBlank;
 /** Bean modeling a remote publication configuration - subnode below /conf/{sitepath}/{site}/replication/ . */
 public class RemotePublicationConfig extends AbstractSlingBean {
 
-    /** Property name for {@link #getEnabled()}. */
+    /** Property name for {@link #isEnabled()}. */
     public static final String PROP_ENABLED = "enabled";
     /** Property name for {@link #getRelPath()}. */
     public static final String PROP_REL_PATH = "relPath";
@@ -42,8 +43,10 @@ public class RemotePublicationConfig extends AbstractSlingBean {
     public static final String PROP_PROXY_HOST = "proxyHost";
     /** Property name for {@link #getProxyPort()}. */
     public static final String PROP_PROXY_PORT = "proxyPort";
+    /** Property name for {@link #getReleaseMark()}. */
+    public static final String PROP_ACCESS_MODE = "releaseMark";
     private static final Logger LOG = LoggerFactory.getLogger(RemotePublicationConfig.class);
-    /** @see #getEnabled() */
+    /** @see #isEnabled() */
     private transient Boolean enabled;
     /** @see #getRelPath() */
     private transient String relPath;
@@ -63,9 +66,23 @@ public class RemotePublicationConfig extends AbstractSlingBean {
     private transient Integer proxyPort;
     /** @see #getProxyPassword() */
     private transient String proxyPassword;
+    /** @see #getReleaseMark() */
+    private transient String releaseMark;
+
+    /**
+     * The release mark (mostly {@value com.composum.sling.platform.security.AccessMode#PUBLIC} /
+     * {@value com.composum.sling.platform.security.AccessMode#PREVIEW}) for which the release is replicated.
+     * If empty, there is no replication.
+     */
+    public String getReleaseMark() {
+        if (releaseMark == null) {
+            releaseMark = getProperty(PROP_ACCESS_MODE, AccessMode.PUBLIC.name());
+        }
+        return releaseMark;
+    }
 
     /** Whether this replication is enabled - default true. */
-    public boolean getEnabled() {
+    public boolean isEnabled() {
         if (enabled == null) {
             enabled = getProperty(PROP_ENABLED, Boolean.TRUE);
         }
@@ -97,11 +114,12 @@ public class RemotePublicationConfig extends AbstractSlingBean {
     public String toString() {
         ToStringBuilder builder = new ToStringBuilder(this);
         builder
+                .append("releaseMark", getReleaseMark())
                 .append("path", getPath())
-                .append("relPath", relPath)
-                .append("receiverUrl", receiverUri)
+                .append("relPath", getRelPath())
+                .append("receiverUrl", getReceiverUri())
+                .append("enabled", isEnabled())
         ;
-        if (!getEnabled()) { builder.append("enabled", enabled); }
         return builder.toString();
     }
 

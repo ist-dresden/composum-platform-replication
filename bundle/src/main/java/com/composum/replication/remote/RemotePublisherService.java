@@ -8,7 +8,6 @@ import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.util.SlingResourceUtil;
 import com.composum.sling.nodes.NodesConfiguration;
 import com.composum.sling.nodes.servlet.SourceModel;
-import com.composum.sling.platform.security.AccessMode;
 import com.composum.sling.platform.staging.ReleaseChangeEventListener;
 import com.composum.sling.platform.staging.StagingReleaseManager;
 import org.apache.commons.lang3.StringUtils;
@@ -63,8 +62,8 @@ import java.util.zip.ZipOutputStream;
 @Designate(ocd = RemotePublisherService.Configuration.class)
 public class RemotePublisherService implements ReleaseChangeEventListener {
 
-    private static final Logger LOG = LoggerFactory.getLogger(RemotePublisherService.class);
-    
+    protected static final Logger LOG = LoggerFactory.getLogger(RemotePublisherService.class);
+
     public static final String PATH_CONFIGROOT = "/conf";
     public static final String DIR_REPLICATION = "/replication";
 
@@ -93,68 +92,17 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         ResourceResolver resolver = releaseManager.getResolverForRelease(release, null, false);
         BeanContext context = new BeanContext.Service(resolver);
 
-        if (release.getMarks().stream().map(AccessMode::accessModeValue).noneMatch((a) -> a.equals(AccessMode.PUBLIC))) {
-            return; // TODO possibly other than PUBLIC?
-        }
+        List<String> marks = release.getMarks();
+        if (marks.isEmpty()) { return; }
 
         List<RemotePublicationConfig> replicationConfigs = getReplicationConfigs(release.getReleaseRoot(), context);
         LOG.debug("Replication configurations: {}", replicationConfigs);
         if (replicationConfigs.isEmpty()) { return; }
 
-        Set<String> changedPaths = changedPaths(event);
-        LOG.info("Changed paths: {}", changedPaths);
+        for (RemotePublicationConfig replicationConfig : replicationConfigs) {
+            if (!replicationConfig.isEnabled() || !marks.contains(replicationConfig.getReleaseMark())) { continue; }
 
-        try {
-            List<Exception> exceptionHolder = Collections.synchronizedList(new ArrayList<>());
-
-            MultipartEntityBuilder builder = MultipartEntityBuilder.create();
-            for (String path : changedPaths) {
-                Resource resource = resolver.getResource(path);
-                if (resource != null) {
-                    InputStream pkg = createPkg(context, resource);
-                    builder.addTextBody(RemotePublicationReceiverServlet.PARAM_PATH, path);
-                    builder.addBinaryBody("file", pkg);
-                } else {
-                    builder.addTextBody(RemotePublicationReceiverServlet.PARAM_DELETED_PATH, path);
-                }
-            }
-            // deliberately as last parameter, mandatory and is also used to ensure request was transmitted completely:
-            builder.addTextBody(RemotePublicationReceiverServlet.PARAM_RELEASEROOT, release.getReleaseRoot().getPath());
-
-            for (RemotePublicationConfig replicationConfig : replicationConfigs) {
-                HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
-                        passwordDecryptor());
-                HttpPost post = new HttpPost(replicationConfig.getReceiverUri() + ".replaceContent.zip");
-                post.setEntity(builder.build());
-                try (CloseableHttpResponse response = httpClient.execute(post, httpClientContext)) {
-                    StatusLine statusLine = response.getStatusLine();
-                    if (statusLine.getStatusCode() < 200 || statusLine.getStatusCode() >= 300) {
-                        LOG.error("Failure response {}, {}", statusLine.getStatusCode(), statusLine.getReasonPhrase());
-                        throw new ReplicationFailedException("Could not publish to remote service because of "
-                                + statusLine.getStatusCode() + " : " + statusLine.getReasonPhrase(),
-                                null, event);
-                    }
-                    LOG.info("Remote replication successful with {}, {}", statusLine.getStatusCode(), statusLine.getReasonPhrase());
-                    if (!exceptionHolder.isEmpty()) {
-                        // FIXME(hps,21.11.19) Ouch! That would be really troublesome! How to prevent such a situation?
-                        ReplicationFailedException replicationFailedException =
-                                new ReplicationFailedException("Remote publishing succeed but with broken transmitted " +
-                                        "content! Please repeat - there might be broken content at the other side.",
-                                        exceptionHolder.get(0), event);
-                        for (Exception exception : exceptionHolder) {
-                            LOG.error("Generating the written zip yielded an exception", exception);
-                            //noinspection ObjectEquality
-                            if (exception != exceptionHolder.get(0)) {
-                                replicationFailedException.addSuppressed(exception);
-                            }
-                        }
-                        throw replicationFailedException;
-                    }
-                }
-            }
-        } catch (IOException | RuntimeException | RepositoryException e) {
-            LOG.error("Remote publishing failed", e);
-            throw new ReplicationFailedException("Remote publishing failed", e, event);
+            new ReplicatorStrategy(event, release, context, replicationConfig).replicate();
         }
     }
 
@@ -165,68 +113,6 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             decryptor = (password) -> cryptoService.decrypt(password, key);
         }
         return decryptor;
-    }
-
-    /**
-     * Try to avoid creating the whole zip in memory. Not quite right yet, since that might fill up the pool
-     * if there are many things to write.
-     */
-    @Deprecated
-    protected InputStream startZipWriting(BeanContext context, Set<String> changedPaths,
-                                          Exception[] exceptionHolder) {
-        PipedInputStream zipContent = new PipedInputStream();
-        threadPool.execute(() -> {
-            try (OutputStream writeZipStream = new PipedOutputStream(zipContent);
-                 ZipOutputStream zipStream = new ZipOutputStream(writeZipStream)) {
-                writePathsToZip(context, changedPaths, zipStream);
-                zipStream.flush();
-            } catch (RepositoryException | IOException | RuntimeException e) {
-                exceptionHolder[0] = e;
-            }
-        });
-        return zipContent;
-    }
-
-    @Nonnull
-    protected InputStream createPkg(@Nonnull BeanContext context, @Nonnull Resource resource) throws RepositoryException, IOException {
-        SourceModel model = new SourceModel(nodesConfig, context, resource);
-        return new LazyInputStream(() -> {
-            // TODO avoid creating the whole page in memory - something like startZipWriting?
-            ByteArrayOutputStream writeZipStream = new ByteArrayOutputStream();
-            model.writePackage(writeZipStream, "remotepublisher", resource.getPath(), "1");
-            return new ByteArrayInputStream(writeZipStream.toByteArray());
-        });
-    }
-
-    protected void writePathsToZip(BeanContext context, Set<String> changedPaths, ZipOutputStream zipStream) throws IOException, RepositoryException {
-        for (String path : changedPaths) {
-            Resource resource = context.getResolver().getResource(path);
-            if (resource != null) {
-                SourceModel model = new SourceModel(nodesConfig, context, resource);
-                model.writeZip(zipStream, resource.getPath(), true);
-            }
-        }
-    }
-
-    protected Set<String> changedPaths(ReleaseChangeEvent event) {
-        Set<String> changedPaths = new LinkedHashSet<>();
-        changedPaths.addAll(event.newOrMovedResources());
-        changedPaths.addAll(event.removedOrMovedResources());
-        changedPaths.addAll(event.updatedResources());
-        changedPaths = cleanupPaths(changedPaths);
-        return changedPaths;
-    }
-
-    /** Removes paths that are contained in other paths. */
-    protected Set<String> cleanupPaths(Set<String> changedPaths) {
-        Set<String> cleanedPaths = new LinkedHashSet<>();
-        for (String path : changedPaths) {
-            cleanedPaths.removeIf((p) -> SlingResourceUtil.isSameOrDescendant(path, p));
-            if (cleanedPaths.stream().noneMatch((p) -> SlingResourceUtil.isSameOrDescendant(p, path))) {
-                cleanedPaths.add(path);
-            }
-        }
-        return cleanedPaths;
     }
 
     protected List<RemotePublicationConfig> getReplicationConfigs(@Nonnull Resource releaseRoot,
@@ -285,10 +171,147 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         boolean enabled() default false;
 
         @AttributeDefinition(
-                description = "Password to encrypt the passwords of remote receivers."
+                description = "Password to decrypt the passwords in the configurations of remote receivers."
         )
         String configurationPassword() default "";
 
     }
 
+    /** Responsible for one replication. */
+    protected class ReplicatorStrategy {
+        protected final ReleaseChangeEvent event;
+        protected final StagingReleaseManager.Release release;
+        protected final ResourceResolver resolver;
+        protected final BeanContext context;
+        protected final RemotePublicationConfig replicationConfig;
+
+        protected ReplicatorStrategy(ReleaseChangeEvent event, StagingReleaseManager.Release release, BeanContext context, RemotePublicationConfig replicationConfig) {
+            this.event = event;
+            this.release = release;
+            this.resolver = context.getResolver();
+            this.context = context;
+            this.replicationConfig = replicationConfig;
+        }
+
+        protected void replicate() throws ReplicationFailedException {
+            try {
+                Set<String> changedPaths = changedPaths(event);
+                LOG.info("Changed paths: {}", changedPaths);
+
+                List<Exception> exceptionHolder = Collections.synchronizedList(new ArrayList<>());
+
+                MultipartEntityBuilder builder = MultipartEntityBuilder.create();
+                for (String path : changedPaths) {
+                    Resource resource = resolver.getResource(path);
+                    if (resource != null) {
+                        InputStream pkg = createPkg(context, resource);
+                        builder.addTextBody(RemotePublicationReceiverServlet.PARAM_PATH, path);
+                        builder.addBinaryBody("file", pkg);
+                    } else {
+                        builder.addTextBody(RemotePublicationReceiverServlet.PARAM_DELETED_PATH, path);
+                    }
+                }
+                // deliberately as last parameter, mandatory and is also used to ensure request was transmitted completely:
+                builder.addTextBody(RemotePublicationReceiverServlet.PARAM_RELEASEROOT,
+                        release.getReleaseRoot().getPath());
+
+                HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
+                        passwordDecryptor());
+                HttpPost post = new HttpPost(replicationConfig.getReceiverUri() + ".replaceContent.zip");
+                post.setEntity(builder.build());
+                try (CloseableHttpResponse response = httpClient.execute(post, httpClientContext)) {
+                    StatusLine statusLine = response.getStatusLine();
+                    if (statusLine.getStatusCode() < 200 || statusLine.getStatusCode() >= 300) {
+                        LOG.error("Failure response {}, {}", statusLine.getStatusCode(), statusLine.getReasonPhrase());
+                        throw new ReplicationFailedException("Could not publish to remote service because of "
+                                + statusLine.getStatusCode() + " : " + statusLine.getReasonPhrase(),
+                                null, event);
+                    }
+                    LOG.info("Remote replication successful with {}, {}", statusLine.getStatusCode(), statusLine.getReasonPhrase());
+                    if (!exceptionHolder.isEmpty()) {
+                        // FIXME(hps,21.11.19) Ouch! That would be really troublesome! How to prevent such a situation?
+                        ReplicationFailedException replicationFailedException =
+                                new ReplicationFailedException("Remote publishing succeed but with broken transmitted " +
+                                        "content! Please repeat - there might be broken content at the other side.",
+                                        exceptionHolder.get(0), event);
+                        for (Exception exception : exceptionHolder) {
+                            LOG.error("Generating the written zip yielded an exception", exception);
+                            //noinspection ObjectEquality
+                            if (exception != exceptionHolder.get(0)) {
+                                replicationFailedException.addSuppressed(exception);
+                            }
+                        }
+                        throw replicationFailedException;
+                    }
+
+                }
+            } catch (IOException | RuntimeException | RepositoryException e) {
+                LOG.error("Remote publishing failed", e);
+                throw new ReplicationFailedException("Remote publishing failed for " + replicationConfig, e, event);
+            }
+        }
+
+        /**
+         * Try to avoid creating the whole zip in memory. Not quite right yet, since that might fill up the pool
+         * if there are many things to write.
+         */
+        @Deprecated
+        protected InputStream startZipWriting(BeanContext context, Set<String> changedPaths,
+                                              Exception[] exceptionHolder) {
+            PipedInputStream zipContent = new PipedInputStream();
+            threadPool.execute(() -> {
+                try (OutputStream writeZipStream = new PipedOutputStream(zipContent);
+                     ZipOutputStream zipStream = new ZipOutputStream(writeZipStream)) {
+                    writePathsToZip(context, changedPaths, zipStream);
+                    zipStream.flush();
+                } catch (RepositoryException | IOException | RuntimeException e) {
+                    exceptionHolder[0] = e;
+                }
+            });
+            return zipContent;
+        }
+
+        @Nonnull
+        protected InputStream createPkg(@Nonnull BeanContext context, @Nonnull Resource resource) throws RepositoryException, IOException {
+            SourceModel model = new SourceModel(nodesConfig, context, resource);
+            return new LazyInputStream(() -> {
+                // TODO avoid creating the whole page in memory - something like startZipWriting?
+                ByteArrayOutputStream writeZipStream = new ByteArrayOutputStream();
+                model.writePackage(writeZipStream, "remotepublisher", resource.getPath(), "1");
+                return new ByteArrayInputStream(writeZipStream.toByteArray());
+            });
+        }
+
+        protected void writePathsToZip(BeanContext context, Set<String> changedPaths, ZipOutputStream zipStream) throws IOException, RepositoryException {
+            for (String path : changedPaths) {
+                Resource resource = context.getResolver().getResource(path);
+                if (resource != null) {
+                    SourceModel model = new SourceModel(nodesConfig, context, resource);
+                    model.writeZip(zipStream, resource.getPath(), true);
+                }
+            }
+        }
+
+        protected Set<String> changedPaths(ReleaseChangeEvent event) {
+            Set<String> changedPaths = new LinkedHashSet<>();
+            changedPaths.addAll(event.newOrMovedResources());
+            changedPaths.addAll(event.removedOrMovedResources());
+            changedPaths.addAll(event.updatedResources());
+            changedPaths = cleanupPaths(changedPaths);
+            return changedPaths;
+        }
+
+        /** Removes paths that are contained in other paths. */
+        protected Set<String> cleanupPaths(Set<String> changedPaths) {
+            Set<String> cleanedPaths = new LinkedHashSet<>();
+            for (String path : changedPaths) {
+                cleanedPaths.removeIf((p) -> SlingResourceUtil.isSameOrDescendant(path, p));
+                if (cleanedPaths.stream().noneMatch((p) -> SlingResourceUtil.isSameOrDescendant(p, path))) {
+                    cleanedPaths.add(path);
+                }
+            }
+            return cleanedPaths;
+        }
+
+    }
 }
