@@ -52,19 +52,19 @@ import java.util.function.Function;
 import java.util.zip.ZipOutputStream;
 
 /**
- * (Obsolete) Transmits the changes of the JCR content of a release to a remote system.
+ * Transmits the changes of the JCR content of a release to a remote system.
  * We transmit the subtrees of all resources changed in the event as a zip to the
  * {@link RemotePublicationReceiverServlet}.
- * @deprecated still works, but will be removed after the important parts are extracted.
  */
 @Component(
         service = ReleaseChangeEventListener.class,
-        name = "Composum Platform Remote Publisher Service (OLD)",
+        name = "Composum Platform Remote Publisher Service",
         immediate = true)
-@Designate(ocd = ReplaceContentService.Configuration.class)
-public class ReplaceContentService implements ReleaseChangeEventListener {
+@Designate(ocd = RemotePublisherService.Configuration.class)
+public class RemotePublisherService implements ReleaseChangeEventListener {
 
-    private static final Logger LOG = LoggerFactory.getLogger(ReplaceContentService.class);
+    private static final Logger LOG = LoggerFactory.getLogger(RemotePublisherService.class);
+    
     public static final String PATH_CONFIGROOT = "/conf";
     public static final String DIR_REPLICATION = "/replication";
 
@@ -253,7 +253,7 @@ public class ReplaceContentService implements ReleaseChangeEventListener {
         LOG.info("activated");
         this.config = theConfig;
         this.httpClient = HttpClients.createDefault();
-        this.threadPool = threadPoolManager.get(ReplaceContentService.class.getName());
+        this.threadPool = threadPoolManager.get(RemotePublisherService.class.getName());
     }
 
     @Deactivate
@@ -269,7 +269,7 @@ public class ReplaceContentService implements ReleaseChangeEventListener {
     }
 
     protected boolean isEnabled() {
-        ReplaceContentService.Configuration theconfig = this.config;
+        RemotePublisherService.Configuration theconfig = this.config;
         return theconfig != null && theconfig.enabled();
     }
 
