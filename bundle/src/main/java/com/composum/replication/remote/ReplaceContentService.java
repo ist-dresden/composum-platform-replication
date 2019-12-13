@@ -4,6 +4,7 @@ import com.composum.platform.commons.crypt.CryptoService;
 import com.composum.platform.commons.util.LazyInputStream;
 import com.composum.replication.remotereceiver.RemotePublicationConfig;
 import com.composum.replication.remotereceiver.RemotePublicationReceiverServlet;
+import com.composum.replication.remotereceiver.RemoteReceiverConstants;
 import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.util.SlingResourceUtil;
 import com.composum.sling.nodes.NodesConfiguration;
@@ -112,14 +113,14 @@ public class ReplaceContentService implements ReleaseChangeEventListener {
                 Resource resource = resolver.getResource(path);
                 if (resource != null) {
                     InputStream pkg = createPkg(context, resource);
-                    builder.addTextBody(RemotePublicationReceiverServlet.PARAM_PATH, path);
+                    builder.addTextBody(RemoteReceiverConstants.PARAM_PATH, path);
                     builder.addBinaryBody("file", pkg);
                 } else {
-                    builder.addTextBody(RemotePublicationReceiverServlet.PARAM_DELETED_PATH, path);
+                    builder.addTextBody(RemoteReceiverConstants.PARAM_DELETED_PATH, path);
                 }
             }
             // deliberately as last parameter, mandatory and is also used to ensure request was transmitted completely:
-            builder.addTextBody(RemotePublicationReceiverServlet.PARAM_RELEASEROOT, release.getReleaseRoot().getPath());
+            builder.addTextBody(RemoteReceiverConstants.PARAM_RELEASEROOT, release.getReleaseRoot().getPath());
 
             for (RemotePublicationConfig replicationConfig : replicationConfigs) {
                 HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
@@ -274,7 +275,7 @@ public class ReplaceContentService implements ReleaseChangeEventListener {
     }
 
     @ObjectClassDefinition(
-            name = "Composum Platform Remote Publisher Service Configuration",
+            name = "Composum Platform Remote Publisher Service Configuration (OLD)",
             description = "Configures a service that publishes release changes to remote systems"
     )
     public @interface Configuration {

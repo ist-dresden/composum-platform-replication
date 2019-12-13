@@ -41,9 +41,9 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static com.composum.sling.core.servlet.AbstractServiceServlet.PARAM_FILE;
-import static com.composum.replication.remotereceiver.RemotePublicationReceiverServlet.PARAM_DELETED_PATH;
-import static com.composum.replication.remotereceiver.RemotePublicationReceiverServlet.PARAM_PATH;
-import static com.composum.replication.remotereceiver.RemotePublicationReceiverServlet.PARAM_RELEASEROOT;
+import static com.composum.replication.remotereceiver.RemoteReceiverConstants.PARAM_DELETED_PATH;
+import static com.composum.replication.remotereceiver.RemoteReceiverConstants.PARAM_PATH;
+import static com.composum.replication.remotereceiver.RemoteReceiverConstants.PARAM_RELEASEROOT;
 import static java.util.Objects.requireNonNull;
 import static org.apache.commons.lang3.StringUtils.removeStart;
 

@@ -12,6 +12,7 @@ import org.apache.sling.testing.mock.sling.junit.SlingContext;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -33,6 +34,7 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
 /** Reproduces weird ConstraintViolationExceptions when moving around versionables. */
+@Ignore("Only for reference - not about production code.")
 public class ReplacementStrategyExplorationTest {
 
     @Rule
@@ -68,7 +70,7 @@ public class ReplacementStrategyExplorationTest {
 
     @After
     public void teardown() throws PersistenceException {
-        JcrTestUtils.printResourceRecursivelyAsJson(resolver, "/content");
+        // JcrTestUtils.printResourceRecursivelyAsJson(resolver, "/content");
     }
 
     @Test

@@ -19,9 +19,9 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.sling.api.SlingHttpServletRequest;
-import org.apache.sling.api.SlingHttpServletResponse;
+import org.apache.http.message.BasicNameValuePair;
 import org.apache.sling.api.resource.Resource;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,29 +87,32 @@ public class RemotePublicationReceiverFacade {
      * Starts an update process on the remote side. To clean up resources, either {@link #commitUpdate(String)} or
      * {@link #abortUpdate(String)} must be called afterwards.
      *
+     *
+     * @param releaseRoot the root of the release containing {path} (may be equal to {path})
      * @param path the root content path that should be considered. Might be the root of a release, or any
      *             subdirectory.
      * @return the basic information about the update which must be used for all related calls on this update.
      */
     @Nonnull
-    public UpdateInfo startUpdate(@Nonnull String path) throws RemotePublicationReceiverException {
+    public StartUpdateOperation.UpdateInfo startUpdate(@NotNull String releaseRoot, @Nonnull String path) throws RemotePublicationReceiverException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 passwordDecryptor());
         List<NameValuePair> form = new ArrayList<>();
+        form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_RELEASEROOT, releaseRoot));
         UrlEncodedFormEntity entity = new UrlEncodedFormEntity(form, Consts.UTF_8);
-        String uri = replicationConfig.getReceiverUri() + "." + Operation.startupdate.name() + Extension.json.name();
+        String uri = replicationConfig.getReceiverUri() + "." + Operation.startupdate.name() + "." + Extension.json.name() + path;
         HttpPost post = new HttpPost(uri);
         post.setEntity(entity);
 
-        Class<StatusWithReleaseData> statusClass = StatusWithReleaseData.class;
-        StatusWithReleaseData status = callRemotePublicationReceiver(path, httpClientContext, post, statusClass);
-        UpdateInfo updateInfo = status.releaseupdate;
+        Class<StartUpdateOperation.StatusWithReleaseData> statusClass = StartUpdateOperation.StatusWithReleaseData.class;
+        StartUpdateOperation.StatusWithReleaseData status = callRemotePublicationReceiver(path, httpClientContext, post, statusClass);
+        StartUpdateOperation.UpdateInfo updateInfo = status.updateInfo;
         return updateInfo;
     }
 
     @Nonnull
-    protected StatusWithReleaseData callRemotePublicationReceiver(@Nonnull String path, HttpClientContext httpClientContext, HttpUriRequest request, Class<StatusWithReleaseData> statusClass) throws RemotePublicationReceiverException {
-        StatusWithReleaseData status = null;
+    protected StartUpdateOperation.StatusWithReleaseData callRemotePublicationReceiver(@Nonnull String path, HttpClientContext httpClientContext, HttpUriRequest request, Class<StartUpdateOperation.StatusWithReleaseData> statusClass) throws RemotePublicationReceiverException {
+        StartUpdateOperation.StatusWithReleaseData status = null;
         StatusLine statusLine = null;
         try (CloseableHttpResponse response = httpClient.execute(request, httpClientContext)) {
             statusLine = response.getStatusLine();
@@ -137,55 +140,18 @@ public class RemotePublicationReceiverFacade {
     }
 
     /** Uploads the resource tree to the remote machine. */
-    public void pathupload(@Nonnull UpdateInfo updateInfo, @Nonnull Resource resource) throws RemotePublicationReceiverException {
+    public void pathupload(@Nonnull StartUpdateOperation.UpdateInfo updateInfo, @Nonnull Resource resource) throws RemotePublicationReceiverException {
         throw new UnsupportedOperationException("Not implemented yet."); // FIXME hps 11.12.19 not implemented
     }
 
     /** Executes the update. */
-    public void commitUpdate(@Nonnull UpdateInfo updateInfo) throws RemotePublicationReceiverException {
+    public void commitUpdate(@Nonnull StartUpdateOperation.UpdateInfo updateInfo) throws RemotePublicationReceiverException {
         throw new UnsupportedOperationException("Not implemented yet."); // FIXME hps 11.12.19 not implemented
     }
 
     /** Aborts the update, deleting the temporary directory on the remote side. */
-    public void abortUpdate(@Nonnull UpdateInfo updateInfo) throws RemotePublicationReceiverException {
+    public void abortUpdate(@Nonnull StartUpdateOperation.UpdateInfo updateInfo) throws RemotePublicationReceiverException {
         throw new UnsupportedOperationException("Not implemented yet."); // FIXME hps 11.12.19 not implemented
-    }
-
-    public static class UpdateInfo {
-
-        /**
-         * The update id for the pending operation - has to be named like
-         * {@link AbstractContentUpdateOperation#PARAM_UPDATEID}.
-         */
-        String updateId;
-
-        /** The release change Id - has to be named like {@link AbstractContentUpdateOperation#PARAM_CHANGEID}. */
-        String releaseChangeId;
-
-        @Override
-        public String toString() {
-            final StringBuilder sb = new StringBuilder("UpdateInfo{");
-            sb.append("releaseChangeId='").append(releaseChangeId).append('\'');
-            sb.append(", updateId='").append(updateId).append('\'');
-            sb.append('}');
-            return sb.toString();
-        }
-    }
-
-    /** Reads the result of {@link StartUpdateOperation} into memory. */
-    public static class StatusWithReleaseData extends Status {
-
-        /** The created update data - has to be named like {@link AbstractContentUpdateOperation#DATAFIELD_NAME}. */
-        UpdateInfo releaseupdate;
-
-        public StatusWithReleaseData() {
-            super(null, null);
-        }
-
-        @Override
-        public boolean isValid() {
-            return super.isValid() && releaseupdate != null && releaseupdate.updateId != null;
-        }
     }
 
     /** Exception that signifies a problem with the replication. */

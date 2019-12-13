@@ -24,13 +24,10 @@ public abstract class AbstractContentUpdateOperation implements ServletOperation
     protected final ResourceResolverFactory resolverFactory;
 
     /** Name of the {@link Status#data(String)}. */
-    public static final String DATAFIELD_NAME = "releaseupdate";
+    public static final String DATAFIELD_NAME = "updateInfo";
 
     /** Name of the parameter to contain the update id. */
     public static final String PARAM_UPDATEID = "updateId";
-
-    /** Name of the parameter to contain the update id. */
-    public static final String PARAM_CHANGEID = "releaseChangeId";
 
     protected final NodeTreeSynchronizer nodeTreeSynchronizer = new NodeTreeSynchronizer();
 
@@ -42,17 +39,17 @@ public abstract class AbstractContentUpdateOperation implements ServletOperation
     }
 
     @Nonnull
-    protected Resource getTmpLocation(@Nonnull ResourceResolver resolver, @Nonnull String updateid, boolean create) throws RepositoryException {
-        if (StringUtils.isBlank(updateid) || updateid.matches("[a-z0-9-]*")) {
-            throw new IllegalArgumentException(updateid);
+    protected Resource getTmpLocation(@Nonnull ResourceResolver resolver, @Nonnull String updateId, boolean create) throws RepositoryException {
+        if (StringUtils.isBlank(updateId) || updateId.matches("[a-z0-9-]*")) {
+            throw new IllegalArgumentException("Broken updateId: " + updateId);
         }
-        String path = configSupplier.get().tmpDir() + "/" + updateid;
+        String path = configSupplier.get().tmpDir() + "/" + updateId;
         Resource tmpLocation = resolver.getResource(path);
         if (tmpLocation == null) {
             if (create) {
                 tmpLocation = ResourceUtil.getOrCreateResource(resolver, path);
             } else {
-                throw new IllegalArgumentException("Unknown updateid " + updateid);
+                throw new IllegalArgumentException("Unknown updateId " + updateId);
             }
         }
         return tmpLocation;

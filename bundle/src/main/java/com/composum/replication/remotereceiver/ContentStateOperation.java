@@ -1,10 +1,16 @@
 package com.composum.replication.remotereceiver;
 
+import com.composum.platform.commons.json.JSonOnTheFlyCollectionAdapter;
+import com.composum.platform.commons.json.JsonSelfSerializer;
 import com.composum.replication.remote.VersionableInfo;
 import com.composum.sling.core.ResourceHandle;
 import com.composum.sling.core.servlet.Status;
 import com.composum.sling.core.util.ResourceUtil;
 import com.composum.sling.platform.staging.StagingConstants;
+import com.google.gson.Gson;
+import com.google.gson.JsonSerializer;
+import com.google.gson.annotations.JsonAdapter;
+import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonWriter;
 import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.SlingHttpServletResponse;
@@ -21,6 +27,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static com.composum.sling.platform.staging.StagingConstants.PROP_REPLICATED_VERSION;
@@ -40,14 +47,14 @@ public class ContentStateOperation extends AbstractContentUpdateOperation {
     public static final String STATUSDATA_VERSIONABLES = "versionables";
 
     ContentStateOperation(@Nonnull Supplier<RemotePublicationReceiverServlet.Configuration> getConfig,
-                                 @Nonnull ResourceResolverFactory resolverFactory) {
+                          @Nonnull ResourceResolverFactory resolverFactory) {
         super(getConfig, resolverFactory);
     }
 
     @Override
     public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response,
                      @Nullable ResourceHandle resource) throws RepositoryException, IOException, ServletException {
-        StatusWithVersionableListing status = new StatusWithVersionableListing(request, response);
+        ContentStateStatus status = new ContentStateStatus(request, response);
         // FIXME(hps,09.12.19) we possibly should use a service resolver here. Not sure yet.
         //  -> Override AbstractServiceServlet.getResource.
         if (resource != null && resource.isValid()) {
@@ -93,11 +100,19 @@ public class ContentStateOperation extends AbstractContentUpdateOperation {
      * Extends Status to write data about all versionables below resource without needing to save everything in
      * memory - the data is fetched on the fly during JSON serialization.
      */
-    protected class StatusWithVersionableListing extends Status {
+    protected class ContentStateStatus extends Status {
 
-        protected ResourceHandle resource;
+        protected transient ResourceHandle resource;
 
-        public StatusWithVersionableListing(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response) {
+        /**
+         * Is serialized to the stream of versionables; needs to be named exactly as
+         * {@vale #STATUSDATA_VERSIONABLES}.
+         */
+        // TODO this is not the nicest design, and not deserializable.
+        protected JSonOnTheFlyCollectionAdapter.OnTheFlyProducer<VersionableInfo> versionables =
+                JSonOnTheFlyCollectionAdapter.onTheFlyProducer((output) -> traverseTree(resource, output));
+
+        public ContentStateStatus(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response) {
             super(request, response);
         }
 
@@ -105,25 +120,16 @@ public class ContentStateOperation extends AbstractContentUpdateOperation {
          * Traverses through the descendant tree of resource up to the content nodes and logs the versions of the
          * versionables.
          */
-        @Override
-        protected void writeAdditionalAttributes(@Nonnull JsonWriter writer) throws IOException {
-            if (resource != null && resource.isValid()) {
-                writer.name(STATUSDATA_VERSIONABLES).beginArray();
-                traverseTree(resource, writer);
-                writer.endArray();
-            }
-        }
-
-        protected void traverseTree(@Nonnull Resource resource, JsonWriter writer) throws IOException {
+        protected void traverseTree(@Nonnull Resource resource, Consumer<VersionableInfo> output) throws IOException {
             if (ResourceUtil.isNodeType(resource, ResourceUtil.TYPE_VERSIONABLE)) {
                 VersionableInfo info = VersionableInfo.of(resource);
-                if (info != null) { gson.toJson(info, VersionableInfo.class, writer);}
+                if (info != null) { output.accept(info); }
             } else if (ResourceUtil.CONTENT_NODE.equals(resource.getName())) {
                 // that shouldn't happen in the intended usecase: non-versionable jcr:content
                 LOG.warn("Something's wrong here: {} has no {}", resource.getPath(), PROP_REPLICATED_VERSION);
             } else { // traverse tree
-                for (Resource child: resource.getChildren()) {
-                    traverseTree(child, writer);
+                for (Resource child : resource.getChildren()) {
+                    traverseTree(child, output);
                 }
             }
         }

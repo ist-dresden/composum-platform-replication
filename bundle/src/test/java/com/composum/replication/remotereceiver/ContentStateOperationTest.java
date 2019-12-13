@@ -1,4 +1,4 @@
-package com.composum.replication.remote;
+package com.composum.replication.remotereceiver;
 
 import com.composum.replication.remotereceiver.ContentStateOperation;
 import com.composum.replication.remotereceiver.RemotePublicationReceiverServlet;
@@ -91,11 +91,11 @@ public class ContentStateOperationTest {
         cso.doIt(request, response, page11);
         ec.checkThat(response.getStatus(), is(200));
         ec.checkThat(response.getOutputAsString(),
-                is("{\"status\":200,\"success\":true,\"warning\":false,\"title\":\"Result\"," +
-                        "\"messages\":[]," +
-                        "\"versionables\":[{\"path\":\"/content/some/site/folder1/page11/jcr:content\",\"version\":\"f1p11uuid\"}," +
+                is("{\"versionables\":[" +
+                        "{\"path\":\"/content/some/site/folder1/page11/jcr:content\",\"version\":\"f1p11uuid\"}," +
                         "{\"path\":\"/content/some/site/folder1/page11/sub111/jcr:content\",\"version\":\"f1p11s111uuid\"}," +
-                        "{\"path\":\"/content/some/site/folder1/page11/sub112/jcr:content\",\"version\":\"f1p11s212uuid\"}]}"));
+                        "{\"path\":\"/content/some/site/folder1/page11/sub112/jcr:content\",\"version\":\"f1p11s212uuid\"}]," +
+                        "\"status\":200,\"success\":true,\"warning\":false}"));
 
         Gson gson = new GsonBuilder().create();
         TestStatusWithAttributes status = gson.fromJson(response.getOutputAsString(), TestStatusWithAttributes.class);

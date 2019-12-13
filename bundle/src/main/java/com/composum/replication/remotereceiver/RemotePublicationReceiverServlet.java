@@ -33,18 +33,6 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
 
     private static final Logger LOG = LoggerFactory.getLogger(RemotePublicationReceiverServlet.class);
 
-    /** Parameter for a changed path. */
-    public static final String PARAM_PATH = "path";
-
-    /** Parameter for a changed path. */
-    public static final String PARAM_DELETED_PATH = "deletedpath";
-
-    /**
-     * Mandatory parameter that points to the release root. Should be deliberately used as last part in the request,
-     * to easily ensure that the whole request was transmitted.
-     */
-    public static final String PARAM_RELEASEROOT = "releaseRoot";
-
     protected volatile Configuration config;
 
     public enum Extension {zip, json}
@@ -75,6 +63,8 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 new ReplaceContentOperation(this::getConfig, resolverFactory));
         operations.setOperation(ServletOperationSet.Method.GET, Extension.json, Operation.contentstate,
                 new ContentStateOperation(this::getConfig, resolverFactory));
+        operations.setOperation(ServletOperationSet.Method.POST, Extension.json, Operation.startupdate,
+                new StartUpdateOperation(this::getConfig, resolverFactory));
     }
 
     @Activate
