@@ -1,4 +1,4 @@
-package com.composum.replication.remotereceiver;
+package com.composum.platform.replication.remotereceiver;
 
 /** Constants related to the remote receiver for receiving content from an author host at the publisher. */
 public interface RemoteReceiverConstants {

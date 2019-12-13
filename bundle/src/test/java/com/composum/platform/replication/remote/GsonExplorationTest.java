@@ -1,22 +1,18 @@
-package com.composum.replication.remote;
+package com.composum.platform.replication.remote;
 
 import com.composum.sling.platform.testing.testutil.ErrorCollectorAlwaysPrintingFailures;
-import com.google.common.collect.Range;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.TypeAdapter;
 import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
-import org.hamcrest.Matchers;
-import org.jetbrains.annotations.NotNull;
 import org.junit.Rule;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.AbstractList;
 import java.util.Arrays;
-import java.util.Iterator;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;

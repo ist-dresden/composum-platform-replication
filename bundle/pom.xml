@@ -15,7 +15,7 @@
     <description>Composum Platform subproject for replicating content remotely to publish hosts Bundle</description>
 
     <properties>
-        <bundle.name>com.composum.replication</bundle.name>
+        <bundle.name>com.composum.platform.replication</bundle.name>
     </properties>
 
     <build>
@@ -29,7 +29,7 @@
                         <Bundle-Category>${bundle.category}</Bundle-Category>
                         <Bundle-SymbolicName>${bundle.name}</Bundle-SymbolicName>
                         <Include-Resource>{maven-resources}</Include-Resource>
-                        <Export-Package>com.composum.replication.*</Export-Package>
+                        <Export-Package>com.composum.platform.replication.*</Export-Package>
                         <Import-Package>org.apache.felix.shell;resolution:=optional,
                             javax.annotation.*;version="[0,4)",
                             *</Import-Package>

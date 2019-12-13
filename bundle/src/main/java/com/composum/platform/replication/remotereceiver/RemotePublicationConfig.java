@@ -1,4 +1,4 @@
-package com.composum.replication.remotereceiver;
+package com.composum.platform.replication.remotereceiver;
 
 import com.composum.sling.core.AbstractSlingBean;
 import com.composum.sling.platform.security.AccessMode;

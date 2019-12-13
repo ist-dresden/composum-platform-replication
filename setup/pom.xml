@@ -24,7 +24,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.composum.replication.setup.SetupHook</mainClass>
+                            <mainClass>com.composum.platform.replication.setup.SetupHook</mainClass>
                             <addClasspath>true</addClasspath>
                         </manifest>
                     </archive>

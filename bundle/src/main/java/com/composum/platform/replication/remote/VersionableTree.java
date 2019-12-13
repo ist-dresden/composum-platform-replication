@@ -1,4 +1,4 @@
-package com.composum.replication.remote;
+package com.composum.platform.replication.remote;
 
 import com.composum.platform.commons.json.JSonOnTheFlyCollectionAdapter;
 import com.composum.sling.core.util.ResourceUtil;

@@ -1,17 +1,11 @@
-package com.composum.replication.remotereceiver;
+package com.composum.platform.replication.remotereceiver;
 
 import com.composum.platform.commons.json.JSonOnTheFlyCollectionAdapter;
-import com.composum.platform.commons.json.JsonSelfSerializer;
-import com.composum.replication.remote.VersionableInfo;
+import com.composum.platform.replication.remote.VersionableInfo;
 import com.composum.sling.core.ResourceHandle;
 import com.composum.sling.core.servlet.Status;
 import com.composum.sling.core.util.ResourceUtil;
 import com.composum.sling.platform.staging.StagingConstants;
-import com.google.gson.Gson;
-import com.google.gson.JsonSerializer;
-import com.google.gson.annotations.JsonAdapter;
-import com.google.gson.reflect.TypeToken;
-import com.google.gson.stream.JsonWriter;
 import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.SlingHttpServletResponse;
 import org.apache.sling.api.resource.Resource;

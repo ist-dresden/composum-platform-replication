@@ -99,19 +99,13 @@
                     </properties>
 
                     <filters>
-                        <!--
-                        //FIXME
-                        <filter>
-                            <root>/conf/composum/platform/xxx</root>
-                        </filter>
                         <filter>
                             <root>/libs/composum/platform/install</root>
                             <includes>
-                                <include>.*/cpm-platform-replication-package-bundle.*\.jar</include>
-                                <include>.*/org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended-workflow.config</include>
+                                <include>.*/cpm-platform-replication-bundle.*\.jar</include>
+                                <include>.*/org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended-replicationservices.config</include>
                             </includes>
                         </filter>
-                         -->
                     </filters>
 
                     <embeddeds>

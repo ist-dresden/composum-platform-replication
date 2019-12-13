@@ -1,10 +1,10 @@
-package com.composum.replication.remote;
+package com.composum.platform.replication.remote;
 
 import com.composum.platform.commons.crypt.CryptoService;
 import com.composum.platform.commons.util.LazyInputStream;
-import com.composum.replication.remotereceiver.RemotePublicationConfig;
-import com.composum.replication.remotereceiver.RemotePublicationReceiverServlet;
-import com.composum.replication.remotereceiver.RemoteReceiverConstants;
+import com.composum.platform.replication.remotereceiver.RemotePublicationConfig;
+import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet;
+import com.composum.platform.replication.remotereceiver.RemoteReceiverConstants;
 import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.util.SlingResourceUtil;
 import com.composum.sling.nodes.NodesConfiguration;

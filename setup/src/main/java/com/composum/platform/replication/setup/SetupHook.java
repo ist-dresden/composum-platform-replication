@@ -1,4 +1,4 @@
-package com.composum.replication.setup;
+package com.composum.platform.replication.setup;
 
 import com.composum.sling.core.setup.util.SetupUtil;
 import org.apache.jackrabbit.vault.packaging.InstallContext;
@@ -6,8 +6,6 @@ import org.apache.jackrabbit.vault.packaging.InstallHook;
 import org.apache.jackrabbit.vault.packaging.PackageException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import javax.jcr.Session;
 
 @SuppressWarnings("Duplicates")
 public class SetupHook implements InstallHook {

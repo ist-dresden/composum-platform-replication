@@ -1,9 +1,9 @@
-package com.composum.replication.remotereceiver;
+package com.composum.platform.replication.remotereceiver;
 
 import com.composum.platform.commons.crypt.CryptoService;
-import com.composum.replication.remote.RemotePublisherService;
-import com.composum.replication.remotereceiver.RemotePublicationReceiverServlet.Extension;
-import com.composum.replication.remotereceiver.RemotePublicationReceiverServlet.Operation;
+import com.composum.platform.replication.remote.RemotePublisherService;
+import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Extension;
+import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation;
 import com.composum.sling.core.servlet.Status;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;

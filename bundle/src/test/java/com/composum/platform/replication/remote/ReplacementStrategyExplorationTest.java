@@ -1,7 +1,6 @@
-package com.composum.replication.remote;
+package com.composum.platform.replication.remote;
 
 import com.composum.sling.core.util.ResourceUtil;
-import com.composum.sling.platform.testing.testutil.JcrTestUtils;
 import org.apache.commons.collections4.iterators.IteratorIterable;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;

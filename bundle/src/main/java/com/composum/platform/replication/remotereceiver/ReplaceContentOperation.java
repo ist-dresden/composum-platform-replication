@@ -1,4 +1,4 @@
-package com.composum.replication.remotereceiver;
+package com.composum.platform.replication.remotereceiver;
 
 import com.composum.sling.core.ResourceHandle;
 import com.composum.sling.core.servlet.ServletOperation;
@@ -41,9 +41,9 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static com.composum.sling.core.servlet.AbstractServiceServlet.PARAM_FILE;
-import static com.composum.replication.remotereceiver.RemoteReceiverConstants.PARAM_DELETED_PATH;
-import static com.composum.replication.remotereceiver.RemoteReceiverConstants.PARAM_PATH;
-import static com.composum.replication.remotereceiver.RemoteReceiverConstants.PARAM_RELEASEROOT;
+import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_DELETED_PATH;
+import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_PATH;
+import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_RELEASEROOT;
 import static java.util.Objects.requireNonNull;
 import static org.apache.commons.lang3.StringUtils.removeStart;
 
@@ -251,7 +251,7 @@ public class ReplaceContentOperation implements ServletOperation {
      * Workaround for nasty OAK bug that throws an "CommitFailedException: OakConstraint0100: Property is protected:
      * jcr:versionHistory" if we exchange a versionable node with a copy of it. It thinks we modified protected
      * properties of that node, while not recognizing we have a new node now. See
-     * {@link com.composum.replication.remote.ReplacementStrategyExploration#bugWithReplace()} .
+     * {@link com.composum.platform.replication.remote.ReplacementStrategyExploration#bugWithReplace()} .
      * Workaround here is to rename it for a short while, tricking it to see it as a new node, and rename it
      * immediately back. This is a bad workaround, because there is a small time during which requests will fail.
      */
