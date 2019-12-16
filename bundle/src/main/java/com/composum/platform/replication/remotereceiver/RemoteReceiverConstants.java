@@ -15,6 +15,9 @@ public interface RemoteReceiverConstants {
      */
     String PARAM_RELEASEROOT = "releaseRoot";
 
+    /** Mandatory of the parameter to contain the update id (except for startupdate). */
+    public static final String PARAM_UPDATEID = "updateId";
+
     /** Attribute at the publishers temporary location that saves the top content path to be replaced. */
     String ATTR_CONTENTPATH = "contentPath";
 

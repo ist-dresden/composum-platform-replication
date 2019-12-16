@@ -50,6 +50,7 @@ import static org.apache.commons.lang3.StringUtils.removeStart;
 /**
  * Receives a zip that transactionally replaces a part of the content - for use within the
  * {@link RemotePublicationReceiverServlet}.
+ * @deprecated to be replaced
  */
 public class ReplaceContentOperation implements ServletOperation {
     private static final Logger LOG = LoggerFactory.getLogger(ReplaceContentOperation.class);

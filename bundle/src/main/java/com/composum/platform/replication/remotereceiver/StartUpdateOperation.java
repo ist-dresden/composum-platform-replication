@@ -110,7 +110,7 @@ public class StartUpdateOperation extends AbstractContentUpdateOperation {
     /** Reads the result of {@link StartUpdateOperation} into memory. */
     public static class StatusWithReleaseData extends Status {
 
-        /** The created update data - has to be named like {@link AbstractContentUpdateOperation#DATAFIELD_NAME}. */
+        /** The created update data. */
         UpdateInfo updateInfo;
 
         public StatusWithReleaseData() {

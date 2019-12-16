@@ -1,10 +1,13 @@
 package com.composum.platform.replication.remotereceiver;
 
 import com.composum.platform.commons.crypt.CryptoService;
+import com.composum.platform.commons.util.ExceptionUtil;
 import com.composum.platform.replication.remote.RemotePublisherService;
 import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Extension;
 import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation;
+import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.servlet.Status;
+import com.composum.sling.nodes.NodesConfiguration;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.stream.JsonWriter;
@@ -16,8 +19,10 @@ import org.apache.http.StatusLine;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.client.protocol.HttpClientContext;
+import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.sling.api.resource.Resource;
@@ -32,6 +37,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.StringWriter;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -46,10 +53,16 @@ public class RemotePublicationReceiverFacade {
     private static final Logger LOG = LoggerFactory.getLogger(RemotePublicationReceiverFacade.class);
 
     @Nonnull
+    protected final BeanContext context;
+
+    @Nonnull
     protected final RemotePublicationConfig replicationConfig;
 
     @Nonnull
     protected final CryptoService cryptoService;
+
+    @Nonnull
+    protected final NodesConfiguration nodesConfig;
 
     @Nonnull
     protected final Supplier<RemotePublisherService.Configuration> generalConfig;
@@ -58,11 +71,13 @@ public class RemotePublicationReceiverFacade {
     protected final CloseableHttpClient httpClient;
 
     public RemotePublicationReceiverFacade(@Nonnull RemotePublicationConfig replicationConfig,
-                                           @Nonnull CryptoService cryptoService,
+                                           @Nonnull BeanContext context,
                                            @Nonnull CloseableHttpClient httpClient,
                                            @Nonnull Supplier<RemotePublisherService.Configuration> generalConfig) {
-        this.replicationConfig = Objects.requireNonNull(replicationConfig);
-        this.cryptoService = cryptoService;
+        this.context = context;
+        this.replicationConfig = Objects.requireNonNull(context.getService(RemotePublicationConfig.class));
+        this.cryptoService = Objects.requireNonNull(context.getService(CryptoService.class));
+        this.nodesConfig = Objects.requireNonNull(context.getService(NodesConfiguration.class));
         this.generalConfig = generalConfig;
         this.httpClient = httpClient;
     }
@@ -87,10 +102,9 @@ public class RemotePublicationReceiverFacade {
      * Starts an update process on the remote side. To clean up resources, either {@link #commitUpdate(String)} or
      * {@link #abortUpdate(String)} must be called afterwards.
      *
-     *
      * @param releaseRoot the root of the release containing {path} (may be equal to {path})
-     * @param path the root content path that should be considered. Might be the root of a release, or any
-     *             subdirectory.
+     * @param path        the root content path that should be considered. Might be the root of a release, or any
+     *                    subdirectory.
      * @return the basic information about the update which must be used for all related calls on this update.
      */
     @Nonnull
@@ -104,15 +118,41 @@ public class RemotePublicationReceiverFacade {
         HttpPost post = new HttpPost(uri);
         post.setEntity(entity);
 
-        Class<StartUpdateOperation.StatusWithReleaseData> statusClass = StartUpdateOperation.StatusWithReleaseData.class;
-        StartUpdateOperation.StatusWithReleaseData status = callRemotePublicationReceiver(path, httpClientContext, post, statusClass);
+        StartUpdateOperation.StatusWithReleaseData status =
+                callRemotePublicationReceiver("Starting update with " + path,
+                        httpClientContext, post, StartUpdateOperation.StatusWithReleaseData.class);
         StartUpdateOperation.UpdateInfo updateInfo = status.updateInfo;
         return updateInfo;
     }
 
+    /** Uploads the resource tree to the remote machine. */
+    public Status pathupload(@Nonnull StartUpdateOperation.UpdateInfo updateInfo, @Nonnull Resource resource) throws RemotePublicationReceiverException, URISyntaxException {
+        HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
+                passwordDecryptor());
+        URI uri = new URIBuilder(replicationConfig.getReceiverUri() + "." + Operation.startupdate.name() + "." + Extension.json.name() + resource.getPath())
+                .addParameter(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId).build();
+        HttpPut put = new HttpPut(uri);
+        put.setEntity(new PackageHttpEntity(nodesConfig, context, resource));
+
+        Status status = callRemotePublicationReceiver("pathupload " + resource.getPath(),
+                httpClientContext, put, Status.class);
+        return status;
+    }
+
+    /** Executes the update. */
+    public void commitUpdate(@Nonnull StartUpdateOperation.UpdateInfo updateInfo) throws RemotePublicationReceiverException {
+        throw new UnsupportedOperationException("Not implemented yet."); // FIXME hps 11.12.19 not implemented
+    }
+
+    /** Aborts the update, deleting the temporary directory on the remote side. */
+    public void abortUpdate(@Nonnull StartUpdateOperation.UpdateInfo updateInfo) throws RemotePublicationReceiverException {
+        throw new UnsupportedOperationException("Not implemented yet."); // FIXME hps 11.12.19 not implemented
+    }
+
     @Nonnull
-    protected StartUpdateOperation.StatusWithReleaseData callRemotePublicationReceiver(@Nonnull String path, HttpClientContext httpClientContext, HttpUriRequest request, Class<StartUpdateOperation.StatusWithReleaseData> statusClass) throws RemotePublicationReceiverException {
-        StartUpdateOperation.StatusWithReleaseData status = null;
+    protected <T extends Status> T callRemotePublicationReceiver(@Nonnull String logmessage, HttpClientContext httpClientContext,
+                                                                 HttpUriRequest request, Class<T> statusClass) throws RemotePublicationReceiverException {
+        T status = null;
         StatusLine statusLine = null;
         try (CloseableHttpResponse response = httpClient.execute(request, httpClientContext)) {
             statusLine = response.getStatusLine();
@@ -126,32 +166,19 @@ public class RemotePublicationReceiverFacade {
                 }
             }
             if (status != null && status.isValid() && status.isSuccess()) {
-                LOG.info("Remote replication successful with {}, {}", statusLine.getStatusCode(), statusLine.getReasonPhrase());
+                LOG.info("Remote call successful about {} with {}, {}", logmessage,
+                        statusLine.getStatusCode(), statusLine.getReasonPhrase());
             } else {
-                throw new RemotePublicationReceiverException("Received invalid status from remote system", null,
-                        status, statusLine);
+                throw ExceptionUtil.logAndThrow(LOG,
+                        new RemotePublicationReceiverException("Received invalid status from remote system for " + logmessage,
+                                null, status, statusLine));
             }
         } catch (IOException e) {
-            LOG.error("", e);
-            throw new RemotePublicationReceiverException("Trouble accessing remote service for " + path, e, status,
-                    statusLine);
+            throw ExceptionUtil.logAndThrow(LOG, new RemotePublicationReceiverException(
+                    "Trouble accessing remote service for " + logmessage, e, status,
+                    statusLine));
         }
         return status;
-    }
-
-    /** Uploads the resource tree to the remote machine. */
-    public void pathupload(@Nonnull StartUpdateOperation.UpdateInfo updateInfo, @Nonnull Resource resource) throws RemotePublicationReceiverException {
-        throw new UnsupportedOperationException("Not implemented yet."); // FIXME hps 11.12.19 not implemented
-    }
-
-    /** Executes the update. */
-    public void commitUpdate(@Nonnull StartUpdateOperation.UpdateInfo updateInfo) throws RemotePublicationReceiverException {
-        throw new UnsupportedOperationException("Not implemented yet."); // FIXME hps 11.12.19 not implemented
-    }
-
-    /** Aborts the update, deleting the temporary directory on the remote side. */
-    public void abortUpdate(@Nonnull StartUpdateOperation.UpdateInfo updateInfo) throws RemotePublicationReceiverException {
-        throw new UnsupportedOperationException("Not implemented yet."); // FIXME hps 11.12.19 not implemented
     }
 
     /** Exception that signifies a problem with the replication. */

@@ -23,12 +23,6 @@ public abstract class AbstractContentUpdateOperation implements ServletOperation
     @Nonnull
     protected final ResourceResolverFactory resolverFactory;
 
-    /** Name of the {@link Status#data(String)}. */
-    public static final String DATAFIELD_NAME = "updateInfo";
-
-    /** Name of the parameter to contain the update id. */
-    public static final String PARAM_UPDATEID = "updateId";
-
     protected final NodeTreeSynchronizer nodeTreeSynchronizer = new NodeTreeSynchronizer();
 
     public AbstractContentUpdateOperation(

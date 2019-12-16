@@ -30,9 +30,11 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -56,6 +58,8 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
 
     protected volatile CloseableHttpClient httpClient;
 
+    protected volatile ThreadPool threadPool;
+
     @Reference
     protected NodesConfiguration nodesConfig;
 
@@ -67,8 +71,6 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
 
     @Reference
     protected CryptoService cryptoService;
-
-    protected ThreadPool threadPool;
 
     @Override
     public void receive(ReleaseChangeEvent event) throws ReplicationFailedException {
@@ -95,6 +97,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         }
     }
 
+    @Nonnull
     protected List<RemotePublicationConfig> getReplicationConfigs(@Nonnull Resource releaseRoot,
                                                                   @Nonnull BeanContext context) {
         String releasePath = releaseRoot.getPath();
@@ -130,7 +133,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             this.config = null;
             this.httpClient = null;
             this.threadPool = null;
-            if (oldThreadPool != null) { threadPoolManager.release(threadPool); }
+            if (oldThreadPool != null) { threadPoolManager.release(oldThreadPool); }
         }
     }
 
@@ -153,19 +156,26 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         @AttributeDefinition(
                 description = "Password to decrypt the passwords in the configurations of remote receivers."
         )
+        @Nonnull
         String configurationPassword() default "";
 
     }
 
     /** Responsible for one replication. */
     protected class ReplicatorStrategy {
+        @Nonnull
         protected final ReleaseChangeEvent event;
+        @Nonnull
         protected final StagingReleaseManager.Release release;
+        @Nonnull
         protected final ResourceResolver resolver;
+        @Nonnull
         protected final BeanContext context;
+        @Nonnull
         protected final RemotePublicationConfig replicationConfig;
 
-        protected ReplicatorStrategy(ReleaseChangeEvent event, StagingReleaseManager.Release release, BeanContext context, RemotePublicationConfig replicationConfig) {
+        protected ReplicatorStrategy(@Nonnull ReleaseChangeEvent event, @Nonnull StagingReleaseManager.Release release,
+                                     @Nonnull BeanContext context, @Nonnull RemotePublicationConfig replicationConfig) {
             this.event = event;
             this.release = release;
             this.resolver = context.getResolver();
@@ -175,24 +185,33 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
 
         protected void replicate() throws ReplicationFailedException {
             try {
-                Set<String> changedPaths = changedPaths(event);
+                Set<String> changedPaths = changedPaths();
                 String commonParent = SlingResourceUtil.commonParent(changedPaths);
                 LOG.info("Changed paths below {}: {}", commonParent, changedPaths);
+                Objects.requireNonNull(commonParent);
 
                 RemotePublicationReceiverFacade publisher = new RemotePublicationReceiverFacade(replicationConfig,
-                        cryptoService, httpClient, () -> config);
+                        context, httpClient, () -> config);
 
                 StartUpdateOperation.UpdateInfo updateInfo =
                         publisher.startUpdate(release.getReleaseRoot().getPath(), commonParent);
                 LOG.info("Received UpdateInfo {}", updateInfo);
 
-            } catch (RuntimeException | RemotePublicationReceiverFacade.RemotePublicationReceiverException e) {
+                for (String path : changedPaths) {
+                    Resource resource = resolver.getResource(path);
+                    if (resource != null) {
+                        publisher.pathupload(updateInfo, resource);
+                    }
+                }
+
+            } catch (RuntimeException | RemotePublicationReceiverFacade.RemotePublicationReceiverException | URISyntaxException e) {
                 LOG.error("Remote publishing failed: " + e, e);
                 throw new ReplicationFailedException("Remote publishing failed for " + replicationConfig, e, event);
             }
         }
 
-        protected Set<String> changedPaths(ReleaseChangeEvent event) {
+        @Nonnull
+        protected Set<String> changedPaths() {
             Set<String> changedPaths = new LinkedHashSet<>();
             changedPaths.addAll(event.newOrMovedResources());
             changedPaths.addAll(event.removedOrMovedResources());
@@ -202,7 +221,8 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         }
 
         /** Removes paths that are contained in other paths. */
-        protected Set<String> cleanupPaths(Set<String> changedPaths) {
+        @Nonnull
+        protected Set<String> cleanupPaths(@Nonnull Iterable<String> changedPaths) {
             Set<String> cleanedPaths = new LinkedHashSet<>();
             for (String path : changedPaths) {
                 cleanedPaths.removeIf((p) -> SlingResourceUtil.isSameOrDescendant(path, p));
