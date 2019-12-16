@@ -1,5 +1,7 @@
 package com.composum.platform.replication.remotereceiver;
 
+import java.util.regex.Pattern;
+
 /** Constants related to the remote receiver for receiving content from an author host at the publisher. */
 public interface RemoteReceiverConstants {
 
@@ -16,7 +18,10 @@ public interface RemoteReceiverConstants {
     String PARAM_RELEASEROOT = "releaseRoot";
 
     /** Mandatory of the parameter to contain the update id (except for startupdate). */
-    public static final String PARAM_UPDATEID = "updateId";
+    String PARAM_UPDATEID = "updateId";
+
+    /** Pattern the {@link #PARAM_UPDATEID} has to comply with. */
+    Pattern PATTERN_UPDATEID = Pattern.compile("[a-zA-Z0-9]{12}");
 
     /** Attribute at the publishers temporary location that saves the top content path to be replaced. */
     String ATTR_CONTENTPATH = "contentPath";
@@ -27,4 +32,8 @@ public interface RemoteReceiverConstants {
 
     /** Attribute at the publishers temporary location that saves the release Root to write into. */
     String ATTR_RELEASEROOT_PATH = "releaseRoot";
+
+    /** Attribute at the publishers temporary location that saves the paths which were uploaded by the publisher
+     * and whose content needs to be moved into the main content. */
+    String ATTR_UPDATEDPATHS = "updatedPaths";
 }

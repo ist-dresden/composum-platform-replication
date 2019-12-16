@@ -108,7 +108,7 @@ public class RemotePublicationReceiverFacade {
      * @return the basic information about the update which must be used for all related calls on this update.
      */
     @Nonnull
-    public StartUpdateOperation.UpdateInfo startUpdate(@NotNull String releaseRoot, @Nonnull String path) throws RemotePublicationReceiverException {
+    public UpdateInfo startUpdate(@NotNull String releaseRoot, @Nonnull String path) throws RemotePublicationReceiverException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 passwordDecryptor());
         List<NameValuePair> form = new ArrayList<>();
@@ -121,12 +121,12 @@ public class RemotePublicationReceiverFacade {
         StartUpdateOperation.StatusWithReleaseData status =
                 callRemotePublicationReceiver("Starting update with " + path,
                         httpClientContext, post, StartUpdateOperation.StatusWithReleaseData.class);
-        StartUpdateOperation.UpdateInfo updateInfo = status.updateInfo;
+        UpdateInfo updateInfo = status.updateInfo;
         return updateInfo;
     }
 
     /** Uploads the resource tree to the remote machine. */
-    public Status pathupload(@Nonnull StartUpdateOperation.UpdateInfo updateInfo, @Nonnull Resource resource) throws RemotePublicationReceiverException, URISyntaxException {
+    public Status pathupload(@Nonnull UpdateInfo updateInfo, @Nonnull Resource resource) throws RemotePublicationReceiverException, URISyntaxException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 passwordDecryptor());
         URI uri = new URIBuilder(replicationConfig.getReceiverUri() + "." + Operation.startupdate.name() + "." + Extension.json.name() + resource.getPath())
@@ -140,12 +140,12 @@ public class RemotePublicationReceiverFacade {
     }
 
     /** Executes the update. */
-    public void commitUpdate(@Nonnull StartUpdateOperation.UpdateInfo updateInfo) throws RemotePublicationReceiverException {
+    public void commitUpdate(@Nonnull UpdateInfo updateInfo) throws RemotePublicationReceiverException {
         throw new UnsupportedOperationException("Not implemented yet."); // FIXME hps 11.12.19 not implemented
     }
 
     /** Aborts the update, deleting the temporary directory on the remote side. */
-    public void abortUpdate(@Nonnull StartUpdateOperation.UpdateInfo updateInfo) throws RemotePublicationReceiverException {
+    public void abortUpdate(@Nonnull UpdateInfo updateInfo) throws RemotePublicationReceiverException {
         throw new UnsupportedOperationException("Not implemented yet."); // FIXME hps 11.12.19 not implemented
     }
 

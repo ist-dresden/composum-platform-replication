@@ -4,8 +4,9 @@ import com.composum.platform.commons.crypt.CryptoService;
 import com.composum.platform.replication.remotereceiver.RemotePublicationConfig;
 import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverFacade;
 import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet;
-import com.composum.platform.replication.remotereceiver.StartUpdateOperation;
+import com.composum.platform.replication.remotereceiver.UpdateInfo;
 import com.composum.sling.core.BeanContext;
+import com.composum.sling.core.servlet.Status;
 import com.composum.sling.core.util.SlingResourceUtil;
 import com.composum.sling.nodes.NodesConfiguration;
 import com.composum.sling.platform.staging.ReleaseChangeEventListener;
@@ -193,14 +194,18 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 RemotePublicationReceiverFacade publisher = new RemotePublicationReceiverFacade(replicationConfig,
                         context, httpClient, () -> config);
 
-                StartUpdateOperation.UpdateInfo updateInfo =
-                        publisher.startUpdate(release.getReleaseRoot().getPath(), commonParent);
+                UpdateInfo updateInfo = publisher.startUpdate(release.getReleaseRoot().getPath(), commonParent);
                 LOG.info("Received UpdateInfo {}", updateInfo);
 
                 for (String path : changedPaths) {
                     Resource resource = resolver.getResource(path);
                     if (resource != null) {
-                        publisher.pathupload(updateInfo, resource);
+                        Status status = publisher.pathupload(updateInfo, resource);
+                        if (status == null || !status.isValid()) {
+                            LOG.error("Received invalid status on pathupload {} : {}", path, status);
+                            throw new ReplicationFailedException("Remote upload failed for " + replicationConfig + " " +
+                                    "path " + path, null, event);
+                        }
                     }
                 }
 

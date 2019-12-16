@@ -11,16 +11,21 @@ import com.google.gson.GsonBuilder;
 import org.apache.jackrabbit.commons.cnd.CndImporter;
 import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.SlingHttpServletResponse;
+import org.apache.sling.api.request.RequestPathInfo;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.resourcebuilder.api.ResourceBuilder;
+import org.apache.sling.servlethelpers.MockRequestPathInfo;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit.SlingContext;
 import org.apache.sling.testing.mock.sling.servlet.MockSlingHttpServletRequest;
 import org.apache.sling.testing.mock.sling.servlet.MockSlingHttpServletResponse;
+import org.jetbrains.annotations.NotNull;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import javax.jcr.Session;
@@ -55,7 +60,9 @@ public class ContentStateOperationTest {
     @Before
     public void setup() throws Exception {
         resolverFactory = mock(ResourceResolverFactory.class);
-        when(resolverFactory.getServiceResourceResolver(null)).thenAnswer((i) -> context.resourceResolver());
+        ResourceResolver uncloseableResourceResolver = Mockito.spy(context.resourceResolver());
+        Mockito.doNothing().when(uncloseableResourceResolver).close();
+        when(resolverFactory.getServiceResourceResolver(null)).thenReturn(uncloseableResourceResolver);
         config = AnnotationWithDefaults.of(RemotePublicationReceiverServlet.Configuration.class);
 
         InputStreamReader cndReader = new InputStreamReader(getClass().getResourceAsStream("/stagingNodetypes.cnd"));
@@ -86,6 +93,8 @@ public class ContentStateOperationTest {
         MockSlingHttpServletResponse response = context.response();
 
         ContentStateOperation cso = new ContentStateOperation(() -> config, resolverFactory);
+        MockRequestPathInfo rpi = (MockRequestPathInfo) request.getRequestPathInfo();
+        rpi.setSuffix("/content/some/site/folder1");
         cso.doIt(request, response, page11);
         ec.checkThat(response.getStatus(), is(200));
         ec.checkThat(response.getOutputAsString(),

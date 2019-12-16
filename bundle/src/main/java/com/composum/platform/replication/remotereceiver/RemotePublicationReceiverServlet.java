@@ -65,6 +65,8 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 new ContentStateOperation(this::getConfig, resolverFactory));
         operations.setOperation(ServletOperationSet.Method.POST, Extension.json, Operation.startupdate,
                 new StartUpdateOperation(this::getConfig, resolverFactory));
+        operations.setOperation(ServletOperationSet.Method.PUT, Extension.json, Operation.pathupload,
+                new PathUploadOperation(this::getConfig, resolverFactory));
     }
 
     @Activate

@@ -3,7 +3,6 @@ package com.composum.platform.replication.remotereceiver;
 import com.composum.sling.core.ResourceHandle;
 import com.composum.sling.core.servlet.Status;
 import com.composum.sling.core.util.SlingResourceUtil;
-import com.composum.sling.platform.staging.StagingConstants;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.SlingHttpServletRequest;
@@ -27,7 +26,7 @@ import java.util.Random;
 import java.util.function.Supplier;
 
 /** Creates a temporary directory to unpack stuff to replace our content. */
-public class StartUpdateOperation extends AbstractContentUpdateOperation {
+class StartUpdateOperation extends AbstractContentUpdateOperation {
 
     private static final Logger LOG = LoggerFactory.getLogger(StartUpdateOperation.class);
 
@@ -60,7 +59,8 @@ public class StartUpdateOperation extends AbstractContentUpdateOperation {
 
                 UpdateInfo updateInfo = new UpdateInfo();
                 updateInfo.updateId = "upd-" + RandomStringUtils.random(12, 0, 0, true, true, null, random);
-                Resource tmpLocation = getTmpLocation(resolver, updateInfo.updateId, true);
+                assert RemoteReceiverConstants.PATTERN_UPDATEID.matcher(updateInfo.updateId).matches();
+                Resource tmpLocation = getTmpLocation(resolver, updateInfo.updateId, true, status);
                 ModifiableValueMap vm = tmpLocation.adaptTo(ModifiableValueMap.class);
                 vm.put(RemoteReceiverConstants.ATTR_CONTENTPATH, contentPath);
                 vm.put(RemoteReceiverConstants.ATTR_RELEASEROOT_PATH, releaseRootPath);
@@ -73,37 +73,12 @@ public class StartUpdateOperation extends AbstractContentUpdateOperation {
                 status.updateInfo = updateInfo;
                 resolver.commit();
             } else {
-                status.withLogging(LOG).error("Broken parameters {} : {}", releaseRootPath, contentPath);
+                status.withLogging(LOG).validationError("Broken parameters {} : {}", releaseRootPath, contentPath);
             }
             status.sendJson();
         } catch (LoginException e) { // serious misconfiguration
             LOG.error("Could not get service resolver" + e, e);
             throw new ServletException("Could not get service resolver", e);
-        }
-    }
-
-    protected String getReleaseChangeId(ResourceResolver resolver, String contentPath) {
-        Resource resource = resolver.getResource(contentPath);
-        return resource != null ? resource.getValueMap().get(StagingConstants.PROP_REPLICATED_VERSION, String.class) : null;
-    }
-
-    public static class UpdateInfo {
-
-        /**
-         * The update id for the pending operation - has to be named like
-         * {@link AbstractContentUpdateOperation#PARAM_UPDATEID}.
-         */
-        String updateId;
-
-        /** The original status of the publishers release. */
-        String originalPublisherReleaseChangeId;
-
-        @Override
-        public String toString() {
-            final StringBuilder sb = new StringBuilder("UpdateInfo{");
-            sb.append("updateId='").append(updateId).append('\'');
-            sb.append('}');
-            return sb.toString();
         }
     }
 
