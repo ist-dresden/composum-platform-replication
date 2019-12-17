@@ -192,7 +192,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 Objects.requireNonNull(commonParent);
 
                 RemotePublicationReceiverFacade publisher = new RemotePublicationReceiverFacade(replicationConfig,
-                        context, httpClient, () -> config);
+                        context, httpClient, () -> config, cryptoService, nodesConfig);
 
                 UpdateInfo updateInfo = publisher.startUpdate(release.getReleaseRoot().getPath(), commonParent);
                 LOG.info("Received UpdateInfo {}", updateInfo);
@@ -209,6 +209,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                     }
                 }
 
+                LOG.info("Replication done {}", updateInfo.updateId);
             } catch (RuntimeException | RemotePublicationReceiverFacade.RemotePublicationFacadeException | URISyntaxException e) {
                 LOG.error("Remote publishing failed: " + e, e);
                 throw new ReplicationFailedException("Remote publishing failed for " + replicationConfig, e, event);

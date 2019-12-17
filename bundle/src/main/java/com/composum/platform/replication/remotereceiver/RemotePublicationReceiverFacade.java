@@ -3,10 +3,10 @@ package com.composum.platform.replication.remotereceiver;
 import com.composum.platform.commons.crypt.CryptoService;
 import com.composum.platform.commons.util.ExceptionUtil;
 import com.composum.platform.replication.remote.RemotePublisherService;
-import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Extension;
 import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation;
 import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.servlet.Status;
+import com.composum.sling.core.util.SlingResourceUtil;
 import com.composum.sling.nodes.NodesConfiguration;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -43,9 +43,11 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Extension.json;
+import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.pathupload;
 
 /** Provides a Java interface for accessing the remote publication receiver. */
 public class RemotePublicationReceiverFacade {
@@ -73,11 +75,14 @@ public class RemotePublicationReceiverFacade {
     public RemotePublicationReceiverFacade(@Nonnull RemotePublicationConfig replicationConfig,
                                            @Nonnull BeanContext context,
                                            @Nonnull CloseableHttpClient httpClient,
-                                           @Nonnull Supplier<RemotePublisherService.Configuration> generalConfig) {
+                                           @Nonnull Supplier<RemotePublisherService.Configuration> generalConfig,
+                                           @Nonnull CryptoService cryptoService,
+                                           @Nonnull NodesConfiguration nodesConfiguration
+    ) {
         this.context = context;
-        this.replicationConfig = Objects.requireNonNull(context.getService(RemotePublicationConfig.class));
-        this.cryptoService = Objects.requireNonNull(context.getService(CryptoService.class));
-        this.nodesConfig = Objects.requireNonNull(context.getService(NodesConfiguration.class));
+        this.replicationConfig = replicationConfig;
+        this.cryptoService = cryptoService;
+        this.nodesConfig = nodesConfiguration;
         this.generalConfig = generalConfig;
         this.httpClient = httpClient;
     }
@@ -114,10 +119,11 @@ public class RemotePublicationReceiverFacade {
         List<NameValuePair> form = new ArrayList<>();
         form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_RELEASEROOT, releaseRoot));
         UrlEncodedFormEntity entity = new UrlEncodedFormEntity(form, Consts.UTF_8);
-        String uri = replicationConfig.getReceiverUri() + "." + Operation.startupdate.name() + "." + Extension.json.name() + path;
+        String uri = replicationConfig.getReceiverUri() + "." + Operation.startupdate.name() + "." + json.name() + path;
         HttpPost post = new HttpPost(uri);
         post.setEntity(entity);
 
+        LOG.info("Start update for {} , {}", releaseRoot, path);
         RemotePublicationReceiverServlet.StatusWithReleaseData status =
                 callRemotePublicationReceiver("Starting update with " + path,
                         httpClientContext, post, RemotePublicationReceiverServlet.StatusWithReleaseData.class);
@@ -129,11 +135,12 @@ public class RemotePublicationReceiverFacade {
     public Status pathupload(@Nonnull UpdateInfo updateInfo, @Nonnull Resource resource) throws RemotePublicationFacadeException, URISyntaxException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 passwordDecryptor());
-        URI uri = new URIBuilder(replicationConfig.getReceiverUri() + "." + Operation.startupdate.name() + "." + Extension.json.name() + resource.getPath())
+        URI uri = new URIBuilder(replicationConfig.getReceiverUri() + "." + pathupload.name() + "." + json.name() + resource.getPath())
                 .addParameter(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId).build();
         HttpPut put = new HttpPut(uri);
         put.setEntity(new PackageHttpEntity(nodesConfig, context, resource));
 
+        LOG.info("Uploading package for {}", SlingResourceUtil.getPath(resource));
         Status status = callRemotePublicationReceiver("pathupload " + resource.getPath(),
                 httpClientContext, put, Status.class);
         return status;

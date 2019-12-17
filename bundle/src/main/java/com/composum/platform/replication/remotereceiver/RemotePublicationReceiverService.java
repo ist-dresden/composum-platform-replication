@@ -2,7 +2,6 @@ package com.composum.platform.replication.remotereceiver;
 
 import com.composum.platform.replication.remote.VersionableInfo;
 import com.composum.sling.core.ResourceHandle;
-import com.composum.sling.core.servlet.Status;
 import com.composum.sling.core.util.ResourceUtil;
 import com.composum.sling.core.util.SlingResourceUtil;
 import com.composum.sling.platform.staging.StagingConstants;
@@ -33,7 +32,6 @@ import org.slf4j.LoggerFactory;
 import javax.annotation.Nonnull;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
-import javax.servlet.ServletException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.NoSuchAlgorithmException;
@@ -172,7 +170,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
 
                 List<String> newPaths = new ArrayList<>(asList(vm.get(ATTR_UPDATEDPATHS, new String[0])));
                 newPaths.add(packageRootPath);
-                vm.put(ATTR_UPDATEDPATHS, newPaths);
+                vm.put(ATTR_UPDATEDPATHS, newPaths.toArray(new String[0]));
                 resolver.commit();
             } else { // weird internal error - doesn't make sense to put that to the user.
                 LOG.error("Contraint violated: package root {} not subpath of content root {}", packageRootPath, contentPath);

@@ -56,6 +56,7 @@ import java.util.zip.ZipOutputStream;
  * (Obsolete) Transmits the changes of the JCR content of a release to a remote system.
  * We transmit the subtrees of all resources changed in the event as a zip to the
  * {@link RemotePublicationReceiverServlet}.
+ *
  * @deprecated still works, but will be removed after the important parts are extracted.
  */
 @Component(

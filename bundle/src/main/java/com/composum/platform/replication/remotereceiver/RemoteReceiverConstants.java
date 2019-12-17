@@ -21,19 +21,23 @@ public interface RemoteReceiverConstants {
     String PARAM_UPDATEID = "updateId";
 
     /** Pattern the {@link #PARAM_UPDATEID} has to comply with. */
-    Pattern PATTERN_UPDATEID = Pattern.compile("[a-zA-Z0-9]{12}");
+    Pattern PATTERN_UPDATEID = Pattern.compile("upd-[a-zA-Z0-9]{12}");
 
     /** Attribute at the publishers temporary location that saves the top content path to be replaced. */
     String ATTR_CONTENTPATH = "contentPath";
 
-    /** Attribute at the publishers temporary location that saves the original release change id of the publishers
-     * content path - that can be checked to discover concurrent modifications. */
+    /**
+     * Attribute at the publishers temporary location that saves the original release change id of the publishers
+     * content path - that can be checked to discover concurrent modifications.
+     */
     String ATTR_OLDPUBLISHERCONTENT_RELEASECHANGEID = "originalPublisherReleaseChangeId";
 
     /** Attribute at the publishers temporary location that saves the release Root to write into. */
     String ATTR_RELEASEROOT_PATH = "releaseRoot";
 
-    /** Attribute at the publishers temporary location that saves the paths which were uploaded by the publisher
-     * and whose content needs to be moved into the main content. */
+    /**
+     * Attribute at the publishers temporary location that saves the paths which were uploaded by the publisher
+     * and whose content needs to be moved into the main content.
+     */
     String ATTR_UPDATEDPATHS = "updatedPaths";
 }

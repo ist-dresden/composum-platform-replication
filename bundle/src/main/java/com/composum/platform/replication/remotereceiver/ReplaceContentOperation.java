@@ -40,16 +40,17 @@ import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static com.composum.sling.core.servlet.AbstractServiceServlet.PARAM_FILE;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_DELETED_PATH;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_PATH;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_RELEASEROOT;
+import static com.composum.sling.core.servlet.AbstractServiceServlet.PARAM_FILE;
 import static java.util.Objects.requireNonNull;
 import static org.apache.commons.lang3.StringUtils.removeStart;
 
 /**
  * Receives a zip that transactionally replaces a part of the content - for use within the
  * {@link RemotePublicationReceiverServlet}.
+ *
  * @deprecated to be replaced
  */
 public class ReplaceContentOperation implements ServletOperation {
@@ -192,7 +193,7 @@ public class ReplaceContentOperation implements ServletOperation {
             String path = removeStart(absolutePath, "/");
             Resource src = requireNonNull(importDir.getChild(path), path);
             String destPath = SlingResourceUtil.appendPaths(targetDir, path);
-            ensureNodes(ResourceUtil.getParent(path), importDir, resolver.getResource(targetDir), resolver, releaseRootPath);
+            ensureNodes(org.apache.sling.api.resource.ResourceUtil.getParent(path), importDir, resolver.getResource(targetDir), resolver, releaseRootPath);
             Resource dst = resolver.getResource(destPath);
             if (dst != null) { session.removeItem(destPath); }
             session.move(src.getPath(), destPath);
@@ -207,12 +208,12 @@ public class ReplaceContentOperation implements ServletOperation {
     protected Resource ensureNodes(@Nullable String path, @Nonnull ResourceHandle importDir, @Nonnull Resource contentRoot,
                                    @Nonnull ResourceResolver resolver, @Nonnull String releaseRootPath) throws RepositoryException, PersistenceException {
         if (path == null || path.isEmpty() || path.equals("/")) { return contentRoot; }
-        String parent = ResourceUtil.getParent(path);
+        String parent = org.apache.sling.api.resource.ResourceUtil.getParent(path);
         Resource contentParent = ensureNodes(parent, importDir, contentRoot, resolver, releaseRootPath);
-        Resource contentNode = contentParent.getChild(ResourceUtil.getName(path));
+        Resource contentNode = contentParent.getChild(org.apache.sling.api.resource.ResourceUtil.getName(path));
         boolean attributeUpdateNeeded = StringUtils.startsWith(path, releaseRootPath);
         if (contentNode == null) { // create it and fixup attributes in the next step.
-            contentNode = resolver.create(contentParent, ResourceUtil.getName(path),
+            contentNode = resolver.create(contentParent, org.apache.sling.api.resource.ResourceUtil.getName(path),
                     ImmutableMap.of(ResourceUtil.PROP_PRIMARY_TYPE, ResourceUtil.TYPE_SLING_FOLDER));
             attributeUpdateNeeded = true;
         }
