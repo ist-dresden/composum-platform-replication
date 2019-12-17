@@ -214,7 +214,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 }
 
                 release.getMetaDataNode().getResourceResolver().refresh();
-                if (!release.getChangeNumber().equals(originalReleaseChangeNumber)) {
+                if (release.getChangeNumber().equals(originalReleaseChangeNumber)) {
                     Status status = publisher.commitUpdate(updateInfo, deletedPaths);
                     if (!status.isValid()) {
                         LOG.error("Received invalid status on commit {}", updateInfo.updateId);

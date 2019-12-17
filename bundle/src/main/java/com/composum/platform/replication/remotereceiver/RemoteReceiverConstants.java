@@ -8,7 +8,7 @@ public interface RemoteReceiverConstants {
     /** Parameter for a changed path. */
     String PARAM_PATH = "path";
 
-    /** Parameter for a changed path. */
+    /** Parameter for a deleted path. */
     String PARAM_DELETED_PATH = "deletedpath";
 
     /**

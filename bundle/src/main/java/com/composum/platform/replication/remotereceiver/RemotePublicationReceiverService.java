@@ -18,6 +18,7 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ValueMap;
+import org.jetbrains.annotations.NotNull;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
@@ -39,12 +40,15 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.ATTR_CONTENTPATH;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.ATTR_RELEASEROOT_PATH;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.ATTR_UPDATEDPATHS;
+import static com.composum.sling.core.util.SlingResourceUtil.appendPaths;
 import static com.composum.sling.platform.staging.StagingConstants.PROP_REPLICATED_VERSION;
 import static java.util.Arrays.asList;
 import static java.util.Objects.requireNonNull;
@@ -118,15 +122,22 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     @Override
     public UpdateInfo startUpdate(String releaseRootPath, String contentPath)
             throws PersistenceException, LoginException, RemotePublicationReceiverException, RepositoryException {
+        LOG.info("Commit called for {} : {}", releaseRootPath, contentPath);
         try (ResourceResolver resolver = makeResolver()) {
 
             UpdateInfo updateInfo = new UpdateInfo();
             updateInfo.updateId = "upd-" + RandomStringUtils.random(12, 0, 0, true, true, null, random);
             assert RemoteReceiverConstants.PATTERN_UPDATEID.matcher(updateInfo.updateId).matches();
             Resource tmpLocation = getTmpLocation(resolver, updateInfo.updateId, true);
+
             ModifiableValueMap vm = tmpLocation.adaptTo(ModifiableValueMap.class);
-            vm.put(RemoteReceiverConstants.ATTR_CONTENTPATH, contentPath);
-            vm.put(RemoteReceiverConstants.ATTR_RELEASEROOT_PATH, releaseRootPath);
+            if (SlingResourceUtil.isSameOrDescendant(releaseRootPath, contentPath)) {
+                vm.put(RemoteReceiverConstants.ATTR_CONTENTPATH, contentPath);
+                vm.put(RemoteReceiverConstants.ATTR_RELEASEROOT_PATH, releaseRootPath);
+            } else { // weird internal error - doesn't make sense to put that to the user.
+                throw new IllegalArgumentException("Contraint violated: content path " + contentPath + " not " +
+                        "subpath of release root " + releaseRootPath);
+            }
 
             String releaseChangeId = getReleaseChangeId(resolver, contentPath);
             if (releaseChangeId != null) {
@@ -141,6 +152,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     @Override
     public void pathUpload(String updateId, String packageRootPath, InputStream inputStream)
             throws LoginException, RemotePublicationReceiverException, RepositoryException, IOException, ConfigurationException {
+        LOG.info("Pathupload called for {} : {}", updateId, packageRootPath);
         try (ResourceResolver resolver = makeResolver()) {
             Resource tmpLocation = getTmpLocation(resolver, updateId, false);
             ModifiableValueMap vm = tmpLocation.adaptTo(ModifiableValueMap.class);
@@ -177,6 +189,43 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                 throw new IllegalArgumentException("Contraint violated: package root " + packageRootPath + " not " +
                         "subpath of content root " + contentPath);
             }
+        }
+    }
+
+    @Override
+    public void commit(String updateId, Set<String> deletedPaths)
+            throws LoginException, RemotePublicationReceiverException, RepositoryException, PersistenceException {
+        LOG.info("Commit called for {} : {}", updateId, deletedPaths);
+        try (ResourceResolver resolver = makeResolver()) {
+            Resource tmpLocation = getTmpLocation(resolver, updateId, false);
+            ValueMap vm = tmpLocation.getValueMap();
+            String contentPath = vm.get(ATTR_CONTENTPATH, String.class);
+            String releaseRootPath = vm.get(ATTR_RELEASEROOT_PATH, String.class);
+            String targetRoot = Objects.requireNonNull(config.targetDir());
+            String @NotNull [] updatedPaths = vm.get(ATTR_UPDATEDPATHS, new String[0]);
+            for (String deletedPath : deletedPaths) {
+                if (!SlingResourceUtil.isSameOrDescendant(contentPath, deletedPath)) { // safety check - Bug!
+                    throw new IllegalArgumentException("Not subpath of " + contentPath + " : " + deletedPath);
+                }
+                Resource deletedResource = resolver.getResource(appendPaths(targetRoot, deletedPath));
+                if (deletedResource != null) {
+                    LOG.info("Deleting {}", deletedPath);
+                    resolver.delete(deletedResource);
+                } else { // some problem with the algorithm!
+                    LOG.warn("Path to delete unexpectedly not present in content: {}", deletedPath);
+                }
+            }
+            
+            String targetReleaseRootPath = appendPaths(targetRoot, releaseRootPath);
+            Resource targetReleaseRoot = ResourceUtil.getOrCreateResource(resolver, targetReleaseRootPath);
+
+            for (String updatedPath : updatedPaths) {
+                if (!SlingResourceUtil.isSameOrDescendant(contentPath, updatedPath)) { // safety check - Bug!
+                    throw new IllegalArgumentException("Not subpath of " + contentPath + " : " + updatedPath);
+                }
+            }
+
+            resolver.commit();
         }
     }
 

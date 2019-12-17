@@ -49,6 +49,7 @@ import java.util.function.Supplier;
 
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Extension.json;
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.abortupdate;
+import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.commitupdate;
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.pathupload;
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.startupdate;
 
@@ -156,14 +157,16 @@ public class RemotePublicationReceiverFacade {
                 passwordDecryptor());
         List<NameValuePair> form = new ArrayList<>();
         form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId));
+        for (String deletedPath : deletedPaths) {
+            form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_DELETED_PATH, deletedPath));
+        }
         UrlEncodedFormEntity entity = new UrlEncodedFormEntity(form, Consts.UTF_8);
-        String uri = replicationConfig.getReceiverUri() + "." + Operation.startupdate.name() + "." + json.name();
+        String uri = replicationConfig.getReceiverUri() + "." + commitupdate.name() + "." + json.name();
         HttpPost post = new HttpPost(uri);
         post.setEntity(entity);
 
         LOG.info("Comitting update {} deleting {}", updateInfo.updateId, deletedPaths);
-        Status status =
-                callRemotePublicationReceiver("Committing update " + updateInfo.updateId,
+        Status status = callRemotePublicationReceiver("Committing update " + updateInfo.updateId,
                         httpClientContext, post, Status.class);
         return status;
     }

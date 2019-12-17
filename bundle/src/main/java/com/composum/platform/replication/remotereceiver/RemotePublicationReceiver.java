@@ -9,6 +9,7 @@ import org.apache.sling.api.resource.Resource;
 import javax.jcr.RepositoryException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /** Interface for service that implements the functions behind the {@link RemotePublicationReceiverServlet}. */
@@ -30,8 +31,15 @@ public interface RemotePublicationReceiver {
     /** Prepares the temporary directory for an update operation. Take care to remove it later! */
     UpdateInfo startUpdate(String releaseRootPath, String contentPath) throws PersistenceException, LoginException, RemotePublicationReceiverException, RepositoryException;
 
+    /** Uploads one package into the temporary directory, taking note of the root path for later moving to content. */
     void pathUpload(String updateId, String packageRootPath, InputStream inputStream)
             throws LoginException, RemotePublicationReceiverException, RepositoryException, IOException, ConfigurationException;
+
+    /**
+     * Moves the content to the content directory and deletes the given paths, thus finalizing the update. The
+     * temporary directory is then deleted.
+     */
+    void commit(String updateId, Set<String> deletedPaths) throws LoginException, RemotePublicationReceiverException, RepositoryException, PersistenceException;
 
     class RemotePublicationReceiverException extends Exception {
 

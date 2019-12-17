@@ -28,7 +28,11 @@ import javax.jcr.RepositoryException;
 import javax.servlet.Servlet;
 import javax.servlet.ServletException;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
+import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_DELETED_PATH;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_UPDATEID;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PATTERN_UPDATEID;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
@@ -79,6 +83,9 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 new StartUpdateOperation());
         operations.setOperation(ServletOperationSet.Method.PUT, Extension.json, Operation.pathupload,
                 new PathUploadOperation());
+        operations.setOperation(ServletOperationSet.Method.POST, Extension.json, Operation.commitupdate,
+                new CommitUpdateOperation());
+        // FIXME(hps,17.12.19) abortUpdate
     }
 
     /** Creates the service resolver used to update the content. */
@@ -219,5 +226,30 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
             }
             status.sendJson();
         }
+    }
+
+    class CommitUpdateOperation implements ServletOperation {
+        @Override
+        public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource) throws RepositoryException, IOException, ServletException {
+            Status status = new Status(request, response);
+            String updateId = status.getRequiredParameter(PARAM_UPDATEID, PATTERN_UPDATEID, "PatternId required");
+            Set<String> deletedPaths = new HashSet<>();
+            String[] deletedParms = request.getParameterValues(PARAM_DELETED_PATH);
+            if (null != deletedParms) { deletedPaths.addAll(Arrays.asList(deletedParms));}
+            LOG.info("Commit on {} deleting {}", updateId, deletedPaths);
+            if (status.isValid()) {
+                try {
+                    service.commit(updateId, deletedPaths);
+                } catch (LoginException e) { // serious misconfiguration
+                    LOG.error("Could not get service resolver" + e, e);
+                    throw new ServletException("Could not get service resolver", e);
+                } catch (RemotePublicationReceiver.RemotePublicationReceiverException e) {
+                    LOG.error("" + e, e);
+                    status.error("Import failed: {}", e.getMessage());
+                }
+            }
+            status.sendJson();
+        }
+
     }
 }
