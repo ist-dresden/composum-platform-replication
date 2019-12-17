@@ -187,9 +187,11 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         protected void replicate() throws ReplicationFailedException {
             try {
                 Set<String> changedPaths = changedPaths();
+                Set<String> deletedPaths = changedPaths();
                 String commonParent = SlingResourceUtil.commonParent(changedPaths);
                 LOG.info("Changed paths below {}: {}", commonParent, changedPaths);
                 Objects.requireNonNull(commonParent);
+                String originalReleaseChangeNumber = release.getChangeNumber();
 
                 RemotePublicationReceiverFacade publisher = new RemotePublicationReceiverFacade(replicationConfig,
                         context, httpClient, () -> config, cryptoService, nodesConfig);
@@ -206,7 +208,27 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                             throw new ReplicationFailedException("Remote upload failed for " + replicationConfig + " " +
                                     "path " + path, null, event);
                         }
+                    } else {
+                        deletedPaths.add(path);
                     }
+                }
+
+                release.getMetaDataNode().getResourceResolver().refresh();
+                if (!release.getChangeNumber().equals(originalReleaseChangeNumber)) {
+                    Status status = publisher.commitUpdate(updateInfo, deletedPaths);
+                    if (!status.isValid()) {
+                        LOG.error("Received invalid status on commit {}", updateInfo.updateId);
+                        throw new ReplicationFailedException("Remote commit failed for " + replicationConfig, null, event);
+                    }
+                } else {
+                    LOG.info("Aborting publishing because of local release content change.");
+                    Status status = publisher.abortUpdate(updateInfo);
+                    if (status == null || !status.isValid()) {
+                        LOG.error("Aborting replication failed for {} - please manually clean up resources used there.",
+                                updateInfo);
+                    }
+                    throw new ReplicationFailedException("Aborted publishing because of local release content change " +
+                            "during publishing.", null, event);
                 }
 
                 LOG.info("Replication done {}", updateInfo.updateId);

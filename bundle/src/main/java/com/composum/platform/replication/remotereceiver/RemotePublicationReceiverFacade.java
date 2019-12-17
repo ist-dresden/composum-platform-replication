@@ -43,11 +43,14 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Extension.json;
+import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.abortupdate;
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.pathupload;
+import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.startupdate;
 
 /** Provides a Java interface for accessing the remote publication receiver. */
 public class RemotePublicationReceiverFacade {
@@ -119,7 +122,7 @@ public class RemotePublicationReceiverFacade {
         List<NameValuePair> form = new ArrayList<>();
         form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_RELEASEROOT, releaseRoot));
         UrlEncodedFormEntity entity = new UrlEncodedFormEntity(form, Consts.UTF_8);
-        String uri = replicationConfig.getReceiverUri() + "." + Operation.startupdate.name() + "." + json.name() + path;
+        String uri = replicationConfig.getReceiverUri() + "." + startupdate.name() + "." + json.name() + path;
         HttpPost post = new HttpPost(uri);
         post.setEntity(entity);
 
@@ -146,14 +149,41 @@ public class RemotePublicationReceiverFacade {
         return status;
     }
 
-    /** Executes the update. */
-    public void commitUpdate(@Nonnull UpdateInfo updateInfo) throws RemotePublicationFacadeException {
-        throw new UnsupportedOperationException("Not implemented yet."); // FIXME hps 11.12.19 not implemented
+    /** Replaces the content with the updated content and deletes obsolete paths. */
+    @Nonnull
+    public Status commitUpdate(@Nonnull UpdateInfo updateInfo, @Nonnull Set<String> deletedPaths) throws RemotePublicationFacadeException {
+        HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
+                passwordDecryptor());
+        List<NameValuePair> form = new ArrayList<>();
+        form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId));
+        UrlEncodedFormEntity entity = new UrlEncodedFormEntity(form, Consts.UTF_8);
+        String uri = replicationConfig.getReceiverUri() + "." + Operation.startupdate.name() + "." + json.name();
+        HttpPost post = new HttpPost(uri);
+        post.setEntity(entity);
+
+        LOG.info("Comitting update {} deleting {}", updateInfo.updateId, deletedPaths);
+        Status status =
+                callRemotePublicationReceiver("Committing update " + updateInfo.updateId,
+                        httpClientContext, post, Status.class);
+        return status;
     }
 
     /** Aborts the update, deleting the temporary directory on the remote side. */
-    public void abortUpdate(@Nonnull UpdateInfo updateInfo) throws RemotePublicationFacadeException {
-        throw new UnsupportedOperationException("Not implemented yet."); // FIXME hps 11.12.19 not implemented
+    public Status abortUpdate(@Nonnull UpdateInfo updateInfo) throws RemotePublicationFacadeException {
+        HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
+                passwordDecryptor());
+        List<NameValuePair> form = new ArrayList<>();
+        form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId));
+        UrlEncodedFormEntity entity = new UrlEncodedFormEntity(form, Consts.UTF_8);
+        String uri = replicationConfig.getReceiverUri() + "." + abortupdate.name() + "." + json.name();
+        HttpPost post = new HttpPost(uri);
+        post.setEntity(entity);
+
+        LOG.info("Aborting update for {}", updateInfo);
+        Status status =
+                callRemotePublicationReceiver("Aborting update of " + updateInfo.updateId,
+                        httpClientContext, post, Status.class);
+        return status;
     }
 
     @Nonnull
