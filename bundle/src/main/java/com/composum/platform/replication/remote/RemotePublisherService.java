@@ -209,7 +209,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                     }
                 }
 
-            } catch (RuntimeException | RemotePublicationReceiverFacade.RemotePublicationReceiverException | URISyntaxException e) {
+            } catch (RuntimeException | RemotePublicationReceiverFacade.RemotePublicationFacadeException | URISyntaxException e) {
                 LOG.error("Remote publishing failed: " + e, e);
                 throw new ReplicationFailedException("Remote publishing failed for " + replicationConfig, e, event);
             }

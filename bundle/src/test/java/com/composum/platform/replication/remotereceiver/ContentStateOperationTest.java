@@ -11,7 +11,6 @@ import com.google.gson.GsonBuilder;
 import org.apache.jackrabbit.commons.cnd.CndImporter;
 import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.SlingHttpServletResponse;
-import org.apache.sling.api.request.RequestPathInfo;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
@@ -21,7 +20,6 @@ import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit.SlingContext;
 import org.apache.sling.testing.mock.sling.servlet.MockSlingHttpServletRequest;
 import org.apache.sling.testing.mock.sling.servlet.MockSlingHttpServletResponse;
-import org.jetbrains.annotations.NotNull;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -44,7 +42,7 @@ import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** Test {@link ContentStateOperation}. */
+/** Test {@link RemotePublicationReceiverServlet.ContentStateOperation}. */
 public class ContentStateOperationTest {
 
     @Rule
@@ -53,21 +51,28 @@ public class ContentStateOperationTest {
     @Rule
     public final ErrorCollectorAlwaysPrintingFailures ec = new ErrorCollectorAlwaysPrintingFailures();
 
-    protected ResourceResolverFactory resolverFactory;
+    protected RemotePublicationReceiverServlet servlet;
 
-    protected RemotePublicationReceiverServlet.Configuration config;
+    protected RemotePublicationReceiverService service;
 
     @Before
     public void setup() throws Exception {
-        resolverFactory = mock(ResourceResolverFactory.class);
+        ResourceResolverFactory resolverFactory = mock(ResourceResolverFactory.class);
         ResourceResolver uncloseableResourceResolver = Mockito.spy(context.resourceResolver());
         Mockito.doNothing().when(uncloseableResourceResolver).close();
         when(resolverFactory.getServiceResourceResolver(null)).thenReturn(uncloseableResourceResolver);
-        config = AnnotationWithDefaults.of(RemotePublicationReceiverServlet.Configuration.class);
+        RemotePublicationReceiverService.Configuration config = AnnotationWithDefaults.of(RemotePublicationReceiverService.Configuration.class);
 
         InputStreamReader cndReader = new InputStreamReader(getClass().getResourceAsStream("/stagingNodetypes.cnd"));
         NodeType[] nodeTypes = CndImporter.registerNodeTypes(cndReader, context.resourceResolver().adaptTo(Session.class));
         assertEquals(5, nodeTypes.length);
+
+        servlet = new RemotePublicationReceiverServlet();
+        service = new RemotePublicationReceiverService();
+        service.config = config;
+        service.resolverFactory = resolverFactory;
+        servlet.resolverFactory = resolverFactory;
+        servlet.service = service;
     }
 
     @Test
@@ -92,7 +97,7 @@ public class ContentStateOperationTest {
         MockSlingHttpServletRequest request = context.request();
         MockSlingHttpServletResponse response = context.response();
 
-        ContentStateOperation cso = new ContentStateOperation(() -> config, resolverFactory);
+        RemotePublicationReceiverServlet.ContentStateOperation cso = servlet.new ContentStateOperation();
         MockRequestPathInfo rpi = (MockRequestPathInfo) request.getRequestPathInfo();
         rpi.setSuffix("/content/some/site/folder1");
         cso.doIt(request, response, page11);

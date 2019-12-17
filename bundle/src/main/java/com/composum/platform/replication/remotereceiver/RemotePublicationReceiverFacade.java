@@ -108,7 +108,7 @@ public class RemotePublicationReceiverFacade {
      * @return the basic information about the update which must be used for all related calls on this update.
      */
     @Nonnull
-    public UpdateInfo startUpdate(@NotNull String releaseRoot, @Nonnull String path) throws RemotePublicationReceiverException {
+    public UpdateInfo startUpdate(@NotNull String releaseRoot, @Nonnull String path) throws RemotePublicationFacadeException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 passwordDecryptor());
         List<NameValuePair> form = new ArrayList<>();
@@ -118,15 +118,15 @@ public class RemotePublicationReceiverFacade {
         HttpPost post = new HttpPost(uri);
         post.setEntity(entity);
 
-        StartUpdateOperation.StatusWithReleaseData status =
+        RemotePublicationReceiverServlet.StatusWithReleaseData status =
                 callRemotePublicationReceiver("Starting update with " + path,
-                        httpClientContext, post, StartUpdateOperation.StatusWithReleaseData.class);
+                        httpClientContext, post, RemotePublicationReceiverServlet.StatusWithReleaseData.class);
         UpdateInfo updateInfo = status.updateInfo;
         return updateInfo;
     }
 
     /** Uploads the resource tree to the remote machine. */
-    public Status pathupload(@Nonnull UpdateInfo updateInfo, @Nonnull Resource resource) throws RemotePublicationReceiverException, URISyntaxException {
+    public Status pathupload(@Nonnull UpdateInfo updateInfo, @Nonnull Resource resource) throws RemotePublicationFacadeException, URISyntaxException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 passwordDecryptor());
         URI uri = new URIBuilder(replicationConfig.getReceiverUri() + "." + Operation.startupdate.name() + "." + Extension.json.name() + resource.getPath())
@@ -140,18 +140,18 @@ public class RemotePublicationReceiverFacade {
     }
 
     /** Executes the update. */
-    public void commitUpdate(@Nonnull UpdateInfo updateInfo) throws RemotePublicationReceiverException {
+    public void commitUpdate(@Nonnull UpdateInfo updateInfo) throws RemotePublicationFacadeException {
         throw new UnsupportedOperationException("Not implemented yet."); // FIXME hps 11.12.19 not implemented
     }
 
     /** Aborts the update, deleting the temporary directory on the remote side. */
-    public void abortUpdate(@Nonnull UpdateInfo updateInfo) throws RemotePublicationReceiverException {
+    public void abortUpdate(@Nonnull UpdateInfo updateInfo) throws RemotePublicationFacadeException {
         throw new UnsupportedOperationException("Not implemented yet."); // FIXME hps 11.12.19 not implemented
     }
 
     @Nonnull
     protected <T extends Status> T callRemotePublicationReceiver(@Nonnull String logmessage, HttpClientContext httpClientContext,
-                                                                 HttpUriRequest request, Class<T> statusClass) throws RemotePublicationReceiverException {
+                                                                 HttpUriRequest request, Class<T> statusClass) throws RemotePublicationFacadeException {
         T status = null;
         StatusLine statusLine = null;
         try (CloseableHttpResponse response = httpClient.execute(request, httpClientContext)) {
@@ -170,11 +170,11 @@ public class RemotePublicationReceiverFacade {
                         statusLine.getStatusCode(), statusLine.getReasonPhrase());
             } else {
                 throw ExceptionUtil.logAndThrow(LOG,
-                        new RemotePublicationReceiverException("Received invalid status from remote system for " + logmessage,
+                        new RemotePublicationFacadeException("Received invalid status from remote system for " + logmessage,
                                 null, status, statusLine));
             }
         } catch (IOException e) {
-            throw ExceptionUtil.logAndThrow(LOG, new RemotePublicationReceiverException(
+            throw ExceptionUtil.logAndThrow(LOG, new RemotePublicationFacadeException(
                     "Trouble accessing remote service for " + logmessage, e, status,
                     statusLine));
         }
@@ -182,12 +182,12 @@ public class RemotePublicationReceiverFacade {
     }
 
     /** Exception that signifies a problem with the replication. */
-    public static class RemotePublicationReceiverException extends Exception {
+    public static class RemotePublicationFacadeException extends Exception {
         protected final Status status;
         protected final Integer statusCode;
         protected final String reasonPhrase;
 
-        public RemotePublicationReceiverException(String message, Throwable throwable, Status status, StatusLine statusLine) {
+        public RemotePublicationFacadeException(String message, Throwable throwable, Status status, StatusLine statusLine) {
             super(message, throwable);
             this.status = status;
             this.statusCode = statusLine != null ? statusLine.getStatusCode() : null;

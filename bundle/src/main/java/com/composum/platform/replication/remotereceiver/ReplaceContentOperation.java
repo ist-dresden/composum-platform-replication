@@ -66,14 +66,14 @@ public class ReplaceContentOperation implements ServletOperation {
     protected static final String ATTR_PATHSTOUPDATE = "toupdate";
 
     @Nonnull
-    protected final Supplier<RemotePublicationReceiverServlet.Configuration> configSupplier;
+    protected final Supplier<RemotePublicationReceiverService.Configuration> configSupplier;
 
     @Nonnull
     protected ResourceResolverFactory resolverFactory;
 
     protected final NodeTreeSynchronizer nodeTreeSynchronizer = new NodeTreeSynchronizer();
 
-    public ReplaceContentOperation(@Nonnull Supplier<RemotePublicationReceiverServlet.Configuration> getConfig,
+    public ReplaceContentOperation(@Nonnull Supplier<RemotePublicationReceiverService.Configuration> getConfig,
                                    @Nonnull ResourceResolverFactory resolverFactory) {
         this.configSupplier = getConfig;
         this.resolverFactory = resolverFactory;
