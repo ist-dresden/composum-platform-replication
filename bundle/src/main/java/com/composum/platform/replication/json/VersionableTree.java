@@ -1,6 +1,6 @@
 package com.composum.platform.replication.json;
 
-import com.composum.platform.commons.json.AbstractJSonDirectTypeAdapter;
+import com.composum.platform.commons.json.AbstractJsonTypeAdapterFactory;
 import com.composum.sling.core.util.ResourceUtil;
 import com.composum.sling.core.util.SlingResourceUtil;
 import com.google.gson.Gson;
@@ -89,7 +89,7 @@ public class VersionableTree {
                 .collect(Collectors.toList());
     }
 
-    public static class VersionableTreeSerializer extends AbstractJSonDirectTypeAdapter<VersionableTree> {
+    public static class VersionableTreeSerializer extends AbstractJsonTypeAdapterFactory<VersionableTree> {
 
         @Nullable
         private final String relativeTo;
@@ -125,7 +125,7 @@ public class VersionableTree {
 
     }
 
-    public static class VersionableTreeDeserializer extends AbstractJSonDirectTypeAdapter<VersionableTree> {
+    public static class VersionableTreeDeserializer extends AbstractJsonTypeAdapterFactory<VersionableTree> {
         @Nullable
         protected final String relativeTo;
         @Nonnull

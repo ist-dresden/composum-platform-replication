@@ -1,13 +1,14 @@
 package com.composum.platform.replication.remotereceiver;
 
-import com.composum.platform.commons.json.JSonOnTheFlyCollectionAdapter;
-import com.composum.platform.replication.json.VersionableInfo;
+import com.composum.platform.replication.json.VersionableTree;
 import com.composum.sling.core.ResourceHandle;
 import com.composum.sling.core.servlet.AbstractServiceServlet;
 import com.composum.sling.core.servlet.ServletOperation;
 import com.composum.sling.core.servlet.ServletOperationSet;
 import com.composum.sling.core.servlet.Status;
 import com.composum.sling.core.util.SlingResourceUtil;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import org.apache.jackrabbit.vault.fs.config.ConfigurationException;
 import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.SlingHttpServletResponse;
@@ -29,6 +30,7 @@ import javax.servlet.Servlet;
 import javax.servlet.ServletException;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -108,12 +110,17 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         @Override
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response,
                          @Nullable ResourceHandle ignoredResource) throws RepositoryException, IOException, ServletException {
-            ContentStateStatus status = new ContentStateStatus(request, response);
+            VersionableTree.VersionableTreeSerializer factory = new VersionableTree.VersionableTreeSerializer(
+                    service.getConfiguration().targetDir()
+            );
+            Gson gson = new GsonBuilder().registerTypeAdapterFactory(factory).create();
+            ContentStateStatus status = new ContentStateStatus(gson, request, response);
             String contentPath = request.getRequestPathInfo().getSuffix();
             try (ResourceResolver resolver = makeResolver()) {
                 ResourceHandle resource = isNotBlank(contentPath) ? ResourceHandle.use(resolver.getResource(contentPath)) : null;
                 if (resource != null && resource.isValid()) {
-                    status.resource = resource;
+                    status.versionables = new VersionableTree();
+                    status.versionables.setSearchtreeRoots(Collections.singletonList(resource));
                 } else {
                     status.withLogging(LOG).error("No readable path given as suffix: {}", request.getRequestPathInfo().getSuffix());
                 }
@@ -131,21 +138,14 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
      * Extends Status to write data about all versionables below resource without needing to save everything in
      * memory - the data is fetched on the fly during JSON serialization.
      */
-    // todo not serializable so far...
     protected class ContentStateStatus extends Status {
 
-        protected transient ResourceHandle resource;
+        /** The attribute; need to register serializer - see {@link VersionableTree}. */
+        protected VersionableTree versionables;
 
-        /**
-         * Is serialized to the stream of versionables; needs to be named exactly as
-         * {@value #STATUSDATA_VERSIONABLES}.
-         */
-        // TODO this is not the nicest design, and not deserializable.
-        protected JSonOnTheFlyCollectionAdapter.OnTheFlyProducer<VersionableInfo> versionables =
-                JSonOnTheFlyCollectionAdapter.onTheFlyProducer((output) -> service.traverseTree(resource, output));
-
-        public ContentStateStatus(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response) {
-            super(request, response);
+        public ContentStateStatus(@Nonnull final Gson gson, @Nonnull SlingHttpServletRequest request,
+                                  @Nonnull SlingHttpServletResponse response) {
+            super(gson, request, response);
         }
 
     }
