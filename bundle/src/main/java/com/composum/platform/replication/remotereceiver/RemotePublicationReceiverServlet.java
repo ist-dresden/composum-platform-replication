@@ -89,6 +89,8 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 new ContentStateOperation());
         operations.setOperation(ServletOperationSet.Method.POST, Extension.json, Operation.contentstate,
                 new ContentStateOperation());
+        operations.setOperation(ServletOperationSet.Method.PUT, Extension.json, Operation.comparecontent,
+                new CompareContentOperation());
         operations.setOperation(ServletOperationSet.Method.POST, Extension.json, Operation.startupdate,
                 new StartUpdateOperation());
         operations.setOperation(ServletOperationSet.Method.PUT, Extension.json, Operation.pathupload,
@@ -108,12 +110,6 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
      * orderings and child node version uuids.
      */
     class ContentStateOperation implements ServletOperation {
-
-        /**
-         * Status data variable that contains an array of the versions of all versionables below the given path,
-         * in the order they appear in a resource scan.
-         */
-        public static final String STATUSDATA_VERSIONABLES = "versionables";
 
         @Override
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response,
@@ -171,6 +167,35 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
             super(null, null);
         }
 
+    }
+
+    /**
+     * Receives a number of {@link com.composum.platform.replication.json.VersionableInfo} in a PUT request and
+     * compares them to the current content. The paths that differ or do not exist are returned in the response
+     * {@link Status#data(String)}({@value Status#DATA}) attribute {@link RemoteReceiverConstants#PARAM_PATH} as List&lt;String>.
+     */
+    class CompareContentOperation implements ServletOperation {
+
+        @Override
+        public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource)
+                throws RepositoryException, IOException, ServletException {
+            Status status = new Status(request, response);
+            String updateId = status.getRequiredParameter(PARAM_UPDATEID, PATTERN_UPDATEID, "PatternId required");
+            try {
+                if (status.isValid()) {
+                    List<String> diffpaths = service.compareContent(updateId, request.getInputStream());
+                    status.data(Status.DATA).put(RemoteReceiverConstants.PARAM_PATH, diffpaths);
+                } else {
+                    status.withLogging(LOG).error("Broken parameter upd ", updateId);
+                }
+                status.sendJson();
+            } catch (RemotePublicationReceiver.RemotePublicationReceiverException e) {
+                status.withLogging(LOG).error("Error comparing content for {} : {}", updateId, e.getMessage());
+            } catch (LoginException e) { // serious misconfiguration
+                LOG.error("Could not get service resolver" + e, e);
+                throw new ServletException("Could not get service resolver", e);
+            }
+        }
     }
 
     /** Creates a temporary directory to unpack stuff to replace our content. */
@@ -275,4 +300,5 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         }
 
     }
+
 }

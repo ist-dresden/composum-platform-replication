@@ -184,8 +184,10 @@ public class RemotePublicationReceiverFacade {
             throws URISyntaxException, RemotePublicationFacadeException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 passwordDecryptor());
-        URI uri = new URIBuilder(replicationConfig.getReceiverUri() + "." + comparecontent.name() + "." + json.name())
-                .addParameter(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId).build();
+        URI uri = new URIBuilder(replicationConfig.getReceiverUri() + "." + comparecontent.name() +
+                "." + json.name() + contentPath)
+                .addParameter(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId)
+                .build();
         HttpPut put = new HttpPut(uri);
         Gson gson = new GsonBuilder().registerTypeAdapterFactory(
                 new VersionableTree.VersionableTreeSerializer(null)

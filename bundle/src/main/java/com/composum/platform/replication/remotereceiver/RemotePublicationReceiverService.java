@@ -1,10 +1,13 @@
 package com.composum.platform.replication.remotereceiver;
 
 import com.composum.platform.replication.json.VersionableInfo;
+import com.composum.platform.replication.json.VersionableTree;
 import com.composum.sling.core.ResourceHandle;
 import com.composum.sling.core.util.ResourceUtil;
 import com.composum.sling.core.util.SlingResourceUtil;
 import com.composum.sling.platform.staging.StagingConstants;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.vault.fs.config.ConfigurationException;
@@ -36,6 +39,9 @@ import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
@@ -155,6 +161,27 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
         }
     }
 
+    @Nonnull
+    @Override
+    public List<String> compareContent(String updateId, @Nonnull InputStream jsonInputStream)
+            throws LoginException, RemotePublicationReceiverException, RepositoryException, IOException {
+        LOG.info("Compare content {}", updateId);
+        try (ResourceResolver resolver = makeResolver();
+             Reader json = new InputStreamReader(jsonInputStream, StandardCharsets.UTF_8)) {
+            Resource tmpLocation = getTmpLocation(resolver, updateId, false);
+            String contentPath = tmpLocation.getValueMap().get(ATTR_CONTENTPATH, String.class);
+            VersionableTree.VersionableTreeDeserializer factory =
+                    new VersionableTree.VersionableTreeDeserializer(config.targetDir(), resolver, contentPath);
+            Gson gson = new GsonBuilder().registerTypeAdapterFactory(factory).create();
+            VersionableTree versionableTree = gson.fromJson(json, VersionableTree.class);
+            List<String> result = new ArrayList<>();
+            result.addAll(versionableTree.getChangedPaths());
+            result.addAll(versionableTree.getDeletedPaths());
+            LOG.info("Different versionables: {}", result);
+            return result;
+        }
+    }
+
     @Override
     public void pathUpload(String updateId, String packageRootPath, InputStream inputStream)
             throws LoginException, RemotePublicationReceiverException, RepositoryException, IOException, ConfigurationException {
@@ -221,7 +248,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                     LOG.warn("Path to delete unexpectedly not present in content: {}", deletedPath);
                 }
             }
-            
+
             String targetReleaseRootPath = appendPaths(targetRoot, releaseRootPath);
             Resource targetReleaseRoot = ResourceUtil.getOrCreateResource(resolver, targetReleaseRootPath);
 

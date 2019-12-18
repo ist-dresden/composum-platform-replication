@@ -6,9 +6,11 @@ import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 
+import javax.annotation.Nonnull;
 import javax.jcr.RepositoryException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -17,8 +19,10 @@ public interface RemotePublicationReceiver {
 
     boolean isEnabled();
 
-    /** From the configuration the target directory where we synchronize to - in production use / , but while
-     * testing / debugging this might be elsewhere, e.g. /var/composum/tmp . */
+    /**
+     * From the configuration the target directory where we synchronize to - in production use / , but while
+     * testing / debugging this might be elsewhere, e.g. /var/composum/tmp .
+     */
     String getTargetDir();
 
     /** @deprecated "In use until ReplaceContentOperation is removed." */
@@ -44,6 +48,14 @@ public interface RemotePublicationReceiver {
      * temporary directory is then deleted.
      */
     void commit(String updateId, Set<String> deletedPaths) throws LoginException, RemotePublicationReceiverException, RepositoryException, PersistenceException;
+
+    /**
+     * Retrieves a list of {@link VersionableInfo} from the {jsonInputStream}, checks these against the content and
+     * returns the paths where differences in the version number exist / paths that do not exist.
+     */
+    @Nonnull
+    List<String> compareContent(String updateId, @Nonnull InputStream jsonInputStream)
+            throws LoginException, RemotePublicationReceiverException, RepositoryException, IOException;
 
     class RemotePublicationReceiverException extends Exception {
 

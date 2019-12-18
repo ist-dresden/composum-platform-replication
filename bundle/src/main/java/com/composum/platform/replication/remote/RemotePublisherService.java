@@ -217,12 +217,12 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 LOG.info("Content difference on remote side: {} , deleted {}",
                         contentState.getVersionables().getChanged(), contentState.getVersionables().getDeleted());
 
-                Status compareContentState = publisher.contentState(updateInfo, changedPaths, resolver, commonParent);
+                Status compareContentState = publisher.compareContent(updateInfo, changedPaths, resolver, commonParent);
                 if (!compareContentState.isValid()) {
                     LOG.error("Received invalid status on compare content for {}", updateInfo.updateId);
                     throw new ReplicationFailedException("Comparing content failed for " + replicationConfig, null, event);
                 }
-                List<String> remotelyDifferentPaths =
+                @SuppressWarnings("unchecked") List<String> remotelyDifferentPaths =
                         (List<String>) compareContentState.data(Status.DATA).get(RemoteReceiverConstants.PARAM_PATH);
                 LOG.info("Remotely different paths: {}", remotelyDifferentPaths);
 
