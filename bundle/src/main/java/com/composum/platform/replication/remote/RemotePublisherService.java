@@ -33,6 +33,7 @@ import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -187,7 +188,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         protected void replicate() throws ReplicationFailedException {
             try {
                 Set<String> changedPaths = changedPaths();
-                Set<String> deletedPaths = changedPaths();
+                Set<String> deletedPaths = new HashSet<>();
                 String commonParent = SlingResourceUtil.commonParent(changedPaths);
                 LOG.info("Changed paths below {}: {}", commonParent, changedPaths);
                 Objects.requireNonNull(commonParent);
@@ -198,6 +199,18 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
 
                 UpdateInfo updateInfo = publisher.startUpdate(release.getReleaseRoot().getPath(), commonParent);
                 LOG.info("Received UpdateInfo {}", updateInfo);
+
+                if (originalReleaseChangeNumber.equals(updateInfo.originalPublisherReleaseChangeId)) {
+                    LOG.info("Abort publishing since content on remote system is up to date.");
+                    abort(publisher, updateInfo);
+                    return;
+                }
+
+                RemotePublicationReceiverServlet.ContentStateStatus contentState = publisher.contentState(updateInfo, changedPaths);
+                if (!contentState.isValid()) {
+                    LOG.error("Received invalid status on contentState for {}", updateInfo.updateId);
+                    throw new ReplicationFailedException("Querying content state failed for " + replicationConfig, null, event);
+                }
 
                 for (String path : changedPaths) {
                     Resource resource = resolver.getResource(path);
@@ -222,13 +235,8 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                     }
                 } else {
                     LOG.info("Aborting publishing because of local release content change.");
-                    Status status = publisher.abortUpdate(updateInfo);
-                    if (status == null || !status.isValid()) {
-                        LOG.error("Aborting replication failed for {} - please manually clean up resources used there.",
-                                updateInfo);
-                    }
-                    throw new ReplicationFailedException("Aborted publishing because of local release content change " +
-                            "during publishing.", null, event);
+                    abort(publisher, updateInfo);
+                    return;
                 }
 
                 LOG.info("Replication done {}", updateInfo.updateId);
@@ -236,6 +244,16 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 LOG.error("Remote publishing failed: " + e, e);
                 throw new ReplicationFailedException("Remote publishing failed for " + replicationConfig, e, event);
             }
+        }
+
+        protected void abort(RemotePublicationReceiverFacade publisher, UpdateInfo updateInfo) throws RemotePublicationReceiverFacade.RemotePublicationFacadeException, ReplicationFailedException {
+            Status status = publisher.abortUpdate(updateInfo);
+            if (status == null || !status.isValid()) {
+                LOG.error("Aborting replication failed for {} - please manually clean up resources used there.",
+                        updateInfo);
+            }
+            throw new ReplicationFailedException("Aborted publishing because of local release content change " +
+                    "during publishing.", null, event);
         }
 
         @Nonnull

@@ -9,10 +9,12 @@ import com.composum.sling.core.servlet.Status;
 import com.composum.sling.core.util.SlingResourceUtil;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.vault.fs.config.ConfigurationException;
 import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.SlingHttpServletResponse;
 import org.apache.sling.api.resource.LoginException;
+import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.servlets.HttpConstants;
@@ -29,10 +31,13 @@ import javax.jcr.RepositoryException;
 import javax.servlet.Servlet;
 import javax.servlet.ServletException;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_DELETED_PATH;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_UPDATEID;
@@ -115,15 +120,20 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
             );
             Gson gson = new GsonBuilder().registerTypeAdapterFactory(factory).create();
             ContentStateStatus status = new ContentStateStatus(gson, request, response);
+
             String contentPath = request.getRequestPathInfo().getSuffix();
+            String[] additionalPaths = request.getParameterValues(RemoteReceiverConstants.PARAM_PATH);
+            List<String> paths = new ArrayList<>();
+            if (StringUtils.isNotBlank(contentPath)) { paths.add(contentPath); }
+            if (additionalPaths != null) { paths.addAll(Arrays.asList(additionalPaths)); }
+
             try (ResourceResolver resolver = makeResolver()) {
-                ResourceHandle resource = isNotBlank(contentPath) ? ResourceHandle.use(resolver.getResource(contentPath)) : null;
-                if (resource != null && resource.isValid()) {
-                    status.versionables = new VersionableTree();
-                    status.versionables.setSearchtreeRoots(Collections.singletonList(resource));
-                } else {
-                    status.withLogging(LOG).error("No readable path given as suffix: {}", request.getRequestPathInfo().getSuffix());
-                }
+                List<Resource> resources = paths.stream()
+                        .map(resolver::getResource)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList());
+                status.versionables = new VersionableTree();
+                status.versionables.setSearchtreeRoots(resources);
             } catch (LoginException e) { // serious misconfiguration
                 LOG.error("Could not get service resolver" + e, e);
                 throw new ServletException("Could not get service resolver", e);
@@ -138,7 +148,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
      * Extends Status to write data about all versionables below resource without needing to save everything in
      * memory - the data is fetched on the fly during JSON serialization.
      */
-    protected class ContentStateStatus extends Status {
+    public class ContentStateStatus extends Status {
 
         /** The attribute; need to register serializer - see {@link VersionableTree}. */
         protected VersionableTree versionables;
@@ -146,6 +156,12 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         public ContentStateStatus(@Nonnull final Gson gson, @Nonnull SlingHttpServletRequest request,
                                   @Nonnull SlingHttpServletResponse response) {
             super(gson, request, response);
+        }
+
+        /** @deprecated for instantiation by GSon only */
+        @Deprecated
+        public ContentStateStatus() {
+            super(null, null);
         }
 
     }

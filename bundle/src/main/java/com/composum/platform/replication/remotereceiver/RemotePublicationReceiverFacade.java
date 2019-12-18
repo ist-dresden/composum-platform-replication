@@ -3,7 +3,6 @@ package com.composum.platform.replication.remotereceiver;
 import com.composum.platform.commons.crypt.CryptoService;
 import com.composum.platform.commons.util.ExceptionUtil;
 import com.composum.platform.replication.remote.RemotePublisherService;
-import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation;
 import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.servlet.Status;
 import com.composum.sling.core.util.SlingResourceUtil;
@@ -42,6 +41,7 @@ import java.net.URISyntaxException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
@@ -50,6 +50,7 @@ import java.util.function.Supplier;
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Extension.json;
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.abortupdate;
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.commitupdate;
+import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.contentstate;
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.pathupload;
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.startupdate;
 
@@ -135,6 +136,25 @@ public class RemotePublicationReceiverFacade {
         return updateInfo;
     }
 
+    public RemotePublicationReceiverServlet.ContentStateStatus contentState(@Nonnull UpdateInfo updateInfo, @Nonnull Collection<String> paths)
+            throws RemotePublicationFacadeException {
+        HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
+                passwordDecryptor());
+        List<NameValuePair> form = new ArrayList<>();
+        form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId));
+        for (String path : paths) { form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_PATH, path)); }
+        UrlEncodedFormEntity entity = new UrlEncodedFormEntity(form, Consts.UTF_8);
+        String uri = replicationConfig.getReceiverUri() + "." + contentstate.name() + "." + json.name();
+        HttpPost post = new HttpPost(uri);
+        post.setEntity(entity);
+
+        LOG.info("Querying content state for {} , {}", updateInfo.updateId, paths);
+        RemotePublicationReceiverServlet.ContentStateStatus status =
+                callRemotePublicationReceiver("Querying content for " + paths,
+                        httpClientContext, post, RemotePublicationReceiverServlet.ContentStateStatus.class);
+        return status;
+    }
+
     /** Uploads the resource tree to the remote machine. */
     public Status pathupload(@Nonnull UpdateInfo updateInfo, @Nonnull Resource resource) throws RemotePublicationFacadeException, URISyntaxException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
@@ -167,7 +187,7 @@ public class RemotePublicationReceiverFacade {
 
         LOG.info("Comitting update {} deleting {}", updateInfo.updateId, deletedPaths);
         Status status = callRemotePublicationReceiver("Committing update " + updateInfo.updateId,
-                        httpClientContext, post, Status.class);
+                httpClientContext, post, Status.class);
         return status;
     }
 
