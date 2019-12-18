@@ -1,7 +1,7 @@
 package com.composum.platform.replication.remotereceiver;
 
 import com.composum.platform.commons.json.JSonOnTheFlyCollectionAdapter;
-import com.composum.platform.replication.remote.VersionableInfo;
+import com.composum.platform.replication.json.VersionableInfo;
 import com.composum.sling.core.ResourceHandle;
 import com.composum.sling.core.servlet.AbstractServiceServlet;
 import com.composum.sling.core.servlet.ServletOperation;

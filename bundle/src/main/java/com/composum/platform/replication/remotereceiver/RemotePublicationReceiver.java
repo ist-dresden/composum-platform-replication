@@ -1,6 +1,6 @@
 package com.composum.platform.replication.remotereceiver;
 
-import com.composum.platform.replication.remote.VersionableInfo;
+import com.composum.platform.replication.json.VersionableInfo;
 import org.apache.jackrabbit.vault.fs.config.ConfigurationException;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;

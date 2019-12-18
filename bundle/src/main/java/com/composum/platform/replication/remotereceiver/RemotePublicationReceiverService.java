@@ -1,6 +1,6 @@
 package com.composum.platform.replication.remotereceiver;
 
-import com.composum.platform.replication.remote.VersionableInfo;
+import com.composum.platform.replication.json.VersionableInfo;
 import com.composum.sling.core.ResourceHandle;
 import com.composum.sling.core.util.ResourceUtil;
 import com.composum.sling.core.util.SlingResourceUtil;
@@ -107,7 +107,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     public void traverseTree(Resource resource, Consumer<VersionableInfo> output) throws IOException {
         if (resource == null) { return; }
         if (ResourceUtil.isNodeType(resource, ResourceUtil.TYPE_VERSIONABLE)) {
-            VersionableInfo info = VersionableInfo.of(resource);
+            VersionableInfo info = VersionableInfo.of(resource, null);
             if (info != null) { output.accept(info); }
         } else if (ResourceUtil.CONTENT_NODE.equals(resource.getName())) {
             // that shouldn't happen in the intended usecase: non-versionable jcr:content
