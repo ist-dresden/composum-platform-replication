@@ -84,7 +84,10 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
 
         operations.setOperation(ServletOperationSet.Method.POST, Extension.zip, Operation.replaceContent,
                 new ReplaceContentOperation(service::getConfiguration, resolverFactory));
+        // we allow both GET and POST for contentstate since it might have many parameters.
         operations.setOperation(ServletOperationSet.Method.GET, Extension.json, Operation.contentstate,
+                new ContentStateOperation());
+        operations.setOperation(ServletOperationSet.Method.POST, Extension.json, Operation.contentstate,
                 new ContentStateOperation());
         operations.setOperation(ServletOperationSet.Method.POST, Extension.json, Operation.startupdate,
                 new StartUpdateOperation());
@@ -115,9 +118,8 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         @Override
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response,
                          @Nullable ResourceHandle ignoredResource) throws RepositoryException, IOException, ServletException {
-            VersionableTree.VersionableTreeSerializer factory = new VersionableTree.VersionableTreeSerializer(
-                    service.getConfiguration().targetDir()
-            );
+            String targetDir = Objects.requireNonNull(service.getTargetDir());
+            VersionableTree.VersionableTreeSerializer factory = new VersionableTree.VersionableTreeSerializer(targetDir);
             Gson gson = new GsonBuilder().registerTypeAdapterFactory(factory).create();
             ContentStateStatus status = new ContentStateStatus(gson, request, response);
 
@@ -129,16 +131,17 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
 
             try (ResourceResolver resolver = makeResolver()) {
                 List<Resource> resources = paths.stream()
+                        .map((p) -> SlingResourceUtil.appendPaths(targetDir, p))
                         .map(resolver::getResource)
                         .filter(Objects::nonNull)
                         .collect(Collectors.toList());
                 status.versionables = new VersionableTree();
                 status.versionables.setSearchtreeRoots(resources);
+                status.sendJson();
             } catch (LoginException e) { // serious misconfiguration
                 LOG.error("Could not get service resolver" + e, e);
                 throw new ServletException("Could not get service resolver", e);
             }
-            status.sendJson();
         }
 
 
@@ -152,6 +155,10 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
 
         /** The attribute; need to register serializer - see {@link VersionableTree}. */
         protected VersionableTree versionables;
+
+        public VersionableTree getVersionables() {
+            return versionables;
+        }
 
         public ContentStateStatus(@Nonnull final Gson gson, @Nonnull SlingHttpServletRequest request,
                                   @Nonnull SlingHttpServletResponse response) {

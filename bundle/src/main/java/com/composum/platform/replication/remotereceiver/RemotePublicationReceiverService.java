@@ -19,6 +19,7 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ValueMap;
 import org.jetbrains.annotations.NotNull;
+import org.osgi.framework.Constants;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
@@ -56,7 +57,7 @@ import static java.util.Objects.requireNonNull;
 /** Interface for service that implements the functions behind the {@link RemotePublicationReceiverServlet}. */
 @Component(
         service = RemotePublicationReceiver.class,
-        name = "Composum Platform Remote Receiver Service")
+        property = {Constants.SERVICE_DESCRIPTION + "=Composum Platform Remote Receiver Service"})
 @Designate(ocd = RemotePublicationReceiverService.Configuration.class)
 public class RemotePublicationReceiverService implements RemotePublicationReceiver {
 
@@ -96,6 +97,11 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     public boolean isEnabled() {
         Configuration theconfig = this.config;
         return theconfig != null && theconfig.enabled();
+    }
+
+    @Override
+    public String getTargetDir() {
+        return config.targetDir();
     }
 
     @Override

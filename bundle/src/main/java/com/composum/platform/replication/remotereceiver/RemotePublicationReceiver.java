@@ -17,6 +17,10 @@ public interface RemotePublicationReceiver {
 
     boolean isEnabled();
 
+    /** From the configuration the target directory where we synchronize to - in production use / , but while
+     * testing / debugging this might be elsewhere, e.g. /var/composum/tmp . */
+    String getTargetDir();
+
     /** @deprecated "In use until ReplaceContentOperation is removed." */
     // FIXME(hps,17.12.19) remove this.
     @Deprecated()

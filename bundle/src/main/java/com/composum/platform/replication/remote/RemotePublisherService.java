@@ -18,6 +18,7 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.commons.threads.ThreadPool;
 import org.apache.sling.commons.threads.ThreadPoolManager;
+import org.osgi.framework.Constants;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
@@ -46,7 +47,7 @@ import java.util.Set;
  */
 @Component(
         service = ReleaseChangeEventListener.class,
-        name = "Composum Platform Remote Publisher Service",
+        property = {Constants.SERVICE_DESCRIPTION + "=Composum Platform Remote Publisher Service"},
         immediate = true)
 @Designate(ocd = RemotePublisherService.Configuration.class)
 public class RemotePublisherService implements ReleaseChangeEventListener {
@@ -206,11 +207,14 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                     return;
                 }
 
-                RemotePublicationReceiverServlet.ContentStateStatus contentState = publisher.contentState(updateInfo, changedPaths);
+                RemotePublicationReceiverServlet.ContentStateStatus contentState = publisher.contentState(updateInfo,
+                        changedPaths, resolver, release.getReleaseRoot().getPath());
                 if (!contentState.isValid()) {
                     LOG.error("Received invalid status on contentState for {}", updateInfo.updateId);
                     throw new ReplicationFailedException("Querying content state failed for " + replicationConfig, null, event);
                 }
+                LOG.info("Content difference on remote side: {} , deleted {}",
+                        contentState.getVersionables().getChanged(), contentState.getVersionables().getDeleted());
 
                 for (String path : changedPaths) {
                     Resource resource = resolver.getResource(path);

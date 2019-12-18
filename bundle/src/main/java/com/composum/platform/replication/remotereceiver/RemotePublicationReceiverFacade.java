@@ -2,6 +2,7 @@ package com.composum.platform.replication.remotereceiver;
 
 import com.composum.platform.commons.crypt.CryptoService;
 import com.composum.platform.commons.util.ExceptionUtil;
+import com.composum.platform.replication.json.VersionableTree;
 import com.composum.platform.replication.remote.RemotePublisherService;
 import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.servlet.Status;
@@ -25,6 +26,7 @@ import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -131,12 +133,13 @@ public class RemotePublicationReceiverFacade {
         LOG.info("Start update for {} , {}", releaseRoot, path);
         RemotePublicationReceiverServlet.StatusWithReleaseData status =
                 callRemotePublicationReceiver("Starting update with " + path,
-                        httpClientContext, post, RemotePublicationReceiverServlet.StatusWithReleaseData.class);
+                        httpClientContext, post, RemotePublicationReceiverServlet.StatusWithReleaseData.class, null);
         UpdateInfo updateInfo = status.updateInfo;
         return updateInfo;
     }
 
-    public RemotePublicationReceiverServlet.ContentStateStatus contentState(@Nonnull UpdateInfo updateInfo, @Nonnull Collection<String> paths)
+    public RemotePublicationReceiverServlet.ContentStateStatus contentState(
+            @Nonnull UpdateInfo updateInfo, @Nonnull Collection<String> paths, ResourceResolver resolver, String contentPath)
             throws RemotePublicationFacadeException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 passwordDecryptor());
@@ -149,9 +152,12 @@ public class RemotePublicationReceiverFacade {
         post.setEntity(entity);
 
         LOG.info("Querying content state for {} , {}", updateInfo.updateId, paths);
+        Gson gson = new GsonBuilder().registerTypeAdapterFactory(
+                new VersionableTree.VersionableTreeDeserializer(null, resolver, contentPath)
+        ).create();
         RemotePublicationReceiverServlet.ContentStateStatus status =
                 callRemotePublicationReceiver("Querying content for " + paths,
-                        httpClientContext, post, RemotePublicationReceiverServlet.ContentStateStatus.class);
+                        httpClientContext, post, RemotePublicationReceiverServlet.ContentStateStatus.class, gson);
         return status;
     }
 
@@ -166,7 +172,7 @@ public class RemotePublicationReceiverFacade {
 
         LOG.info("Uploading package for {}", SlingResourceUtil.getPath(resource));
         Status status = callRemotePublicationReceiver("pathupload " + resource.getPath(),
-                httpClientContext, put, Status.class);
+                httpClientContext, put, Status.class, null);
         return status;
     }
 
@@ -187,7 +193,7 @@ public class RemotePublicationReceiverFacade {
 
         LOG.info("Comitting update {} deleting {}", updateInfo.updateId, deletedPaths);
         Status status = callRemotePublicationReceiver("Committing update " + updateInfo.updateId,
-                httpClientContext, post, Status.class);
+                httpClientContext, post, Status.class, null);
         return status;
     }
 
@@ -205,13 +211,15 @@ public class RemotePublicationReceiverFacade {
         LOG.info("Aborting update for {}", updateInfo);
         Status status =
                 callRemotePublicationReceiver("Aborting update of " + updateInfo.updateId,
-                        httpClientContext, post, Status.class);
+                        httpClientContext, post, Status.class, null);
         return status;
     }
 
     @Nonnull
-    protected <T extends Status> T callRemotePublicationReceiver(@Nonnull String logmessage, HttpClientContext httpClientContext,
-                                                                 HttpUriRequest request, Class<T> statusClass) throws RemotePublicationFacadeException {
+    protected <T extends Status> T callRemotePublicationReceiver(
+            @Nonnull String logmessage, @Nonnull HttpClientContext httpClientContext, @Nonnull HttpUriRequest request,
+            @Nonnull Class<T> statusClass, @Nullable Gson gson) throws RemotePublicationFacadeException {
+        gson = gson != null ? gson : new GsonBuilder().create();
         T status = null;
         StatusLine statusLine = null;
         try (CloseableHttpResponse response = httpClient.execute(request, httpClientContext)) {
@@ -221,7 +229,6 @@ public class RemotePublicationReceiverFacade {
                 try (InputStream content = entity.getContent()) {
                     Charset charset;
                     Reader contentReader = new InputStreamReader(content, StandardCharsets.UTF_8);
-                    Gson gson = new GsonBuilder().create();
                     status = gson.fromJson(contentReader, statusClass);
                 }
             }

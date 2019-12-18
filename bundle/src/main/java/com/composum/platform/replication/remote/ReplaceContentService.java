@@ -24,6 +24,7 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.commons.threads.ThreadPool;
 import org.apache.sling.commons.threads.ThreadPoolManager;
+import org.osgi.framework.Constants;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
@@ -61,7 +62,7 @@ import java.util.zip.ZipOutputStream;
  */
 @Component(
         service = ReleaseChangeEventListener.class,
-        name = "Composum Platform Remote Publisher Service (OLD)",
+        property = {Constants.SERVICE_DESCRIPTION + "=Composum Platform Remote Publisher Service (OLD)"},
         immediate = true)
 @Designate(ocd = ReplaceContentService.Configuration.class)
 public class ReplaceContentService implements ReleaseChangeEventListener {
