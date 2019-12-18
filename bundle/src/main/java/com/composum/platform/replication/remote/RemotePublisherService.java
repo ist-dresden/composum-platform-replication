@@ -4,6 +4,7 @@ import com.composum.platform.commons.crypt.CryptoService;
 import com.composum.platform.replication.remotereceiver.RemotePublicationConfig;
 import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverFacade;
 import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet;
+import com.composum.platform.replication.remotereceiver.RemoteReceiverConstants;
 import com.composum.platform.replication.remotereceiver.UpdateInfo;
 import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.servlet.Status;
@@ -37,6 +38,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -189,7 +191,6 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         protected void replicate() throws ReplicationFailedException {
             try {
                 Set<String> changedPaths = changedPaths();
-                Set<String> deletedPaths = new HashSet<>();
                 String commonParent = SlingResourceUtil.commonParent(changedPaths);
                 LOG.info("Changed paths below {}: {}", commonParent, changedPaths);
                 Objects.requireNonNull(commonParent);
@@ -216,7 +217,21 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 LOG.info("Content difference on remote side: {} , deleted {}",
                         contentState.getVersionables().getChanged(), contentState.getVersionables().getDeleted());
 
-                for (String path : changedPaths) {
+                Status compareContentState = publisher.contentState(updateInfo, changedPaths, resolver, commonParent);
+                if (!compareContentState.isValid()) {
+                    LOG.error("Received invalid status on compare content for {}", updateInfo.updateId);
+                    throw new ReplicationFailedException("Comparing content failed for " + replicationConfig, null, event);
+                }
+                List<String> remotelyDifferentPaths =
+                        (List<String>) compareContentState.data(Status.DATA).get(RemoteReceiverConstants.PARAM_PATH);
+                LOG.info("Remotely different paths: {}", remotelyDifferentPaths);
+
+                Set<String> pathsToTransmit = new HashSet<>();
+                pathsToTransmit.addAll(remotelyDifferentPaths);
+                pathsToTransmit.addAll(contentState.getVersionables().getChangedPaths());
+                Set<String> deletedPaths = new HashSet<>();
+                deletedPaths.addAll(contentState.getVersionables().getDeletedPaths());
+                for (String path : pathsToTransmit) {
                     Resource resource = resolver.getResource(path);
                     if (resource != null) {
                         Status status = publisher.pathupload(updateInfo, resource);
@@ -238,7 +253,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                         throw new ReplicationFailedException("Remote commit failed for " + replicationConfig, null, event);
                     }
                 } else {
-                    LOG.info("Aborting publishing because of local release content change.");
+                    LOG.info("Aborting publishing because of local release content change during publishing.");
                     abort(publisher, updateInfo);
                     return;
                 }

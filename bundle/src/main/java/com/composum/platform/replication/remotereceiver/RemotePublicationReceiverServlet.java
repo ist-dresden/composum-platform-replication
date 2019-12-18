@@ -58,7 +58,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
 
     public enum Extension {zip, json}
 
-    public enum Operation {replaceContent, contentstate, startupdate, pathupload, commitupdate, abortupdate}
+    public enum Operation {replaceContent, contentstate, comparecontent, startupdate, pathupload, commitupdate, abortupdate}
 
     protected final ServletOperationSet<Extension, Operation> operations = new ServletOperationSet<>(Extension.json);
 

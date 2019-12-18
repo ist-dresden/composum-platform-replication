@@ -45,13 +45,16 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Extension.json;
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.abortupdate;
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.commitupdate;
+import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.comparecontent;
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.contentstate;
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.pathupload;
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.startupdate;
@@ -138,6 +141,15 @@ public class RemotePublicationReceiverFacade {
         return updateInfo;
     }
 
+    /**
+     * Queries the versions of versionables below {paths} on the remote side and returns in the status which
+     * resources of the remote side have a different version and which do not exist.
+     *
+     * @param paths       the paths to query
+     * @param contentPath a path that is a common parent to all paths - just a safety feature that a broken / faked
+     *                    response cannot compare unwanted areas of the content.
+     */
+    @Nullable
     public RemotePublicationReceiverServlet.ContentStateStatus contentState(
             @Nonnull UpdateInfo updateInfo, @Nonnull Collection<String> paths, ResourceResolver resolver, String contentPath)
             throws RemotePublicationFacadeException {
@@ -158,6 +170,37 @@ public class RemotePublicationReceiverFacade {
         RemotePublicationReceiverServlet.ContentStateStatus status =
                 callRemotePublicationReceiver("Querying content for " + paths,
                         httpClientContext, post, RemotePublicationReceiverServlet.ContentStateStatus.class, gson);
+        return status;
+    }
+
+    /**
+     * Transmits the versions of versionables below {paths} to the remote side, which returns a list of paths
+     * that have different versions or do not exists with {@link Status#data(String)}({@value Status#DATA}) attribute
+     * {@link RemoteReceiverConstants#PARAM_PATH} as List&lt;String>.
+     */
+    @Nullable
+    public Status compareContent(@Nonnull UpdateInfo updateInfo, @Nonnull Collection<String> paths,
+                                 ResourceResolver resolver, String contentPath)
+            throws URISyntaxException, RemotePublicationFacadeException {
+        HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
+                passwordDecryptor());
+        URI uri = new URIBuilder(replicationConfig.getReceiverUri() + "." + comparecontent.name() + "." + json.name())
+                .addParameter(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId).build();
+        HttpPut put = new HttpPut(uri);
+        Gson gson = new GsonBuilder().registerTypeAdapterFactory(
+                new VersionableTree.VersionableTreeSerializer(null)
+        ).create();
+        VersionableTree versionableTree = new VersionableTree();
+        Collection<Resource> resources = paths.stream()
+                .map(resolver::getResource)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        versionableTree.setSearchtreeRoots(resources);
+        put.setEntity(new JsonHttpEntity<>(versionableTree, gson));
+
+        LOG.info("Comparing content for {}", paths);
+        Status status = callRemotePublicationReceiver("compare content " + paths,
+                httpClientContext, put, Status.class, null);
         return status;
     }
 
