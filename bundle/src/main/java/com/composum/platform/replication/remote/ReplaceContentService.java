@@ -170,26 +170,6 @@ public class ReplaceContentService implements ReleaseChangeEventListener {
         return decryptor;
     }
 
-    /**
-     * Try to avoid creating the whole zip in memory. Not quite right yet, since that might fill up the pool
-     * if there are many things to write.
-     */
-    @Deprecated
-    protected InputStream startZipWriting(BeanContext context, Set<String> changedPaths,
-                                          Exception[] exceptionHolder) {
-        PipedInputStream zipContent = new PipedInputStream();
-        threadPool.execute(() -> {
-            try (OutputStream writeZipStream = new PipedOutputStream(zipContent);
-                 ZipOutputStream zipStream = new ZipOutputStream(writeZipStream)) {
-                writePathsToZip(context, changedPaths, zipStream);
-                zipStream.flush();
-            } catch (RepositoryException | IOException | RuntimeException e) {
-                exceptionHolder[0] = e;
-            }
-        });
-        return zipContent;
-    }
-
     @Nonnull
     protected InputStream createPkg(@Nonnull BeanContext context, @Nonnull Resource resource) throws RepositoryException, IOException {
         SourceModel model = new SourceModel(nodesConfig, context, resource);
@@ -199,16 +179,6 @@ public class ReplaceContentService implements ReleaseChangeEventListener {
             model.writePackage(writeZipStream, "remotepublisher", resource.getPath(), "1");
             return new ByteArrayInputStream(writeZipStream.toByteArray());
         });
-    }
-
-    protected void writePathsToZip(BeanContext context, Set<String> changedPaths, ZipOutputStream zipStream) throws IOException, RepositoryException {
-        for (String path : changedPaths) {
-            Resource resource = context.getResolver().getResource(path);
-            if (resource != null) {
-                SourceModel model = new SourceModel(nodesConfig, context, resource);
-                model.writeZip(zipStream, resource.getPath(), true);
-            }
-        }
     }
 
     protected Set<String> changedPaths(ReleaseChangeEvent event) {

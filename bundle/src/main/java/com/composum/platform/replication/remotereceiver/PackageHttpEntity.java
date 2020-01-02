@@ -1,6 +1,7 @@
 package com.composum.platform.replication.remotereceiver;
 
 import com.composum.sling.core.BeanContext;
+import com.composum.sling.core.util.ResourceUtil;
 import com.composum.sling.core.util.SlingResourceUtil;
 import com.composum.sling.nodes.NodesConfiguration;
 import com.composum.sling.nodes.servlet.SourceModel;
@@ -39,7 +40,12 @@ public class PackageHttpEntity extends AbstractHttpEntity implements HttpEntity 
     @Override
     public void writeTo(OutputStream outstream) throws IOException {
         try {
-            SourceModel model = new SourceModel(nodesConfig, context, resource);
+            Resource writeResource = resource;
+            if (ResourceUtil.isFile(resource) && ResourceUtil.CONTENT_NODE.equals(resource.getName())) {
+                // you need the parent node to form a correct package for this, since the file format is special.
+                writeResource = resource.getParent();
+            }
+            SourceModel model = new SourceModel(nodesConfig, context, writeResource);
             model.writePackage(outstream, "remotepublisher", resource.getPath(), "1");
         } catch (RepositoryException e) {
             LOG.error("Trouble creating package for {}", SlingResourceUtil.getPath(resource));
