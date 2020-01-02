@@ -6,6 +6,8 @@ import com.composum.sling.core.ResourceHandle;
 import com.composum.sling.core.util.ResourceUtil;
 import com.composum.sling.core.util.SlingResourceUtil;
 import com.composum.sling.platform.staging.StagingConstants;
+import com.composum.sling.platform.staging.impl.NodeTreeSynchronizer;
+import com.google.common.collect.ImmutableBiMap;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -22,6 +24,7 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ValueMap;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.osgi.framework.Constants;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
@@ -52,8 +55,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.ATTR_CONTENTPATH;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.ATTR_RELEASEROOT_PATH;
+import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.ATTR_TOP_CONTENTPATH;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.ATTR_UPDATEDPATHS;
 import static com.composum.sling.core.util.SlingResourceUtil.appendPaths;
 import static com.composum.sling.platform.staging.StagingConstants.PROP_REPLICATED_VERSION;
@@ -144,7 +147,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
 
             ModifiableValueMap vm = tmpLocation.adaptTo(ModifiableValueMap.class);
             if (SlingResourceUtil.isSameOrDescendant(releaseRootPath, contentPath)) {
-                vm.put(RemoteReceiverConstants.ATTR_CONTENTPATH, contentPath);
+                vm.put(RemoteReceiverConstants.ATTR_TOP_CONTENTPATH, contentPath);
                 vm.put(RemoteReceiverConstants.ATTR_RELEASEROOT_PATH, releaseRootPath);
             } else { // weird internal error - doesn't make sense to put that to the user.
                 throw new IllegalArgumentException("Contraint violated: content path " + contentPath + " not " +
@@ -169,7 +172,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
         try (ResourceResolver resolver = makeResolver();
              Reader json = new InputStreamReader(jsonInputStream, StandardCharsets.UTF_8)) {
             Resource tmpLocation = getTmpLocation(resolver, updateId, false);
-            String contentPath = tmpLocation.getValueMap().get(ATTR_CONTENTPATH, String.class);
+            String contentPath = tmpLocation.getValueMap().get(ATTR_TOP_CONTENTPATH, String.class);
             VersionableTree.VersionableTreeDeserializer factory =
                     new VersionableTree.VersionableTreeDeserializer(config.targetDir(), resolver, contentPath);
             Gson gson = new GsonBuilder().registerTypeAdapterFactory(factory).create();
@@ -189,7 +192,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
         try (ResourceResolver resolver = makeResolver()) {
             Resource tmpLocation = getTmpLocation(resolver, updateId, false);
             ModifiableValueMap vm = tmpLocation.adaptTo(ModifiableValueMap.class);
-            String contentPath = vm.get(ATTR_CONTENTPATH, String.class);
+            String contentPath = vm.get(ATTR_TOP_CONTENTPATH, String.class);
             String releaseRootPath = vm.get(ATTR_RELEASEROOT_PATH, String.class);
             if (SlingResourceUtil.isSameOrDescendant(contentPath, packageRootPath)) {
                 ZipStreamArchive archive = new ZipStreamArchive(inputStream);
@@ -232,33 +235,67 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
         try (ResourceResolver resolver = makeResolver()) {
             Resource tmpLocation = getTmpLocation(resolver, updateId, false);
             ValueMap vm = tmpLocation.getValueMap();
-            String contentPath = vm.get(ATTR_CONTENTPATH, String.class);
+            String topContentPath = vm.get(ATTR_TOP_CONTENTPATH, String.class);
             String releaseRootPath = vm.get(ATTR_RELEASEROOT_PATH, String.class);
             String targetRoot = Objects.requireNonNull(config.targetDir());
             String @NotNull [] updatedPaths = vm.get(ATTR_UPDATEDPATHS, new String[0]);
+
             for (String deletedPath : deletedPaths) {
-                if (!SlingResourceUtil.isSameOrDescendant(contentPath, deletedPath)) { // safety check - Bug!
-                    throw new IllegalArgumentException("Not subpath of " + contentPath + " : " + deletedPath);
+                if (!SlingResourceUtil.isSameOrDescendant(topContentPath, deletedPath)) { // safety check - Bug!
+                    throw new IllegalArgumentException("Not subpath of " + topContentPath + " : " + deletedPath);
                 }
-                Resource deletedResource = resolver.getResource(appendPaths(targetRoot, deletedPath));
-                if (deletedResource != null) {
-                    LOG.info("Deleting {}", deletedPath);
-                    resolver.delete(deletedResource);
-                } else { // some problem with the algorithm!
-                    LOG.warn("Path to delete unexpectedly not present in content: {}", deletedPath);
-                }
+                deletePath(resolver, targetRoot, deletedPath);
             }
 
             String targetReleaseRootPath = appendPaths(targetRoot, releaseRootPath);
-            Resource targetReleaseRoot = ResourceUtil.getOrCreateResource(resolver, targetReleaseRootPath);
+            ResourceUtil.getOrCreateResource(resolver, targetReleaseRootPath);
 
             for (String updatedPath : updatedPaths) {
-                if (!SlingResourceUtil.isSameOrDescendant(contentPath, updatedPath)) { // safety check - Bug!
-                    throw new IllegalArgumentException("Not subpath of " + contentPath + " : " + updatedPath);
+                if (!SlingResourceUtil.isSameOrDescendant(topContentPath, updatedPath)) { // safety check - Bug!
+                    throw new IllegalArgumentException("Not subpath of " + topContentPath + " : " + updatedPath);
                 }
+                moveVersionable(resolver, tmpLocation, updatedPath, targetRoot);
             }
 
             resolver.commit();
+        }
+    }
+
+    /**
+     * Move tmpLocation/updatedPath to targetRoot/updatedPath possibly copying parents if they don't exist.
+     * We rely on that the paths have been checked by the caller to not go outside of the release, and that
+     * the release in the target has been created.
+     */
+    protected void moveVersionable(@Nonnull ResourceResolver resolver, @Nonnull Resource tmpLocation,
+                                   @Nonnull String updatedPath, @Nonnull String targetRoot)
+            throws RemotePublicationReceiverException, RepositoryException, PersistenceException {
+        NodeTreeSynchronizer synchronizer = new NodeTreeSynchronizer();
+        String resourcePath = appendPaths(tmpLocation.getPath(), updatedPath);
+        Resource resourceToMove = requireNonNull(resolver.getResource(resourcePath));
+        Resource source = tmpLocation;
+        Resource destination = resolver.getResource(targetRoot);
+        for (String pathsegment : StringUtils.removeStart(updatedPath, "/").split("/")) {
+            source = requireNonNull(source.getChild(pathsegment), updatedPath);
+            destination = ResourceUtil.getOrCreateChild(destination, pathsegment, ResourceUtil.TYPE_UNSTRUCTURED);
+            synchronizer.updateAttributes(ResourceHandle.use(source), ResourceHandle.use(destination), ImmutableBiMap.of());
+        }
+        for (Resource previousChild : destination.getChildren()) {
+            resolver.delete(previousChild);
+        }
+        for (Resource child: source.getChildren()) {
+            resolver.move(child.getPath(), destination.getPath());
+        }
+        LOG.info("Moved {} to {}", source.getPath(), destination.getPath());
+    }
+
+    protected void deletePath(@Nonnull ResourceResolver resolver, @Nonnull String targetRoot,
+                              @Nonnull String deletedPath) throws PersistenceException {
+        Resource deletedResource = resolver.getResource(appendPaths(targetRoot, deletedPath));
+        if (deletedResource != null) {
+            LOG.info("Deleting {}", deletedPath);
+            resolver.delete(deletedResource);
+        } else { // some problem with the algorithm!
+            LOG.warn("Path to delete unexpectedly not present in content: {}", deletedPath);
         }
     }
 

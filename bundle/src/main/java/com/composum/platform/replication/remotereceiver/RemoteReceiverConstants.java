@@ -24,7 +24,7 @@ public interface RemoteReceiverConstants {
     Pattern PATTERN_UPDATEID = Pattern.compile("upd-[a-zA-Z0-9]{12}");
 
     /** Attribute at the publishers temporary location that saves the top content path to be replaced. */
-    String ATTR_CONTENTPATH = "contentPath";
+    String ATTR_TOP_CONTENTPATH = "topContentPath";
 
     /**
      * Attribute at the publishers temporary location that saves the original release change id of the publishers
