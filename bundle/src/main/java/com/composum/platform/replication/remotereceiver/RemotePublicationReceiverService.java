@@ -24,7 +24,6 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ValueMap;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.osgi.framework.Constants;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
@@ -50,7 +49,6 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -93,8 +91,8 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
 
     @Activate
     @Modified
-    protected void activate(Configuration config) {
-        this.config = config;
+    protected void activate(Configuration configuration) {
+        this.config = configuration;
     }
 
     @Deactivate
@@ -145,7 +143,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
             assert RemoteReceiverConstants.PATTERN_UPDATEID.matcher(updateInfo.updateId).matches();
             Resource tmpLocation = getTmpLocation(resolver, updateInfo.updateId, true);
 
-            ModifiableValueMap vm = tmpLocation.adaptTo(ModifiableValueMap.class);
+            ModifiableValueMap vm = requireNonNull(tmpLocation.adaptTo(ModifiableValueMap.class));
             if (SlingResourceUtil.isSameOrDescendant(releaseRootPath, contentPath)) {
                 vm.put(RemoteReceiverConstants.ATTR_TOP_CONTENTPATH, contentPath);
                 vm.put(RemoteReceiverConstants.ATTR_RELEASEROOT_PATH, releaseRootPath);
@@ -191,9 +189,8 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
         LOG.info("Pathupload called for {} : {}", updateId, packageRootPath);
         try (ResourceResolver resolver = makeResolver()) {
             Resource tmpLocation = getTmpLocation(resolver, updateId, false);
-            ModifiableValueMap vm = tmpLocation.adaptTo(ModifiableValueMap.class);
+            ModifiableValueMap vm = requireNonNull(tmpLocation.adaptTo(ModifiableValueMap.class));
             String contentPath = vm.get(ATTR_TOP_CONTENTPATH, String.class);
-            String releaseRootPath = vm.get(ATTR_RELEASEROOT_PATH, String.class);
             if (SlingResourceUtil.isSameOrDescendant(contentPath, packageRootPath)) {
                 ZipStreamArchive archive = new ZipStreamArchive(inputStream);
                 try {
@@ -236,8 +233,8 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
             Resource tmpLocation = getTmpLocation(resolver, updateId, false);
             ValueMap vm = tmpLocation.getValueMap();
             String topContentPath = vm.get(ATTR_TOP_CONTENTPATH, String.class);
-            String releaseRootPath = vm.get(ATTR_RELEASEROOT_PATH, String.class);
-            String targetRoot = Objects.requireNonNull(config.targetDir());
+            String releaseRootPath = requireNonNull(vm.get(ATTR_RELEASEROOT_PATH, String.class));
+            String targetRoot = requireNonNull(config.targetDir());
             String @NotNull [] updatedPaths = vm.get(ATTR_UPDATEDPATHS, new String[0]);
 
             for (String deletedPath : deletedPaths) {
@@ -257,6 +254,10 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                 moveVersionable(resolver, tmpLocation, updatedPath, targetRoot);
             }
 
+            for (String deletedPath : deletedPaths) {
+                removeOrphans(resolver, targetRoot, deletedPath, targetReleaseRootPath);
+            }
+
             resolver.commit();
         }
     }
@@ -268,12 +269,10 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
      */
     protected void moveVersionable(@Nonnull ResourceResolver resolver, @Nonnull Resource tmpLocation,
                                    @Nonnull String updatedPath, @Nonnull String targetRoot)
-            throws RemotePublicationReceiverException, RepositoryException, PersistenceException {
+            throws RepositoryException, PersistenceException {
         NodeTreeSynchronizer synchronizer = new NodeTreeSynchronizer();
-        String resourcePath = appendPaths(tmpLocation.getPath(), updatedPath);
-        Resource resourceToMove = requireNonNull(resolver.getResource(resourcePath));
         Resource source = tmpLocation;
-        Resource destination = resolver.getResource(targetRoot);
+        Resource destination = requireNonNull(resolver.getResource(targetRoot), targetRoot);
         for (String pathsegment : StringUtils.removeStart(updatedPath, "/").split("/")) {
             source = requireNonNull(source.getChild(pathsegment), updatedPath);
             destination = ResourceUtil.getOrCreateChild(destination, pathsegment, ResourceUtil.TYPE_UNSTRUCTURED);
@@ -282,7 +281,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
         for (Resource previousChild : destination.getChildren()) {
             resolver.delete(previousChild);
         }
-        for (Resource child: source.getChildren()) {
+        for (Resource child : source.getChildren()) {
             resolver.move(child.getPath(), destination.getPath());
         }
         LOG.info("Moved {} to {}", source.getPath(), destination.getPath());
@@ -299,10 +298,25 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
         }
     }
 
+    /** Removes parent nodes of the deleted nodes that do not have any (versionable) children now. */
+    protected void removeOrphans(@Nonnull ResourceResolver resolver, @Nonnull String targetRoot,
+                                 @Nonnull String deletedPath, @Nonnull String targetReleaseRootPath) throws PersistenceException {
+        String originalPath = appendPaths(targetRoot, deletedPath);
+        Resource candidate = SlingResourceUtil.getFirstExistingParent(resolver, originalPath);
+        while (candidate != null && SlingResourceUtil.isSameOrDescendant(targetReleaseRootPath, candidate.getPath())
+                && !ResourceUtil.isNodeType(candidate, ResourceUtil.MIX_VERSIONABLE) && !candidate.hasChildren()) {
+            Resource todelete = candidate;
+            LOG.info("Remove orphaned node {}", todelete.getPath());
+            resolver.delete(todelete);
+            candidate = candidate.getParent();
+        }
+    }
+
+
     @Nonnull
     protected Resource getTmpLocation(@Nonnull ResourceResolver resolver, @Nonnull String updateId, boolean create)
             throws RepositoryException, RemotePublicationReceiverException {
-        if (StringUtils.isBlank(updateId) || updateId.matches("[a-z0-9-]*")) {
+        if (StringUtils.isBlank(updateId) || !RemoteReceiverConstants.PATTERN_UPDATEID.matcher(updateId).matches()) {
             throw new IllegalArgumentException("Broken updateId: " + updateId);
         }
         String path = config.tmpDir() + "/" + updateId;
