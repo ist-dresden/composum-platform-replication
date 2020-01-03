@@ -2,26 +2,27 @@ package com.composum.platform.replication.remotereceiver;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonNull;
+import com.google.gson.stream.JsonWriter;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.AbstractHttpEntity;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
 /** An {@link HttpEntity} that serializes an object on the fly and writes it to the request. */
 public class JsonHttpEntity<T> extends AbstractHttpEntity implements HttpEntity {
 
-    private static final Logger LOG = LoggerFactory.getLogger(JsonHttpEntity.class);
-
+    @Nullable
     private final T object;
+
+    @Nonnull
     private final Gson gson;
 
     /** @param object the object to serialize */
@@ -32,11 +33,21 @@ public class JsonHttpEntity<T> extends AbstractHttpEntity implements HttpEntity 
         this.gson = gson != null ? gson : new GsonBuilder().create();
     }
 
+    /** Delegates to {@link #writeTo(JsonWriter)}. */
     @Override
     public void writeTo(OutputStream outstream) throws IOException {
-        Charset cs;
-        try (Writer writer = new OutputStreamWriter(outstream, StandardCharsets.UTF_8)) {
-            gson.toJson(object, writer);
+        try (Writer writer = new OutputStreamWriter(outstream, StandardCharsets.UTF_8);
+             JsonWriter jsonWriter = new JsonWriter(writer)) {
+            writeTo(jsonWriter);
+        }
+    }
+
+    /** Uses gson to write the object; possible hook for special serialization mechanisms. */
+    protected void writeTo(@Nonnull JsonWriter jsonWriter) throws IOException {
+        if (object != null) {
+            gson.toJson(object, object.getClass(), jsonWriter);
+        } else {
+            gson.toJson(JsonNull.INSTANCE, jsonWriter);
         }
     }
 

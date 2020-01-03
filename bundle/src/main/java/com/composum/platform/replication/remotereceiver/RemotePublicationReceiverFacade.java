@@ -226,19 +226,26 @@ public class RemotePublicationReceiverFacade {
     public Status commitUpdate(@Nonnull UpdateInfo updateInfo, @Nonnull Set<String> deletedPaths) throws RemotePublicationFacadeException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 passwordDecryptor());
-        List<NameValuePair> form = new ArrayList<>();
-        form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId));
-        for (String deletedPath : deletedPaths) {
-            form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_DELETED_PATH, deletedPath));
-        }
-        UrlEncodedFormEntity entity = new UrlEncodedFormEntity(form, Consts.UTF_8);
+
+        HttpEntity entity = new JsonHttpEntity(null, null) {
+            @Override
+            protected void writeTo(@Nonnull JsonWriter jsonWriter) throws IOException {
+                jsonWriter.beginObject();
+                jsonWriter.name(RemoteReceiverConstants.PARAM_UPDATEID).value(updateInfo.updateId);
+                jsonWriter.name(RemoteReceiverConstants.PARAM_DELETED_PATH).beginArray();
+                for (String deletedPath : deletedPaths) { jsonWriter.value(deletedPath); }
+                jsonWriter.endArray();
+                jsonWriter.endObject();
+            }
+        };
+
         String uri = replicationConfig.getReceiverUri() + "." + commitupdate.name() + "." + json.name();
-        HttpPost post = new HttpPost(uri);
-        post.setEntity(entity);
+        HttpPut put = new HttpPut(uri);
+        put.setEntity(entity);
 
         LOG.info("Comitting update {} deleting {}", updateInfo.updateId, deletedPaths);
         Status status = callRemotePublicationReceiver("Committing update " + updateInfo.updateId,
-                httpClientContext, post, Status.class, null);
+                httpClientContext, put, Status.class, null);
         return status;
     }
 

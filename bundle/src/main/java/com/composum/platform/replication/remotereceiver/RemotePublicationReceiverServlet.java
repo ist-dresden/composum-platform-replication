@@ -9,6 +9,7 @@ import com.composum.sling.core.servlet.Status;
 import com.composum.sling.core.util.SlingResourceUtil;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.stream.JsonReader;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.vault.fs.config.ConfigurationException;
 import org.apache.sling.api.SlingHttpServletRequest;
@@ -90,14 +91,22 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 new ContentStateOperation());
         operations.setOperation(ServletOperationSet.Method.POST, Extension.json, Operation.contentstate,
                 new ContentStateOperation());
+
+        // use PUT since request is a potentially large JSON entity processable on the fly
         operations.setOperation(ServletOperationSet.Method.PUT, Extension.json, Operation.comparecontent,
                 new CompareContentOperation());
+
         operations.setOperation(ServletOperationSet.Method.POST, Extension.json, Operation.startupdate,
                 new StartUpdateOperation());
+
+        // use PUT since request is a stream
         operations.setOperation(ServletOperationSet.Method.PUT, Extension.json, Operation.pathupload,
                 new PathUploadOperation());
-        operations.setOperation(ServletOperationSet.Method.POST, Extension.json, Operation.commitupdate,
+
+        // use PUT since request is a potentially large JSON entity processable on the fly
+        operations.setOperation(ServletOperationSet.Method.PUT, Extension.json, Operation.commitupdate,
                 new CommitUpdateOperation());
+
         operations.setOperation(ServletOperationSet.Method.POST, Extension.json, Operation.abortupdate,
                 new AbortUpdateOperation());
     }
@@ -128,20 +137,22 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
             if (additionalPaths != null) { paths.addAll(Arrays.asList(additionalPaths)); }
 
             try (ResourceResolver resolver = makeResolver()) {
-                List<Resource> resources = paths.stream()
-                        .map((p) -> SlingResourceUtil.appendPaths(targetDir, p))
-                        .map(resolver::getResource)
-                        .filter(Objects::nonNull)
-                        .collect(Collectors.toList());
-                status.versionables = new VersionableTree();
-                status.versionables.setSearchtreeRoots(resources);
+                try {
+                    List<Resource> resources = paths.stream()
+                            .map((p) -> SlingResourceUtil.appendPaths(targetDir, p))
+                            .map(resolver::getResource)
+                            .filter(Objects::nonNull)
+                            .collect(Collectors.toList());
+                    status.versionables = new VersionableTree();
+                    status.versionables.setSearchtreeRoots(resources);
+                } catch (RuntimeException e) {
+                    status.withLogging(LOG).error("Error getting content state {} : {}", contentPath, e.toString(), e);
+                }
+                status.sendJson(); // resolver still has to be open
             } catch (LoginException e) { // serious misconfiguration
                 LOG.error("Could not get service resolver" + e, e);
                 throw new ServletException("Could not get service resolver", e);
-            } catch (RuntimeException e) {
-                status.withLogging(LOG).error("Error getting content state {} : {}", contentPath, e.toString(), e);
             }
-            status.sendJson();
         }
 
 
@@ -285,12 +296,32 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource)
                 throws IOException, ServletException {
             Status status = new Status(request, response);
-            String updateId = status.getRequiredParameter(PARAM_UPDATEID, PATTERN_UPDATEID, "PatternId required");
+            String updateId = null;
             Set<String> deletedPaths = new HashSet<>();
-            String[] deletedParms = request.getParameterValues(PARAM_DELETED_PATH);
-            if (null != deletedParms) { deletedPaths.addAll(Arrays.asList(deletedParms));}
-            LOG.info("Commit on {} deleting {}", updateId, deletedPaths);
+
+            try {
+                JsonReader jsonReader = new JsonReader(request.getReader());
+                jsonReader.beginObject();
+
+                expectName(jsonReader, PARAM_UPDATEID, status);
+                updateId = jsonReader.nextString();
+                if (!PATTERN_UPDATEID.matcher(updateId).matches()) {
+                    status.withLogging(LOG).error("Invalid updateId");
+                    throw new IllegalArgumentException("Invalid updateId");
+                }
+
+                expectName(jsonReader, PARAM_DELETED_PATH, status);
+                jsonReader.beginArray();
+                while (jsonReader.hasNext()) { deletedPaths.add(jsonReader.nextString()); }
+                jsonReader.endArray();
+
+                jsonReader.endObject();
+            } catch (IOException | RuntimeException e) {
+                status.withLogging(LOG).error("Reading request for commit failed", e);
+            }
+
             if (status.isValid()) {
+                LOG.info("Commit on {} deleting {}", updateId, deletedPaths);
                 try {
                     service.commit(updateId, deletedPaths);
                 } catch (LoginException e) { // serious misconfiguration
@@ -301,6 +332,14 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 }
             }
             status.sendJson();
+        }
+
+        protected void expectName(JsonReader jsonReader, String expectedName, Status status) throws IOException {
+            String nextName = jsonReader.nextName();
+            if (!expectedName.equals(nextName)) {
+                status.withLogging(LOG).error("{} expected but got {}", expectedName, nextName);
+                throw new IllegalArgumentException(expectedName + " expected but got " + nextName);
+            }
         }
 
     }
