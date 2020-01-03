@@ -57,6 +57,9 @@ public interface RemotePublicationReceiver {
     List<String> compareContent(String updateId, @Nonnull InputStream jsonInputStream)
             throws LoginException, RemotePublicationReceiverException, RepositoryException, IOException;
 
+    /** Aborts the update operation and deletes the temporary directory. */
+    void abort(String updateId) throws LoginException, RemotePublicationReceiverException, RepositoryException, PersistenceException;
+
     class RemotePublicationReceiverException extends Exception {
 
         enum RetryAdvice {

@@ -98,7 +98,8 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 new PathUploadOperation());
         operations.setOperation(ServletOperationSet.Method.POST, Extension.json, Operation.commitupdate,
                 new CommitUpdateOperation());
-        // FIXME(hps,17.12.19) abortUpdate
+        operations.setOperation(ServletOperationSet.Method.POST, Extension.json, Operation.abortupdate,
+                new AbortUpdateOperation());
     }
 
     /** Creates the service resolver used to update the content. */
@@ -304,4 +305,24 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
 
     }
 
+    class AbortUpdateOperation implements ServletOperation {
+
+        @Override
+        public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource) throws RepositoryException, IOException, ServletException {
+            Status status = new Status(request, response);
+            String updateId = status.getRequiredParameter(PARAM_UPDATEID, PATTERN_UPDATEID, "PatternId required");
+            LOG.info("Aborting update {}", updateId);
+            if (status.isValid()) {
+                try {
+                    service.abort(updateId);
+                } catch (LoginException e) { // serious misconfiguration
+                    LOG.error("Could not get service resolver: " + e, e);
+                    throw new ServletException("Could not get service resolver", e);
+                } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
+                    status.withLogging(LOG).error("Import failed for {}: {}", updateId, e.toString(), e);
+                }
+            }
+            status.sendJson();
+        }
+    }
 }

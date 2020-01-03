@@ -24,7 +24,6 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ValueMap;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.osgi.framework.Constants;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
@@ -259,7 +258,17 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                 removeOrphans(resolver, targetRoot, deletedPath, targetReleaseRootPath);
             }
 
+            resolver.delete(tmpLocation);
             resolver.commit();
+        }
+    }
+
+    @Override
+    public void abort(String updateId) throws LoginException, RemotePublicationReceiverException, RepositoryException, PersistenceException {
+        LOG.info("Abort called for {}", updateId);
+        try (ResourceResolver resolver = makeResolver()) {
+            Resource tmpLocation = getTmpLocation(resolver, updateId, false);
+            resolver.delete(tmpLocation);
         }
     }
 
