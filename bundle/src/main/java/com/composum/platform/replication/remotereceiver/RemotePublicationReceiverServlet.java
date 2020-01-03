@@ -137,6 +137,8 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
             } catch (LoginException e) { // serious misconfiguration
                 LOG.error("Could not get service resolver" + e, e);
                 throw new ServletException("Could not get service resolver", e);
+            } catch (RuntimeException e) {
+                status.withLogging(LOG).error("Error getting content state {} : {}", contentPath, e.toString(), e);
             }
         }
 
@@ -189,10 +191,10 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                     status.withLogging(LOG).error("Broken parameter upd ", updateId);
                 }
                 status.sendJson();
-            } catch (RemotePublicationReceiver.RemotePublicationReceiverException e) {
-                status.withLogging(LOG).error("Error comparing content for {} : {}", updateId, e.getMessage());
+            } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RuntimeException e) {
+                status.withLogging(LOG).error("Error comparing content for {} : {}", updateId, e.toString(), e);
             } catch (LoginException e) { // serious misconfiguration
-                LOG.error("Could not get service resolver" + e, e);
+                LOG.error("Could not get service resolver: " + e, e);
                 throw new ServletException("Could not get service resolver", e);
             }
         }
@@ -213,11 +215,11 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                     UpdateInfo updateInfo = service.startUpdate(releaseRootPath, contentPath);
                     status.updateInfo = updateInfo;
                 } catch (LoginException e) { // serious misconfiguration
-                    LOG.error("Could not get service resolver" + e, e);
+                    LOG.error("Could not get service resolver: " + e, e);
                     throw new ServletException("Could not get service resolver", e);
-                } catch (RemotePublicationReceiver.RemotePublicationReceiverException e) {
-                    status.withLogging(LOG).error("Error starting update for {} , {} : {}", contentPath, releaseRootPath,
-                            e.getMessage());
+                } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RuntimeException e) {
+                    status.withLogging(LOG).error("Error starting update for {} , {} : {}", contentPath,
+                            releaseRootPath, e.toString(), e);
                 }
             } else {
                 status.withLogging(LOG).error("Broken parameters {} : {}", releaseRootPath, contentPath);
@@ -264,10 +266,10 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                     throw new ServletException("Could not get service resolver", e);
                 } catch (ConfigurationException e) { // on importer.run
                     LOG.error("" + e, e);
-                    status.error("Import failed.", e);
-                } catch (RemotePublicationReceiver.RemotePublicationReceiverException e) {
+                    status.error("Import failed.", e.toString());
+                } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RuntimeException e) {
                     LOG.error("" + e, e);
-                    status.error("Import failed: {}", e.getMessage());
+                    status.error("Import failed: {}", e.toString());
                 }
             } else {
                 status.withLogging(LOG).error("Broken parameters pkg {}, upd {}", packageRootPath, updateId);
@@ -291,9 +293,8 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 } catch (LoginException e) { // serious misconfiguration
                     LOG.error("Could not get service resolver" + e, e);
                     throw new ServletException("Could not get service resolver", e);
-                } catch (RemotePublicationReceiver.RemotePublicationReceiverException e) {
-                    LOG.error("" + e, e);
-                    status.error("Import failed: {}", e.getMessage());
+                } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RuntimeException e) {
+                    status.withLogging(LOG).error("Import failed for {}: {}", updateId, e.toString(), e);
                 }
             }
             status.sendJson();

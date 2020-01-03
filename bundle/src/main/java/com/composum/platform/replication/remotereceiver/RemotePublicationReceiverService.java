@@ -24,6 +24,7 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ValueMap;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.osgi.framework.Constants;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
@@ -273,18 +274,38 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
         NodeTreeSynchronizer synchronizer = new NodeTreeSynchronizer();
         Resource source = tmpLocation;
         Resource destination = requireNonNull(resolver.getResource(targetRoot), targetRoot);
-        for (String pathsegment : StringUtils.removeStart(updatedPath, "/").split("/")) {
+        for (String pathsegment : StringUtils.removeStart(ResourceUtil.getParent(updatedPath), "/").split("/")) {
             source = requireNonNull(source.getChild(pathsegment), updatedPath);
             destination = ResourceUtil.getOrCreateChild(destination, pathsegment, ResourceUtil.TYPE_UNSTRUCTURED);
             synchronizer.updateAttributes(ResourceHandle.use(source), ResourceHandle.use(destination), ImmutableBiMap.of());
         }
-        for (Resource previousChild : destination.getChildren()) {
-            resolver.delete(previousChild);
+        String nodename = ResourceUtil.getName(updatedPath);
+        source = requireNonNull(source.getChild(nodename), updatedPath);
+        Resource destinationParent = destination;
+        destination = destination.getChild(nodename);
+
+        if (destination != null) {
+            // can't replace the node since OAK wrongly thinks we changed protected attributes
+            // see com.composum.platform.replication.remote.ReplacementStrategyExplorationTest.bugWithReplace
+            // we copy the attributes and move the children, instead, so protected attributes stay the same.
+            synchronizer.updateAttributes(ResourceHandle.use(source), ResourceHandle.use(destination), ImmutableBiMap.of());
+            for (Resource previousChild : destination.getChildren()) {
+                resolver.delete(previousChild);
+            }
+            for (Resource child : source.getChildren()) {
+                resolver.move(child.getPath(), destination.getPath());
+            }
+        } else {
+            Resource sourceParent = source.getParent();
+            resolver.move(source.getPath(), destinationParent.getPath());
+            if (ResourceUtil.isFile(sourceParent) && !sourceParent.hasChildren()) {
+                resolver.delete(sourceParent); // otherwise it would be inconsistent.
+                // TODO we can remove this when the tmpdir is deleted afterwards.
+            }
         }
-        for (Resource child : source.getChildren()) {
-            resolver.move(child.getPath(), destination.getPath());
-        }
-        LOG.info("Moved {} to {}", source.getPath(), destination.getPath());
+
+        LOG.info("Moved {} to {}", SlingResourceUtil.getPath(source),
+                SlingResourceUtil.getPath(destinationParent) + "/" + nodename);
     }
 
     protected void deletePath(@Nonnull ResourceResolver resolver, @Nonnull String targetRoot,
