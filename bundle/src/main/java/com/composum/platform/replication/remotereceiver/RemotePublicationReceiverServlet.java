@@ -14,6 +14,7 @@ import org.apache.jackrabbit.vault.fs.config.ConfigurationException;
 import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.SlingHttpServletResponse;
 import org.apache.sling.api.resource.LoginException;
+import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
@@ -113,7 +114,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
 
         @Override
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response,
-                         @Nullable ResourceHandle ignoredResource) throws RepositoryException, IOException, ServletException {
+                         @Nullable ResourceHandle ignoredResource) throws IOException, ServletException {
             String targetDir = Objects.requireNonNull(service.getTargetDir());
             VersionableTree.VersionableTreeSerializer factory = new VersionableTree.VersionableTreeSerializer(targetDir);
             Gson gson = new GsonBuilder().registerTypeAdapterFactory(factory).create();
@@ -133,13 +134,13 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                         .collect(Collectors.toList());
                 status.versionables = new VersionableTree();
                 status.versionables.setSearchtreeRoots(resources);
-                status.sendJson();
             } catch (LoginException e) { // serious misconfiguration
                 LOG.error("Could not get service resolver" + e, e);
                 throw new ServletException("Could not get service resolver", e);
             } catch (RuntimeException e) {
                 status.withLogging(LOG).error("Error getting content state {} : {}", contentPath, e.toString(), e);
             }
+            status.sendJson();
         }
 
 
@@ -149,7 +150,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
      * Extends Status to write data about all versionables below resource without needing to save everything in
      * memory - the data is fetched on the fly during JSON serialization.
      */
-    public class ContentStateStatus extends Status {
+    public static class ContentStateStatus extends Status {
 
         /** The attribute; need to register serializer - see {@link VersionableTree}. */
         protected VersionableTree versionables;
@@ -180,7 +181,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
 
         @Override
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource)
-                throws RepositoryException, IOException, ServletException {
+                throws IOException, ServletException {
             Status status = new Status(request, response);
             String updateId = status.getRequiredParameter(PARAM_UPDATEID, PATTERN_UPDATEID, "PatternId required");
             try {
@@ -190,13 +191,13 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 } else {
                     status.withLogging(LOG).error("Broken parameter upd ", updateId);
                 }
-                status.sendJson();
-            } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RuntimeException e) {
+            } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
                 status.withLogging(LOG).error("Error comparing content for {} : {}", updateId, e.toString(), e);
             } catch (LoginException e) { // serious misconfiguration
                 LOG.error("Could not get service resolver: " + e, e);
                 throw new ServletException("Could not get service resolver", e);
             }
+            status.sendJson();
         }
     }
 
@@ -205,19 +206,18 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
 
         @Override
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle ignored)
-                throws RepositoryException, IOException, ServletException {
+                throws IOException, ServletException {
             StatusWithReleaseData status = new StatusWithReleaseData(request, response);
             String contentPath = request.getRequestPathInfo().getSuffix();
             String releaseRootPath = request.getParameter(RemoteReceiverConstants.PARAM_RELEASEROOT);
             if (isNotBlank(releaseRootPath) && isNotBlank(contentPath) &&
                     SlingResourceUtil.isSameOrDescendant(releaseRootPath, contentPath)) {
                 try {
-                    UpdateInfo updateInfo = service.startUpdate(releaseRootPath, contentPath);
-                    status.updateInfo = updateInfo;
+                    status.updateInfo = service.startUpdate(releaseRootPath, contentPath);
                 } catch (LoginException e) { // serious misconfiguration
                     LOG.error("Could not get service resolver: " + e, e);
                     throw new ServletException("Could not get service resolver", e);
-                } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RuntimeException e) {
+                } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
                     status.withLogging(LOG).error("Error starting update for {} , {} : {}", contentPath,
                             releaseRootPath, e.toString(), e);
                 }
@@ -253,7 +253,8 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
     class PathUploadOperation implements ServletOperation {
 
         @Override
-        public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource) throws RepositoryException, IOException, ServletException {
+        public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource)
+                throws IOException, ServletException {
             Status status = new Status(request, response);
             String packageRootPath = request.getRequestPathInfo().getSuffix();
             String updateId = status.getRequiredParameter(PARAM_UPDATEID, PATTERN_UPDATEID, "PatternId required");
@@ -262,12 +263,12 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 try {
                     service.pathUpload(updateId, packageRootPath, request.getInputStream());
                 } catch (LoginException e) { // serious misconfiguration
-                    LOG.error("Could not get service resolver" + e, e);
+                    LOG.error("Could not get service resolver:" + e, e);
                     throw new ServletException("Could not get service resolver", e);
                 } catch (ConfigurationException e) { // on importer.run
                     LOG.error("" + e, e);
                     status.error("Import failed.", e.toString());
-                } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RuntimeException e) {
+                } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
                     LOG.error("" + e, e);
                     status.error("Import failed: {}", e.toString());
                 }
@@ -280,7 +281,8 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
 
     class CommitUpdateOperation implements ServletOperation {
         @Override
-        public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource) throws RepositoryException, IOException, ServletException {
+        public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource)
+                throws IOException, ServletException {
             Status status = new Status(request, response);
             String updateId = status.getRequiredParameter(PARAM_UPDATEID, PATTERN_UPDATEID, "PatternId required");
             Set<String> deletedPaths = new HashSet<>();
@@ -291,9 +293,9 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 try {
                     service.commit(updateId, deletedPaths);
                 } catch (LoginException e) { // serious misconfiguration
-                    LOG.error("Could not get service resolver" + e, e);
+                    LOG.error("Could not get service resolver: " + e, e);
                     throw new ServletException("Could not get service resolver", e);
-                } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RuntimeException e) {
+                } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
                     status.withLogging(LOG).error("Import failed for {}: {}", updateId, e.toString(), e);
                 }
             }
