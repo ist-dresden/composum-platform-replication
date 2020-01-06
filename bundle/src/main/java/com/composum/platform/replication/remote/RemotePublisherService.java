@@ -32,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -178,14 +179,22 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         protected final BeanContext context;
         @Nonnull
         protected final RemotePublicationConfig replicationConfig;
+        @Nonnull
+        protected final String originalReleaseChangeNumber;
+        @Nonnull
+        protected final RemotePublicationReceiverFacade publisher;
 
         protected ReplicatorStrategy(@Nonnull ReleaseChangeEvent event, @Nonnull StagingReleaseManager.Release release,
                                      @Nonnull BeanContext context, @Nonnull RemotePublicationConfig replicationConfig) {
             this.event = event;
             this.release = release;
+            this.originalReleaseChangeNumber = release.getChangeNumber();
             this.resolver = context.getResolver();
             this.context = context;
             this.replicationConfig = replicationConfig;
+
+            publisher = new RemotePublicationReceiverFacade(replicationConfig,
+                    context, httpClient, () -> config, cryptoService, nodesConfig);
         }
 
         protected void replicate() throws ReplicationFailedException {
@@ -194,10 +203,6 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 String commonParent = SlingResourceUtil.commonParent(changedPaths);
                 LOG.info("Changed paths below {}: {}", commonParent, changedPaths);
                 Objects.requireNonNull(commonParent);
-                String originalReleaseChangeNumber = release.getChangeNumber();
-
-                RemotePublicationReceiverFacade publisher = new RemotePublicationReceiverFacade(replicationConfig,
-                        context, httpClient, () -> config, cryptoService, nodesConfig);
 
                 UpdateInfo updateInfo = publisher.startUpdate(release.getReleaseRoot().getPath(), commonParent);
                 LOG.info("Received UpdateInfo {}", updateInfo);
@@ -232,6 +237,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 Set<String> deletedPaths = new HashSet<>();
                 deletedPaths.addAll(contentState.getVersionables().getDeletedPaths());
                 for (String path : pathsToTransmit) {
+                    abortIfOriginalChanged(updateInfo);
                     Resource resource = resolver.getResource(path);
                     if (resource != null) {
                         Status status = publisher.pathupload(updateInfo, resource);
@@ -245,23 +251,26 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                     }
                 }
 
-                release.getMetaDataNode().getResourceResolver().refresh();
-                if (release.getChangeNumber().equals(originalReleaseChangeNumber)) {
-                    Status status = publisher.commitUpdate(updateInfo, deletedPaths);
-                    if (!status.isValid()) {
-                        LOG.error("Received invalid status on commit {}", updateInfo.updateId);
-                        throw new ReplicationFailedException("Remote commit failed for " + replicationConfig, null, event);
-                    }
-                } else {
-                    LOG.info("Aborting publishing because of local release content change during publishing.");
-                    abort(publisher, updateInfo);
-                    return;
+                abortIfOriginalChanged(updateInfo);
+
+                Status status = publisher.commitUpdate(updateInfo, deletedPaths);
+                if (!status.isValid()) {
+                    LOG.error("Received invalid status on commit {}", updateInfo.updateId);
+                    throw new ReplicationFailedException("Remote commit failed for " + replicationConfig, null, event);
                 }
 
                 LOG.info("Replication done {}", updateInfo.updateId);
             } catch (RuntimeException | RemotePublicationReceiverFacade.RemotePublicationFacadeException | URISyntaxException e) {
                 LOG.error("Remote publishing failed: " + e, e);
                 throw new ReplicationFailedException("Remote publishing failed for " + replicationConfig, e, event);
+            }
+        }
+
+        private void abortIfOriginalChanged(UpdateInfo updateInfo) throws RemotePublicationReceiverFacade.RemotePublicationFacadeException, ReplicationFailedException {
+            release.getMetaDataNode().getResourceResolver().refresh();
+            if (!release.getChangeNumber().equals(originalReleaseChangeNumber)) {
+                LOG.info("Aborting publishing because of local release content change during publishing.");
+                abort(publisher, updateInfo); // doesn't return
             }
         }
 
