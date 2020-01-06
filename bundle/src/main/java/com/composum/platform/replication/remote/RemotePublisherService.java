@@ -21,7 +21,6 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.commons.threads.ThreadPool;
 import org.apache.sling.commons.threads.ThreadPoolManager;
-import org.jetbrains.annotations.Nullable;
 import org.osgi.framework.Constants;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
@@ -39,13 +38,12 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * Transmits the changes of the JCR content of a release to a remote system.
@@ -241,7 +239,8 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 Set<String> deletedPaths = new LinkedHashSet<>();
                 deletedPaths.addAll(contentState.getVersionables().getDeletedPaths());
                 for (String path : pathsToTransmit) {
-                    abortIfOriginalChanged(updateInfo);
+                    abortIfOriginalChanged(updateInfo); // might be a performance risk, but is probably worth it.
+
                     Resource resource = resolver.getResource(path);
                     if (resource != null) {
                         Status status = publisher.pathupload(updateInfo, resource);
@@ -257,9 +256,10 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
 
                 abortIfOriginalChanged(updateInfo);
 
-                Stream<ChildrenOrderInfo> relevantOrderings = relevantOrderings(pathsToTransmit);
+                Stream<ChildrenOrderInfo> relevantOrderings = relevantOrderings(changedPaths);
 
-                Status status = publisher.commitUpdate(updateInfo, deletedPaths, relevantOrderings);
+                Status status = publisher.commitUpdate(updateInfo, deletedPaths, relevantOrderings,
+                        () -> abortIfOriginalChanged(updateInfo));
                 if (!status.isValid()) {
                     LOG.error("Received invalid status on commit {}", updateInfo.updateId);
                     throw new ReplicationFailedException("Remote commit failed for " + replicationConfig, null, event);
@@ -272,12 +272,27 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             }
         }
 
+        /**
+         * Returns childnode orderings of all parent nodes of {pathsToTransmit} and, if any of pathsToTransmit
+         * has versionables as subnodes, of their parent nodes, too. (This needs to work for a full release sync, too.)
+         * <p>
+         * (There is one edge case we ignore deliberately: if a page was moved several times without any successful sync,
+         * that might change some parent orderings there. If it's moved again and now it's synced, we might miss something.
+         * That's a rare case which we could catch only if all node orderings are transmitted on each change, which
+         * we hesitate to do for efficiency.)
+         */
         @Nonnull
         protected Stream<ChildrenOrderInfo> relevantOrderings(Collection<String> pathsToTransmit) {
-            return pathsToTransmit.stream()
+            Stream<Resource> parentsStream = pathsToTransmit.stream()
                     .flatMap(this::parentsUpToRelease)
                     .distinct()
+                    .map(resolver::getResource);
+            Stream<Resource> childrenStream = pathsToTransmit.stream()
+                    .distinct()
                     .map(resolver::getResource)
+                    .filter(Objects::nonNull)
+                    .flatMap(this::childrenExcludingVersionables);
+            return Stream.concat(parentsStream, childrenStream)
                     .map(ChildrenOrderInfo::of)
                     .filter(Objects::nonNull);
         }
@@ -286,11 +301,19 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         protected Stream<String> parentsUpToRelease(String path) {
             List<String> result = new ArrayList<>();
             String parent = ResourceUtil.getParent(path);
-            while (parent != null && SlingResourceUtil.isSameOrDescendant(release.getReleaseRoot().getPath(),parent)) {
+            while (parent != null && SlingResourceUtil.isSameOrDescendant(release.getReleaseRoot().getPath(), parent)) {
                 result.add(parent);
                 parent = ResourceUtil.getParent(parent);
             }
             return result.stream();
+        }
+
+        @Nonnull
+        protected Stream<Resource> childrenExcludingVersionables(Resource resource) {
+            if (resource == null || ResourceUtil.isNodeType(resource, ResourceUtil.TYPE_VERSIONABLE)) { return Stream.empty(); }
+            return Stream.concat(Stream.of(resource),
+                    StreamSupport.stream(resource.getChildren().spliterator(), false)
+                            .flatMap(this::childrenExcludingVersionables));
         }
 
         protected void abortIfOriginalChanged(UpdateInfo updateInfo) throws RemotePublicationReceiverFacade.RemotePublicationFacadeException, ReplicationFailedException {

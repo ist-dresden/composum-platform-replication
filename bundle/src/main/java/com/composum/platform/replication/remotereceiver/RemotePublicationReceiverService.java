@@ -285,6 +285,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     }
 
     protected void adjustChildrenOrder(@Nonnull Resource resource, @Nonnull List<String> childNames) throws RepositoryException {
+        LOG.debug("Checking children order for {}", SlingResourceUtil.getPath(resource));
         List<String> currentChildNames = StreamSupport.stream(resource.getChildren().spliterator(), false)
                 .map(Resource::getName)
                 .collect(Collectors.toList());

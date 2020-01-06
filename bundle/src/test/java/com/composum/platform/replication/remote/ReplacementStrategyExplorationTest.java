@@ -9,25 +9,20 @@ import org.apache.sling.resourcebuilder.api.ResourceBuilder;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit.SlingContext;
 import org.hamcrest.Matchers;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 
-import javax.annotation.Nonnull;
 import javax.jcr.Node;
 import javax.jcr.NodeIterator;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.UnsupportedRepositoryOperationException;
 import javax.jcr.Workspace;
-
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.apache.jackrabbit.JcrConstants.JCR_CONTENT;
@@ -41,7 +36,7 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
 /** Reproduces weird ConstraintViolationExceptions when moving around versionables. */
-// @Ignore("Only for reference - not about production code.")
+@Ignore("Only for reference - not about production code.")
 public class ReplacementStrategyExplorationTest {
 
     @Rule

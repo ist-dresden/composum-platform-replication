@@ -1,6 +1,7 @@
 package com.composum.platform.replication.remotereceiver;
 
 import com.composum.platform.commons.crypt.CryptoService;
+import com.composum.platform.commons.util.ExceptionThrowingRunnable;
 import com.composum.platform.commons.util.ExceptionUtil;
 import com.composum.platform.replication.json.ChildrenOrderInfo;
 import com.composum.platform.replication.json.VersionableTree;
@@ -223,10 +224,16 @@ public class RemotePublicationReceiverFacade {
         return status;
     }
 
-    /** Replaces the content with the updated content and deletes obsolete paths. */
+    /**
+     * Replaces the content with the updated content and deletes obsolete paths.
+     *
+     * @param checkForParallelModifications executed at the last possible time before the request is completed, to allow
+     *                                      checking for parallel modifications of the source
+     */
     @Nonnull
     public Status commitUpdate(@Nonnull UpdateInfo updateInfo, @Nonnull Set<String> deletedPaths,
-                               @Nonnull Stream<ChildrenOrderInfo> relevantOrderings)
+                               @Nonnull Stream<ChildrenOrderInfo> relevantOrderings,
+                               @Nonnull ExceptionThrowingRunnable<? extends Exception> checkForParallelModifications)
             throws RemotePublicationFacadeException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(), passwordDecryptor());
         Gson gson = new GsonBuilder().create();
@@ -242,6 +249,16 @@ public class RemotePublicationReceiverFacade {
                 jsonWriter.name(RemoteReceiverConstants.PARAM_CHILDORDERINGS).beginArray();
                 relevantOrderings.forEachOrdered(childrenOrderInfo ->
                         gson.toJson(childrenOrderInfo, childrenOrderInfo.getClass(), jsonWriter));
+
+                jsonWriter.flush();
+                // last check that the original was not modified in the meantime, since that might have taken some time.
+                try {
+                    checkForParallelModifications.run();
+                } catch (Exception e) {
+                    LOG.warn("Aborting because last check indicates parallel modification.", e);
+                    ExceptionUtil.sneakyThrowException(e);
+                }
+
                 jsonWriter.endArray();
                 jsonWriter.endObject();
             }
