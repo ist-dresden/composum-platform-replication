@@ -17,6 +17,9 @@ public interface RemoteReceiverConstants {
      */
     String PARAM_RELEASEROOT = "releaseRoot";
 
+    /** Parameter for {@link com.composum.platform.replication.json.ChildrenOrderInfo}s. */
+    String PARAM_CHILDORDERINGS = "childOrderings";
+
     /** Mandatory of the parameter to contain the update id (except for startupdate). */
     String PARAM_UPDATEID = "updateId";
 

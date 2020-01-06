@@ -1,5 +1,6 @@
 package com.composum.platform.replication.remotereceiver;
 
+import com.composum.platform.replication.json.ChildrenOrderInfo;
 import com.composum.platform.replication.json.VersionableInfo;
 import org.apache.jackrabbit.vault.fs.config.ConfigurationException;
 import org.apache.sling.api.resource.LoginException;
@@ -7,9 +8,11 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.jcr.RepositoryException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -34,31 +37,35 @@ public interface RemotePublicationReceiver {
      * Traverses through the descendant tree of resource up to the content nodes and writes the versions of the
      * versionables to output
      */
-    void traverseTree(Resource resource, Consumer<VersionableInfo> output) throws IOException;
+    void traverseTree(@Nullable Resource resource, @Nonnull Consumer<VersionableInfo> output) throws IOException;
 
     /** Prepares the temporary directory for an update operation. Take care to remove it later! */
-    UpdateInfo startUpdate(String releaseRootPath, String contentPath) throws PersistenceException, LoginException, RemotePublicationReceiverException, RepositoryException;
+    UpdateInfo startUpdate(@Nonnull String releaseRootPath, @Nonnull String contentPath)
+            throws PersistenceException, LoginException, RemotePublicationReceiverException, RepositoryException;
 
     /** Uploads one package into the temporary directory, taking note of the root path for later moving to content. */
-    void pathUpload(String updateId, String packageRootPath, InputStream inputStream)
+    void pathUpload(@Nonnull String updateId, @Nonnull String packageRootPath, @Nonnull InputStream inputStream)
             throws LoginException, RemotePublicationReceiverException, RepositoryException, IOException, ConfigurationException;
 
     /**
      * Moves the content to the content directory and deletes the given paths, thus finalizing the update. The
      * temporary directory is then deleted.
      */
-    void commit(String updateId, Set<String> deletedPaths) throws LoginException, RemotePublicationReceiverException, RepositoryException, PersistenceException;
+    void commit(@Nonnull String updateId, @Nonnull Set<String> deletedPaths,
+                @Nonnull Iterator<ChildrenOrderInfo> childOrderings)
+            throws LoginException, RemotePublicationReceiverException, RepositoryException, PersistenceException;
 
     /**
      * Retrieves a list of {@link VersionableInfo} from the {jsonInputStream}, checks these against the content and
      * returns the paths where differences in the version number exist / paths that do not exist.
      */
     @Nonnull
-    List<String> compareContent(String updateId, @Nonnull InputStream jsonInputStream)
+    List<String> compareContent(@Nonnull String updateId, @Nonnull InputStream jsonInputStream)
             throws LoginException, RemotePublicationReceiverException, RepositoryException, IOException;
 
     /** Aborts the update operation and deletes the temporary directory. */
-    void abort(String updateId) throws LoginException, RemotePublicationReceiverException, RepositoryException, PersistenceException;
+    void abort(@Nonnull String updateId)
+            throws LoginException, RemotePublicationReceiverException, RepositoryException, PersistenceException;
 
     class RemotePublicationReceiverException extends Exception {
 

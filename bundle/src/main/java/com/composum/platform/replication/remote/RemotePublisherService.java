@@ -1,6 +1,7 @@
 package com.composum.platform.replication.remote;
 
 import com.composum.platform.commons.crypt.CryptoService;
+import com.composum.platform.replication.json.ChildrenOrderInfo;
 import com.composum.platform.replication.remotereceiver.RemotePublicationConfig;
 import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverFacade;
 import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet;
@@ -8,6 +9,7 @@ import com.composum.platform.replication.remotereceiver.RemoteReceiverConstants;
 import com.composum.platform.replication.remotereceiver.UpdateInfo;
 import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.servlet.Status;
+import com.composum.sling.core.util.ResourceUtil;
 import com.composum.sling.core.util.SlingResourceUtil;
 import com.composum.sling.nodes.NodesConfiguration;
 import com.composum.sling.platform.staging.ReleaseChangeEventListener;
@@ -19,6 +21,7 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.commons.threads.ThreadPool;
 import org.apache.sling.commons.threads.ThreadPoolManager;
+import org.jetbrains.annotations.Nullable;
 import org.osgi.framework.Constants;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
@@ -32,16 +35,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * Transmits the changes of the JCR content of a release to a remote system.
@@ -253,7 +257,9 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
 
                 abortIfOriginalChanged(updateInfo);
 
-                Status status = publisher.commitUpdate(updateInfo, deletedPaths);
+                Stream<ChildrenOrderInfo> relevantOrderings = relevantOrderings(pathsToTransmit);
+
+                Status status = publisher.commitUpdate(updateInfo, deletedPaths, relevantOrderings);
                 if (!status.isValid()) {
                     LOG.error("Received invalid status on commit {}", updateInfo.updateId);
                     throw new ReplicationFailedException("Remote commit failed for " + replicationConfig, null, event);
@@ -266,7 +272,28 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             }
         }
 
-        private void abortIfOriginalChanged(UpdateInfo updateInfo) throws RemotePublicationReceiverFacade.RemotePublicationFacadeException, ReplicationFailedException {
+        @Nonnull
+        protected Stream<ChildrenOrderInfo> relevantOrderings(Collection<String> pathsToTransmit) {
+            return pathsToTransmit.stream()
+                    .flatMap(this::parentsUpToRelease)
+                    .distinct()
+                    .map(resolver::getResource)
+                    .map(ChildrenOrderInfo::of)
+                    .filter(Objects::nonNull);
+        }
+
+        @Nonnull
+        protected Stream<String> parentsUpToRelease(String path) {
+            List<String> result = new ArrayList<>();
+            String parent = ResourceUtil.getParent(path);
+            while (parent != null && SlingResourceUtil.isSameOrDescendant(release.getReleaseRoot().getPath(),parent)) {
+                result.add(parent);
+                parent = ResourceUtil.getParent(parent);
+            }
+            return result.stream();
+        }
+
+        protected void abortIfOriginalChanged(UpdateInfo updateInfo) throws RemotePublicationReceiverFacade.RemotePublicationFacadeException, ReplicationFailedException {
             release.getMetaDataNode().getResourceResolver().refresh();
             if (!release.getChangeNumber().equals(originalReleaseChangeNumber)) {
                 LOG.info("Aborting publishing because of local release content change during publishing.");

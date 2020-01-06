@@ -1,5 +1,6 @@
 package com.composum.platform.replication.remotereceiver;
 
+import com.composum.platform.replication.json.ChildrenOrderInfo;
 import com.composum.platform.replication.json.VersionableInfo;
 import com.composum.platform.replication.json.VersionableTree;
 import com.composum.sling.core.ResourceHandle;
@@ -10,6 +11,7 @@ import com.composum.sling.platform.staging.impl.NodeTreeSynchronizer;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import org.apache.commons.collections4.iterators.IteratorIterable;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.vault.fs.config.ConfigurationException;
@@ -37,6 +39,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import java.io.IOException;
@@ -47,11 +51,14 @@ import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.ATTR_RELEASEROOT_PATH;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.ATTR_TOP_CONTENTPATH;
@@ -164,7 +171,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
 
     @Nonnull
     @Override
-    public List<String> compareContent(String updateId, @Nonnull InputStream jsonInputStream)
+    public List<String> compareContent(@Nonnull String updateId, @Nonnull InputStream jsonInputStream)
             throws LoginException, RemotePublicationReceiverException, RepositoryException, IOException {
         LOG.info("Compare content {}", updateId);
         try (ResourceResolver resolver = makeResolver();
@@ -184,7 +191,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     }
 
     @Override
-    public void pathUpload(String updateId, String packageRootPath, InputStream inputStream)
+    public void pathUpload(@Nonnull String updateId, @Nonnull String packageRootPath, @Nonnull InputStream inputStream)
             throws LoginException, RemotePublicationReceiverException, RepositoryException, IOException, ConfigurationException {
         LOG.info("Pathupload called for {} : {}", updateId, packageRootPath);
         try (ResourceResolver resolver = makeResolver()) {
@@ -226,7 +233,8 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     }
 
     @Override
-    public void commit(String updateId, Set<String> deletedPaths)
+    public void commit(@Nonnull String updateId, @Nonnull Set<String> deletedPaths,
+                       @Nonnull Iterator<ChildrenOrderInfo> childOrderings)
             throws LoginException, RemotePublicationReceiverException, RepositoryException, PersistenceException {
         LOG.info("Commit called for {} : {}", updateId, deletedPaths);
         try (ResourceResolver resolver = makeResolver()) {
@@ -244,7 +252,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                 deletePath(resolver, targetRoot, deletedPath);
             }
 
-            String targetReleaseRootPath = appendPaths(targetRoot, releaseRootPath);
+            @Nonnull String targetReleaseRootPath = appendPaths(targetRoot, releaseRootPath);
             ResourceUtil.getOrCreateResource(resolver, targetReleaseRootPath);
 
             for (String updatedPath : updatedPaths) {
@@ -258,13 +266,47 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                 removeOrphans(resolver, targetRoot, deletedPath, targetReleaseRootPath);
             }
 
+            for (ChildrenOrderInfo childrenOrderInfo : new IteratorIterable<>(childOrderings)) {
+                if (!SlingResourceUtil.isSameOrDescendant(topContentPath, childrenOrderInfo.getPath())) { // safety check - Bug!
+                    throw new IllegalArgumentException("Not subpath of " + topContentPath + " : " + childrenOrderInfo);
+                }
+                String targetPath = appendPaths(targetRoot, childrenOrderInfo.getPath());
+                Resource resource = resolver.getResource(targetPath);
+                if (resource != null) {
+                    adjustChildrenOrder(resource, childrenOrderInfo.getChildNames());
+                } else { // bug or concurrent modification
+                    LOG.error("Resource for childorder doesn't exist: {}", targetPath);
+                }
+            }
+
             resolver.delete(tmpLocation);
             resolver.commit();
         }
     }
 
+    protected void adjustChildrenOrder(@Nonnull Resource resource, @Nonnull List<String> childNames) throws RepositoryException {
+        List<String> currentChildNames = StreamSupport.stream(resource.getChildren().spliterator(), false)
+                .map(Resource::getName)
+                .collect(Collectors.toList());
+        if (!childNames.equals(currentChildNames)) {
+            Node node = requireNonNull(resource.adaptTo(Node.class));
+            for (String childName : childNames) {
+                node.orderBefore(childName, null); // move to end of list
+            }
+
+            currentChildNames = StreamSupport.stream(resource.getChildren().spliterator(), false)
+                    .map(Resource::getName)
+                    .collect(Collectors.toList());
+            if (childNames.equals(currentChildNames)) { // Bug or concurrent modification at source side
+                LOG.error("Reordering failed for {} : {} but still got {}", resource.getPath(), childNames,
+                        currentChildNames);
+            }
+        }
+    }
+
     @Override
-    public void abort(String updateId) throws LoginException, RemotePublicationReceiverException, RepositoryException, PersistenceException {
+    public void abort(@Nonnull String updateId) throws LoginException, RemotePublicationReceiverException,
+            RepositoryException, PersistenceException {
         LOG.info("Abort called for {}", updateId);
         try (ResourceResolver resolver = makeResolver()) {
             Resource tmpLocation = getTmpLocation(resolver, updateId, false);
@@ -374,11 +416,13 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     }
 
     /** Creates the service resolver used to update the content. */
+    @Nonnull
     protected ResourceResolver makeResolver() throws LoginException {
         return resolverFactory.getServiceResourceResolver(null);
     }
 
-    protected String getReleaseChangeId(ResourceResolver resolver, String contentPath) {
+    @Nullable
+    protected String getReleaseChangeId(@Nonnull ResourceResolver resolver, @Nonnull String contentPath) {
         Resource resource = resolver.getResource(contentPath);
         return resource != null ? resource.getValueMap().get(StagingConstants.PROP_REPLICATED_VERSION, String.class) : null;
     }

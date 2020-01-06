@@ -9,18 +9,26 @@ import org.apache.sling.resourcebuilder.api.ResourceBuilder;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit.SlingContext;
 import org.hamcrest.Matchers;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 
+import javax.annotation.Nonnull;
 import javax.jcr.Node;
 import javax.jcr.NodeIterator;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.UnsupportedRepositoryOperationException;
 import javax.jcr.Workspace;
+
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static org.apache.jackrabbit.JcrConstants.JCR_CONTENT;
 import static org.apache.jackrabbit.JcrConstants.JCR_MIXINTYPES;
@@ -33,12 +41,13 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
 /** Reproduces weird ConstraintViolationExceptions when moving around versionables. */
-@Ignore("Only for reference - not about production code.")
+// @Ignore("Only for reference - not about production code.")
 public class ReplacementStrategyExplorationTest {
 
     @Rule
     public final SlingContext context = new SlingContext(ResourceResolverType.JCR_OAK);
 
+    private Resource releaseTop;
     private Resource first;
     private Resource firstParent;
     private Resource second;
@@ -49,7 +58,8 @@ public class ReplacementStrategyExplorationTest {
 
     @Before
     public void setup() throws PersistenceException {
-        ResourceBuilder builder = context.build().resource("/content/somewhere");
+        ResourceBuilder builder = context.build().resource("/content/somewhere", JCR_PRIMARYTYPE, NT_UNSTRUCTURED);
+        releaseTop = builder.getCurrentParent();
         first = builder.resource("1/node/", JCR_PRIMARYTYPE, NT_FILE)
                 .resource(JCR_CONTENT, JCR_PRIMARYTYPE, NT_RESOURCE,
                         JCR_MIXINTYPES, new String[]{MIX_VERSIONABLE},
@@ -197,6 +207,30 @@ public class ReplacementStrategyExplorationTest {
         } catch (UnsupportedRepositoryOperationException e) {
             // expected. :-(
         }
+    }
+
+    /** Checks that resolver.move is usable to adjust the child order. */
+    @Test
+    public void tryReordering() throws PersistenceException, RepositoryException {
+        List<String> newChildnodes = StreamSupport.stream(releaseTop.getChildren().spliterator(), false)
+                .map(Resource::getName)
+                .collect(Collectors.toList());
+        assertThat(newChildnodes.toString(), newChildnodes, Matchers.contains("1", "2", "folder"));
+
+        // PersistenceException:
+        // resolver.move(firstParent.getParent().getPath(), releaseTop.getPath());
+        // resolver.commit();
+        // ItemExistsException:
+        // session.move(firstParent.getParent().getPath(), firstParent.getParent().getPath());
+        // session.save();
+        Node node = releaseTop.adaptTo(Node.class);
+        node.orderBefore("1", null); // move to end
+        resolver.commit();
+
+        newChildnodes = StreamSupport.stream(releaseTop.getChildren().spliterator(), false)
+                .map(Resource::getName)
+                .collect(Collectors.toList());
+        assertThat(newChildnodes.toString(), newChildnodes, Matchers.contains("2", "folder", "1"));
     }
 
 }

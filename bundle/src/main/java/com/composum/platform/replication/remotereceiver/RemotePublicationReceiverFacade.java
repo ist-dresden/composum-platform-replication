@@ -2,6 +2,7 @@ package com.composum.platform.replication.remotereceiver;
 
 import com.composum.platform.commons.crypt.CryptoService;
 import com.composum.platform.commons.util.ExceptionUtil;
+import com.composum.platform.replication.json.ChildrenOrderInfo;
 import com.composum.platform.replication.json.VersionableTree;
 import com.composum.platform.replication.remote.RemotePublisherService;
 import com.composum.sling.core.BeanContext;
@@ -50,6 +51,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Extension.json;
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.abortupdate;
@@ -223,9 +225,11 @@ public class RemotePublicationReceiverFacade {
 
     /** Replaces the content with the updated content and deletes obsolete paths. */
     @Nonnull
-    public Status commitUpdate(@Nonnull UpdateInfo updateInfo, @Nonnull Set<String> deletedPaths) throws RemotePublicationFacadeException {
-        HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
-                passwordDecryptor());
+    public Status commitUpdate(@Nonnull UpdateInfo updateInfo, @Nonnull Set<String> deletedPaths,
+                               @Nonnull Stream<ChildrenOrderInfo> relevantOrderings)
+            throws RemotePublicationFacadeException {
+        HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(), passwordDecryptor());
+        Gson gson = new GsonBuilder().create();
 
         HttpEntity entity = new JsonHttpEntity(null, null) {
             @Override
@@ -234,6 +238,10 @@ public class RemotePublicationReceiverFacade {
                 jsonWriter.name(RemoteReceiverConstants.PARAM_UPDATEID).value(updateInfo.updateId);
                 jsonWriter.name(RemoteReceiverConstants.PARAM_DELETED_PATH).beginArray();
                 for (String deletedPath : deletedPaths) { jsonWriter.value(deletedPath); }
+                jsonWriter.endArray();
+                jsonWriter.name(RemoteReceiverConstants.PARAM_CHILDORDERINGS).beginArray();
+                relevantOrderings.forEachOrdered(childrenOrderInfo ->
+                        gson.toJson(childrenOrderInfo, childrenOrderInfo.getClass(), jsonWriter));
                 jsonWriter.endArray();
                 jsonWriter.endObject();
             }

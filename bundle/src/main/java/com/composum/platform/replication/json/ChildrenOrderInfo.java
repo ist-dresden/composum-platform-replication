@@ -69,4 +69,11 @@ public class ChildrenOrderInfo {
         }
     }
 
+    @Override
+    public String toString() {
+        return "ChildrenOrderInfo{" +
+                "path='" + path + '\'' +
+                ", childNames=" + childNames +
+                '}';
+    }
 }

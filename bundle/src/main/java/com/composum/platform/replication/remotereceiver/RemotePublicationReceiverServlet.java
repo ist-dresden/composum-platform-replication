@@ -1,5 +1,6 @@
 package com.composum.platform.replication.remotereceiver;
 
+import com.composum.platform.replication.json.ChildrenOrderInfo;
 import com.composum.platform.replication.json.VersionableTree;
 import com.composum.sling.core.ResourceHandle;
 import com.composum.sling.core.servlet.AbstractServiceServlet;
@@ -36,14 +37,19 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
+import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_CHILDORDERINGS;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_DELETED_PATH;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_UPDATEID;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PATTERN_UPDATEID;
+import static java.util.Objects.requireNonNull;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
 
 @Component(service = Servlet.class,
@@ -125,7 +131,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         @Override
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response,
                          @Nullable ResourceHandle ignoredResource) throws IOException, ServletException {
-            String targetDir = Objects.requireNonNull(service.getTargetDir());
+            String targetDir = requireNonNull(service.getTargetDir());
             VersionableTree.VersionableTreeSerializer factory = new VersionableTree.VersionableTreeSerializer(targetDir);
             Gson gson = new GsonBuilder().registerTypeAdapterFactory(factory).create();
             ContentStateStatus status = new ContentStateStatus(gson, request, response);
@@ -296,41 +302,62 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource)
                 throws IOException, ServletException {
             Status status = new Status(request, response);
-            String updateId = null;
-            Set<String> deletedPaths = new HashSet<>();
+            Gson gson = new GsonBuilder().create();
 
             try {
                 JsonReader jsonReader = new JsonReader(request.getReader());
                 jsonReader.beginObject();
 
                 expectName(jsonReader, PARAM_UPDATEID, status);
-                updateId = jsonReader.nextString();
+                String updateId = jsonReader.nextString();
                 if (!PATTERN_UPDATEID.matcher(updateId).matches()) {
                     status.withLogging(LOG).error("Invalid updateId");
                     throw new IllegalArgumentException("Invalid updateId");
                 }
 
+                Set<String> deletedPaths = new HashSet<>();
                 expectName(jsonReader, PARAM_DELETED_PATH, status);
                 jsonReader.beginArray();
                 while (jsonReader.hasNext()) { deletedPaths.add(jsonReader.nextString()); }
                 jsonReader.endArray();
 
+                expectName(jsonReader, PARAM_CHILDORDERINGS, status);
+                jsonReader.beginArray();
+
+                Iterator<ChildrenOrderInfo> childOrderings = new Iterator<ChildrenOrderInfo>(){
+                    @Override
+                    public boolean hasNext() {
+                        try {
+                            return jsonReader.hasNext();
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+
+                    @Override
+                    public ChildrenOrderInfo next() {
+                        return requireNonNull(gson.fromJson(jsonReader, ChildrenOrderInfo.class));
+                    }
+                };
+
+                if (status.isValid()) {
+                    LOG.info("Commit on {} deleting {}", updateId, deletedPaths);
+                    try {
+                        service.commit(updateId, deletedPaths, childOrderings);
+                    } catch (LoginException e) { // serious misconfiguration
+                        LOG.error("Could not get service resolver: " + e, e);
+                        throw new ServletException("Could not get service resolver", e);
+                    } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
+                        status.withLogging(LOG).error("Import failed for {}: {}", updateId, e.toString(), e);
+                    }
+                }
+
+                jsonReader.endArray();
                 jsonReader.endObject();
             } catch (IOException | RuntimeException e) {
                 status.withLogging(LOG).error("Reading request for commit failed", e);
             }
 
-            if (status.isValid()) {
-                LOG.info("Commit on {} deleting {}", updateId, deletedPaths);
-                try {
-                    service.commit(updateId, deletedPaths);
-                } catch (LoginException e) { // serious misconfiguration
-                    LOG.error("Could not get service resolver: " + e, e);
-                    throw new ServletException("Could not get service resolver", e);
-                } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
-                    status.withLogging(LOG).error("Import failed for {}: {}", updateId, e.toString(), e);
-                }
-            }
             status.sendJson();
         }
 
