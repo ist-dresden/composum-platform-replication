@@ -297,7 +297,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
             currentChildNames = StreamSupport.stream(resource.getChildren().spliterator(), false)
                     .map(Resource::getName)
                     .collect(Collectors.toList());
-            if (childNames.equals(currentChildNames)) { // Bug or concurrent modification at source side
+            if (!childNames.equals(currentChildNames)) { // Bug or concurrent modification at source side
                 LOG.error("Reordering failed for {} : {} but still got {}", resource.getPath(), childNames,
                         currentChildNames);
             }

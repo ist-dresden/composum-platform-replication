@@ -235,10 +235,10 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                         (List<String>) compareContentState.data(Status.DATA).get(RemoteReceiverConstants.PARAM_PATH);
                 LOG.info("Remotely different paths: {}", remotelyDifferentPaths);
 
-                Set<String> pathsToTransmit = new HashSet<>();
+                Set<String> pathsToTransmit = new LinkedHashSet<>();
                 pathsToTransmit.addAll(remotelyDifferentPaths);
                 pathsToTransmit.addAll(contentState.getVersionables().getChangedPaths());
-                Set<String> deletedPaths = new HashSet<>();
+                Set<String> deletedPaths = new LinkedHashSet<>();
                 deletedPaths.addAll(contentState.getVersionables().getDeletedPaths());
                 for (String path : pathsToTransmit) {
                     abortIfOriginalChanged(updateInfo);
