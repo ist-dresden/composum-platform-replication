@@ -28,11 +28,6 @@ public interface RemotePublicationReceiver {
      */
     String getTargetDir();
 
-    /** @deprecated "In use until ReplaceContentOperation is removed." */
-    // FIXME(hps,17.12.19) remove this.
-    @Deprecated()
-    RemotePublicationReceiverService.Configuration getConfiguration();
-
     /**
      * Traverses through the descendant tree of resource up to the content nodes and writes the versions of the
      * versionables to output

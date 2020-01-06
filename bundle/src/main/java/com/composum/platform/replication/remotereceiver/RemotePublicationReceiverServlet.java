@@ -90,8 +90,6 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
     public void init() throws ServletException {
         super.init();
 
-        operations.setOperation(ServletOperationSet.Method.POST, Extension.zip, Operation.replaceContent,
-                new ReplaceContentOperation(service::getConfiguration, resolverFactory));
         // we allow both GET and POST for contentstate since it might have many parameters.
         operations.setOperation(ServletOperationSet.Method.GET, Extension.json, Operation.contentstate,
                 new ContentStateOperation());

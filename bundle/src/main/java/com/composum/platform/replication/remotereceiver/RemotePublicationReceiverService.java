@@ -119,11 +119,6 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     }
 
     @Override
-    public Configuration getConfiguration() {
-        return config;
-    }
-
-    @Override
     public void traverseTree(Resource resource, Consumer<VersionableInfo> output) throws IOException {
         if (resource == null) { return; }
         if (ResourceUtil.isNodeType(resource, ResourceUtil.TYPE_VERSIONABLE)) {
@@ -426,37 +421,6 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     protected String getReleaseChangeId(@Nonnull ResourceResolver resolver, @Nonnull String contentPath) {
         Resource resource = resolver.getResource(contentPath);
         return resource != null ? resource.getValueMap().get(StagingConstants.PROP_REPLICATED_VERSION, String.class) : null;
-    }
-
-    /**
-     * Adds the sibling orders of the resource and it's parents up to the
-     * {@value com.composum.sling.platform.staging.StagingConstants#TYPE_MIX_RELEASE_ROOT} to the data,
-     * if there are several.
-     *
-     * @return the release root
-     */
-    @Deprecated
-    // FIXME(hps,09.12.19) remove this later - probably not needed.
-    protected Resource addParentSiblings(@Nonnull ResourceHandle resource, @Nonnull Map<String, List<String>> data) {
-        Resource releaseRoot = null;
-        if (resource.isOfType(StagingConstants.TYPE_MIX_RELEASE_ROOT)) {
-            releaseRoot = resource;
-        } else {
-            ResourceHandle parent = resource.getParent();
-            if (parent != null && parent.isValid()) {
-                List<String> childnames = new ArrayList<>();
-                for (Resource child : parent.getChildren()) {
-                    childnames.add(child.getName());
-                }
-                if (childnames.size() > 1) {
-                    data.put(resource.getPath(), childnames);
-                }
-                releaseRoot = addParentSiblings(parent, data);
-            } else { // we hit / - don't transmit anything here.
-                data.clear();
-            }
-        }
-        return releaseRoot;
     }
 
     @ObjectClassDefinition(
