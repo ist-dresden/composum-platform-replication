@@ -302,8 +302,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
             Status status = new Status(request, response);
             Gson gson = new GsonBuilder().create();
 
-            try {
-                JsonReader jsonReader = new JsonReader(request.getReader());
+            try (JsonReader jsonReader = new JsonReader(request.getReader())) {
                 jsonReader.beginObject();
 
                 expectName(jsonReader, PARAM_UPDATEID, status);
@@ -342,6 +341,8 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                     LOG.info("Commit on {} deleting {}", updateId, deletedPaths);
                     try {
                         service.commit(updateId, deletedPaths, childOrderings);
+                        jsonReader.endArray();
+                        jsonReader.endObject();
                     } catch (LoginException e) { // serious misconfiguration
                         LOG.error("Could not get service resolver: " + e, e);
                         throw new ServletException("Could not get service resolver", e);
@@ -349,9 +350,6 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                         status.withLogging(LOG).error("Import failed for {}: {}", updateId, e.toString(), e);
                     }
                 }
-
-                jsonReader.endArray();
-                jsonReader.endObject();
             } catch (IOException | RuntimeException e) {
                 status.withLogging(LOG).error("Reading request for commit failed", e);
             }

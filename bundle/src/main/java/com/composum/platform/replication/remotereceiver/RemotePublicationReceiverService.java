@@ -43,6 +43,7 @@ import javax.annotation.Nullable;
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
+import javax.jcr.UnsupportedRepositoryOperationException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -286,16 +287,21 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                 .collect(Collectors.toList());
         if (!childNames.equals(currentChildNames)) {
             Node node = requireNonNull(resource.adaptTo(Node.class));
-            for (String childName : childNames) {
-                node.orderBefore(childName, null); // move to end of list
-            }
+            try {
+                for (String childName : childNames) {
+                    node.orderBefore(childName, null); // move to end of list
+                }
 
-            currentChildNames = StreamSupport.stream(resource.getChildren().spliterator(), false)
-                    .map(Resource::getName)
-                    .collect(Collectors.toList());
-            if (!childNames.equals(currentChildNames)) { // Bug or concurrent modification at source side
-                LOG.error("Reordering failed for {} : {} but still got {}", resource.getPath(), childNames,
-                        currentChildNames);
+                currentChildNames = StreamSupport.stream(resource.getChildren().spliterator(), false)
+                        .map(Resource::getName)
+                        .collect(Collectors.toList());
+                if (!childNames.equals(currentChildNames)) { // Bug or concurrent modification at source side
+                    LOG.error("Reordering failed for {} : {} but still got {}", resource.getPath(), childNames,
+                            currentChildNames);
+                }
+            } catch (UnsupportedRepositoryOperationException e) {
+                LOG.error("Bug: Child nodes not orderable for {} type {}", resource.getPath(),
+                        resource.getValueMap().get(ResourceUtil.PROP_PRIMARY_TYPE, String.class));
             }
         }
     }
