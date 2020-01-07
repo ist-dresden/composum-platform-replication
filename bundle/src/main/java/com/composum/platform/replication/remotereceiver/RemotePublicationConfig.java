@@ -25,6 +25,8 @@ import static org.apache.commons.lang3.StringUtils.isNotBlank;
 /** Bean modeling a remote publication configuration - subnode below /conf/{sitepath}/{site}/replication/ . */
 public class RemotePublicationConfig extends AbstractSlingBean {
 
+    private static final Logger LOG = LoggerFactory.getLogger(RemotePublicationConfig.class);
+
     /** Property name for {@link #isEnabled()}. */
     public static final String PROP_ENABLED = "enabled";
     /** Property name for {@link #getRelPath()}. */
@@ -45,7 +47,7 @@ public class RemotePublicationConfig extends AbstractSlingBean {
     public static final String PROP_PROXY_PORT = "proxyPort";
     /** Property name for {@link #getReleaseMark()}. */
     public static final String PROP_ACCESS_MODE = "releaseMark";
-    private static final Logger LOG = LoggerFactory.getLogger(RemotePublicationConfig.class);
+
     /** @see #isEnabled() */
     private transient Boolean enabled;
     /** @see #getRelPath() */

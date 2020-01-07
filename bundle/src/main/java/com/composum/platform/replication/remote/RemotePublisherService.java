@@ -186,6 +186,9 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         @Nonnull
         protected final RemotePublicationReceiverFacade publisher;
 
+        /** If set, the replication process is aborted at the next step when this is checked. */
+        protected volatile boolean abortAtNextPossibility = false;
+
         protected ReplicatorStrategy(@Nonnull ReleaseChangeEvent event, @Nonnull StagingReleaseManager.Release release,
                                      @Nonnull BeanContext context, @Nonnull RemotePublicationConfig replicationConfig) {
             this.event = event;
@@ -197,6 +200,14 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
 
             publisher = new RemotePublicationReceiverFacade(replicationConfig,
                     context, httpClient, () -> config, cryptoService, nodesConfig);
+        }
+
+        /**
+         * Sets a mark that leads to aborting the process at the next step - if an outside interruption is necessary
+         * for some reason.
+         */
+        public void setAbortAtNextPossibility() {
+            abortAtNextPossibility = true;
         }
 
         protected void replicate() throws ReplicationFailedException {
@@ -223,6 +234,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 }
                 LOG.info("Content difference on remote side: {} , deleted {}",
                         contentState.getVersionables().getChanged(), contentState.getVersionables().getDeleted());
+                abortIfNecessary(updateInfo);
 
                 Status compareContentState = publisher.compareContent(updateInfo, changedPaths, resolver, commonParent);
                 if (!compareContentState.isValid()) {
@@ -239,7 +251,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 Set<String> deletedPaths = new LinkedHashSet<>();
                 deletedPaths.addAll(contentState.getVersionables().getDeletedPaths());
                 for (String path : pathsToTransmit) {
-                    abortIfOriginalChanged(updateInfo); // might be a performance risk, but is probably worth it.
+                    abortIfNecessary(updateInfo); // might be a performance risk, but is probably worth it.
 
                     Resource resource = resolver.getResource(path);
                     if (resource != null) {
@@ -254,12 +266,12 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                     }
                 }
 
-                abortIfOriginalChanged(updateInfo);
+                abortIfNecessary(updateInfo);
 
                 Stream<ChildrenOrderInfo> relevantOrderings = relevantOrderings(changedPaths);
 
                 Status status = publisher.commitUpdate(updateInfo, deletedPaths, relevantOrderings,
-                        () -> abortIfOriginalChanged(updateInfo));
+                        () -> abortIfNecessary(updateInfo));
                 if (!status.isValid()) {
                     LOG.error("Received invalid status on commit {}", updateInfo.updateId);
                     throw new ReplicationFailedException("Remote commit failed for " + replicationConfig, null, event);
@@ -310,17 +322,27 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
 
         @Nonnull
         protected Stream<Resource> childrenExcludingVersionables(Resource resource) {
-            if (resource == null || ResourceUtil.isNodeType(resource, ResourceUtil.TYPE_VERSIONABLE)) { return Stream.empty(); }
+            if (resource == null || ResourceUtil.isNodeType(resource, ResourceUtil.TYPE_VERSIONABLE)) {
+                return Stream.empty();
+            }
             return Stream.concat(Stream.of(resource),
                     StreamSupport.stream(resource.getChildren().spliterator(), false)
                             .flatMap(this::childrenExcludingVersionables));
         }
 
-        protected void abortIfOriginalChanged(UpdateInfo updateInfo) throws RemotePublicationReceiverFacade.RemotePublicationFacadeException, ReplicationFailedException {
+        protected void abortIfNecessary(UpdateInfo updateInfo) throws RemotePublicationReceiverFacade.RemotePublicationFacadeException, ReplicationFailedException {
+            if (abortAtNextPossibility) {
+                LOG.info("Aborting because process was interrupted.");
+                abort(publisher, updateInfo);
+                throw new ReplicationFailedException("Aborted publishing because process was interrupted.", null,
+                        event);
+            }
             release.getMetaDataNode().getResourceResolver().refresh();
             if (!release.getChangeNumber().equals(originalReleaseChangeNumber)) {
                 LOG.info("Aborting publishing because of local release content change during publishing.");
-                abort(publisher, updateInfo); // doesn't return
+                abort(publisher, updateInfo);
+                throw new ReplicationFailedException("Aborted publishing because of local release content change " +
+                        "during publishing.", null, event);
             }
         }
 
@@ -330,8 +352,6 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 LOG.error("Aborting replication failed for {} - please manually clean up resources used there.",
                         updateInfo);
             }
-            throw new ReplicationFailedException("Aborted publishing because of local release content change " +
-                    "during publishing.", null, event);
         }
 
         @Nonnull
