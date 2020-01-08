@@ -299,7 +299,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                     LOG.error("Reordering failed for {} : {} but still got {}", resource.getPath(), childNames,
                             currentChildNames);
                 }
-            } catch (UnsupportedRepositoryOperationException e) {
+            } catch (UnsupportedRepositoryOperationException e) { // should be impossible.
                 LOG.error("Bug: Child nodes not orderable for {} type {}", resource.getPath(),
                         resource.getValueMap().get(ResourceUtil.PROP_PRIMARY_TYPE, String.class));
             }

@@ -16,6 +16,7 @@ import com.composum.sling.platform.staging.ReleaseChangeEventListener;
 import com.composum.sling.platform.staging.ReleaseChangeProcess;
 import com.composum.sling.platform.staging.StagingReleaseManager;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.sling.api.resource.LoginException;
@@ -117,7 +118,10 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         List<RemotePublicationConfig> replicationConfigs = getReplicationConfigs(releaseRoot, context);
         Collection<RemoteReleasePublishingProcess> processes = new ArrayList<>();
         for (RemotePublicationConfig replicationConfig : replicationConfigs) {
-            if (!replicationConfig.isEnabled()) { continue; }
+            if (!replicationConfig.isEnabled()) {
+                processesCache.remove(replicationConfig.getPath());
+                continue;
+            }
             RemoteReleasePublishingProcess process = processesCache.computeIfAbsent(replicationConfig.getPath(),
                     (k) -> new RemoteReleasePublishingProcess(releaseRoot, replicationConfig)
             );
@@ -162,6 +166,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
     @Deactivate
     protected void deactivate() throws IOException {
         LOG.info("deactivated");
+        processesCache.clear();
         try (CloseableHttpClient ignored = httpClient) { // just make sure it's closed.
             this.config = null;
             this.httpClient = null;
@@ -170,7 +175,9 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
 
     protected boolean isEnabled() {
         RemotePublisherService.Configuration theconfig = this.config;
-        return theconfig != null && theconfig.enabled();
+        boolean enabled = theconfig != null && theconfig.enabled();
+        if (!enabled) { processesCache.clear(); }
+        return enabled;
     }
 
     protected class RemoteReleasePublishingProcess implements ReleaseChangeProcess {
@@ -182,6 +189,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         protected final String name;
         protected final String description;
         protected final List<String> messages = Collections.synchronizedList(new ArrayList<>());
+        protected final Object changedPathsChangeLock = new Object();
         @Nonnull
         protected volatile Set<String> changedPaths = new LinkedHashSet<>();
         protected volatile String releaseUuid;
@@ -211,7 +219,8 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
 
         @Override
         public void triggerProcessing(@Nonnull ReleaseChangeEvent event) {
-            if (!appliesTo(event.release())) {
+            if (!isEnabled()) { return; }
+            if (!appliesTo(event.release())) { // shouldn't even be called.
                 LOG.warn("Received event for irrelevant release {}", event);
                 return;
             }
@@ -220,14 +229,16 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             boolean restart = !StringUtils.equals(releaseUuid, event.release().getUuid()) || state == error;
             releaseUuid = event.release().getUuid();
 
-            Set<String> newChangedPaths = new LinkedHashSet<>(changedPaths);
-            newChangedPaths.addAll(event.newOrMovedResources());
-            newChangedPaths.addAll(event.removedOrMovedResources());
-            newChangedPaths.addAll(event.updatedResources());
-            newChangedPaths = cleanupPaths(newChangedPaths);
-            if (!newChangedPaths.equals(changedPaths)) {
-                restart = true;
-                changedPaths = newChangedPaths;
+            synchronized (changedPathsChangeLock) {
+                Set<String> newChangedPaths = new LinkedHashSet<>(changedPaths);
+                newChangedPaths.addAll(event.newOrMovedResources());
+                newChangedPaths.addAll(event.removedOrMovedResources());
+                newChangedPaths.addAll(event.updatedResources());
+                newChangedPaths = cleanupPaths(newChangedPaths);
+                if (!newChangedPaths.equals(changedPaths)) {
+                    restart = true;
+                    changedPaths = newChangedPaths;
+                }
             }
 
             if (restart) {
@@ -253,7 +264,10 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
 
         @Override
         public void run() {
-            if (state != ReleaseChangeProcessorState.awaiting) { return; }
+            if (state != ReleaseChangeProcessorState.awaiting || changedPaths.isEmpty()) {
+                LOG.info("Nothing to do in {}", name);
+                return;
+            }
             state = ReleaseChangeProcessorState.processing;
             startedAt = new Date();
             try (ResourceResolver serviceResolver = makeResolver()) { // FIXME(hps,07.01.20) more error checks
@@ -261,7 +275,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 LOG.info("Starting run of {}", name);
                 Resource configResource = serviceResolver.getResource(configPath);
                 RemotePublicationConfig replicationConfig = new BeanContext.Service(serviceResolver)
-                                .withResource(configResource).adaptTo(RemotePublicationConfig.class);
+                        .withResource(configResource).adaptTo(RemotePublicationConfig.class);
                 if (replicationConfig == null || !replicationConfig.isEnabled()) {
                     LOG.warn("Disabled / unreadable config, not run: {}", name);
                     return; // warning - should normally have been caught before
@@ -271,35 +285,43 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 StagingReleaseManager.Release release = releaseManager.findReleaseByUuid(releaseRoot, releaseUuid);
                 ResourceResolver releaseResolver = releaseManager.getResolverForRelease(release, null, false);
                 BeanContext.Service context = new BeanContext.Service(releaseResolver);
-                ReplicatorStrategy strategy = new ReplicatorStrategy(changedPaths, release, context, replicationConfig);
 
-                if (runningStrategy != null) {
-                    runningStrategy.setAbortAtNextPossibility();
-                    Thread.sleep(5000);
-                    if (runningThread != null) {
-                        runningThread.interrupt();
-                        Thread.sleep(2000);
-                    }
-                }
-
-                runningStrategy = strategy;
-                startedAt = new Date();
+                Set<String> processedChangedPaths = swapOutChangedPaths();
                 try {
-                    runningThread = Thread.currentThread();
-                    runningStrategy.replicate();
+                    ReplicatorStrategy strategy = new ReplicatorStrategy(processedChangedPaths, release, context, replicationConfig);
+
+                    if (runningStrategy != null) {
+                        runningStrategy.setAbortAtNextPossibility();
+                        Thread.sleep(5000);
+                        if (runningThread != null) {
+                            runningThread.interrupt();
+                            Thread.sleep(2000);
+                        }
+                    }
+
+                    runningStrategy = strategy;
+                    startedAt = new Date();
+                    try {
+                        runningThread = Thread.currentThread();
+                        runningStrategy.replicate();
+                    } finally {
+                        runningThread = null;
+                    }
+                    state = ReleaseChangeProcessorState.success;
+                    processedChangedPaths.clear();
                 } finally {
-                    runningThread = null;
+                    maybeResetChangedPaths(processedChangedPaths);
                 }
-                state = ReleaseChangeProcessorState.success;
-                changedPaths.clear();
 
             } catch (LoginException e) { // misconfiguration
                 LOG.error("Can't get service resolver", e);
                 messages.add("Can't get service resolver");
             } catch (InterruptedException e) {
                 LOG.error("Interrupted " + e, e);
+                messages.add("Interrupted.");
             } catch (ReplicationFailedException | RuntimeException e) {
                 LOG.error("" + e, e);
+                messages.add("Error: " + e);
             } finally {
                 if (state != ReleaseChangeProcessorState.success) {
                     runningStrategy = null;
@@ -307,6 +329,31 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 }
                 finished = new Date();
                 LOG.info("Finished run with {} : {} - @{}", state, name, System.identityHashCode(this));
+            }
+        }
+
+        /** Returns the current paths in {@link #changedPaths} resetting {@link #changedPaths}. */
+        @Nonnull
+        protected Set<String> swapOutChangedPaths() {
+            Set<String> processedChangedPaths;
+            synchronized (changedPathsChangeLock) {
+                processedChangedPaths = changedPaths;
+                changedPaths = new LinkedHashSet<>();
+            }
+            return processedChangedPaths;
+        }
+
+        /** Adds unprocessed paths taken out of {@link #changedPaths} with {@link #swapOutChangedPaths()} back. */
+        protected void maybeResetChangedPaths(Set<String> unProcessedChangedPaths) {
+            if (!unProcessedChangedPaths.isEmpty()) { // add them back
+                synchronized (changedPathsChangeLock) {
+                    if (changedPaths.isEmpty()) {
+                        changedPaths = unProcessedChangedPaths;
+                    } else { // some events arrived in the meantime
+                        unProcessedChangedPaths.addAll(changedPaths);
+                        changedPaths = cleanupPaths(unProcessedChangedPaths);
+                    }
+                }
             }
         }
 
@@ -359,6 +406,13 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             return messages;
         }
 
+        @Override
+        public String toString() {
+            return new ToStringBuilder(this)
+                    .append("name", name)
+                    .append("state", state)
+                    .toString();
+        }
     }
 
     /** Responsible for one replication. */
