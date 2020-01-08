@@ -42,7 +42,6 @@ import java.io.Reader;
 import java.io.StringWriter;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -55,6 +54,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Extension.json;
+import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Extension.zip;
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.abortupdate;
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.commitupdate;
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.comparecontent;
@@ -100,13 +100,6 @@ public class RemotePublicationReceiverFacade {
         this.httpClient = httpClient;
     }
 
-    @Nonnull
-    protected HttpClientContext makeHttpClientContext() {
-        HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
-                passwordDecryptor());
-        return httpClientContext;
-    }
-
     public Function<String, String> passwordDecryptor() {
         Function<String, String> decryptor = null;
         String key = generalConfig.get().configurationPassword();
@@ -117,8 +110,9 @@ public class RemotePublicationReceiverFacade {
     }
 
     /**
-     * Starts an update process on the remote side. To clean up resources, either {@link #commitUpdate(String)} or
-     * {@link #abortUpdate(String)} must be called afterwards.
+     * Starts an update process on the remote side. To clean up resources, either
+     * {@link #commitUpdate(UpdateInfo, Set, Stream, ExceptionThrowingRunnable)} or
+     * {@link #abortUpdate(UpdateInfo)} must be called afterwards.
      *
      * @param releaseRoot the root of the release containing {path} (may be equal to {path})
      * @param path        the root content path that should be considered. Might be the root of a release, or any
@@ -140,8 +134,7 @@ public class RemotePublicationReceiverFacade {
         RemotePublicationReceiverServlet.StatusWithReleaseData status =
                 callRemotePublicationReceiver("Starting update with " + path,
                         httpClientContext, post, RemotePublicationReceiverServlet.StatusWithReleaseData.class, null);
-        UpdateInfo updateInfo = status.updateInfo;
-        return updateInfo;
+        return status.updateInfo;
     }
 
     /**
@@ -152,7 +145,7 @@ public class RemotePublicationReceiverFacade {
      * @param contentPath a path that is a common parent to all paths - just a safety feature that a broken / faked
      *                    response cannot compare unwanted areas of the content.
      */
-    @Nullable
+    @Nonnull
     public RemotePublicationReceiverServlet.ContentStateStatus contentState(
             @Nonnull UpdateInfo updateInfo, @Nonnull Collection<String> paths, ResourceResolver resolver, String contentPath)
             throws RemotePublicationFacadeException {
@@ -181,7 +174,7 @@ public class RemotePublicationReceiverFacade {
      * that have different versions or do not exists with {@link Status#data(String)}({@value Status#DATA}) attribute
      * {@link RemoteReceiverConstants#PARAM_PATH} as List&lt;String>.
      */
-    @Nullable
+    @Nonnull
     public Status compareContent(@Nonnull UpdateInfo updateInfo, @Nonnull Collection<String> paths,
                                  ResourceResolver resolver, String contentPath)
             throws URISyntaxException, RemotePublicationFacadeException {
@@ -210,11 +203,13 @@ public class RemotePublicationReceiverFacade {
     }
 
     /** Uploads the resource tree to the remote machine. */
+    @Nonnull
     public Status pathupload(@Nonnull UpdateInfo updateInfo, @Nonnull Resource resource) throws RemotePublicationFacadeException, URISyntaxException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 passwordDecryptor());
-        URI uri = new URIBuilder(replicationConfig.getReceiverUri() + "." + pathupload.name() + "." + json.name() + resource.getPath())
-                .addParameter(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId).build();
+        URI uri =
+                new URIBuilder(replicationConfig.getReceiverUri() + "." + pathupload.name() + "." + zip.name() + resource.getPath())
+                        .addParameter(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId).build();
         HttpPut put = new HttpPut(uri);
         put.setEntity(new PackageHttpEntity(nodesConfig, context, resource));
 
@@ -275,6 +270,7 @@ public class RemotePublicationReceiverFacade {
     }
 
     /** Aborts the update, deleting the temporary directory on the remote side. */
+    @Nonnull
     public Status abortUpdate(@Nonnull UpdateInfo updateInfo) throws RemotePublicationFacadeException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 passwordDecryptor());
@@ -304,7 +300,6 @@ public class RemotePublicationReceiverFacade {
             HttpEntity entity = response.getEntity();
             if (entity != null) {
                 try (InputStream content = entity.getContent()) {
-                    Charset charset;
                     Reader contentReader = new InputStreamReader(content, StandardCharsets.UTF_8);
                     status = gson.fromJson(contentReader, statusClass);
                 }
@@ -349,13 +344,12 @@ public class RemotePublicationReceiverFacade {
             if (statusCode != null) { sb.append(", statusCode=").append(statusCode); }
             if (reasonPhrase != null) { sb.append(", reasonPhrase='").append(reasonPhrase).append('\''); }
             if (status != null) {
-                StringWriter statusString = new StringWriter();
-                try {
+                try (StringWriter statusString = new StringWriter()) {
                     status.toJson(new JsonWriter(statusString));
                     sb.append("status=").append(statusString.toString());
                 } catch (IOException e) {
                     LOG.error("" + e, e);
-                    sb.append("status=").append("Cannot deserialize: " + e);
+                    sb.append("status=Cannot deserialize: ").append(e);
                 }
             }
             sb.append('}');

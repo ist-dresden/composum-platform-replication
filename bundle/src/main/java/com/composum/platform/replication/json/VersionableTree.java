@@ -108,7 +108,7 @@ public class VersionableTree {
             out.endArray();
         }
 
-        protected void traverseTree(Resource resource, JsonWriter out, Gson gson) throws IOException {
+        protected void traverseTree(Resource resource, JsonWriter out, Gson gson) {
             if (resource == null) { return; }
             if (ResourceUtil.isNodeType(resource, ResourceUtil.TYPE_VERSIONABLE)) {
                 VersionableInfo info = VersionableInfo.of(resource, relativeTo);
@@ -161,7 +161,7 @@ public class VersionableTree {
                 if (info != null) {
                     if (checkSubpath == null || SlingResourceUtil.isSameOrDescendant(checkSubpath, info.getPath())) {
                         String path = relativeTo != null ? SlingResourceUtil.appendPaths(relativeTo, info.getPath()) : info.getPath();
-                        Resource resource = resolver.getResource(path);
+                        Resource resource = path != null ? resolver.getResource(path) : null;
                         if (resource == null) {
                             result.deleted.add(info);
                         } else {

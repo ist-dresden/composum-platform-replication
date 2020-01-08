@@ -54,7 +54,6 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -120,7 +119,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     }
 
     @Override
-    public void traverseTree(Resource resource, Consumer<VersionableInfo> output) throws IOException {
+    public void traverseTree(Resource resource, @Nonnull Consumer<VersionableInfo> output) throws IOException {
         if (resource == null) { return; }
         if (ResourceUtil.isNodeType(resource, ResourceUtil.TYPE_VERSIONABLE)) {
             VersionableInfo info = VersionableInfo.of(resource, null);
@@ -136,7 +135,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     }
 
     @Override
-    public UpdateInfo startUpdate(String releaseRootPath, String contentPath)
+    public UpdateInfo startUpdate(@Nonnull String releaseRootPath, @Nonnull String contentPath)
             throws PersistenceException, LoginException, RemotePublicationReceiverException, RepositoryException {
         LOG.info("Commit called for {} : {}", releaseRootPath, contentPath);
         try (ResourceResolver resolver = makeResolver()) {

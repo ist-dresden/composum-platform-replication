@@ -42,8 +42,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_CHILDORDERINGS;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_DELETED_PATH;
@@ -66,7 +64,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
 
     public enum Extension {zip, json}
 
-    public enum Operation {replaceContent, contentstate, comparecontent, startupdate, pathupload, commitupdate, abortupdate}
+    public enum Operation {contentstate, comparecontent, startupdate, pathupload, commitupdate, abortupdate}
 
     protected final ServletOperationSet<Extension, Operation> operations = new ServletOperationSet<>(Extension.json);
 
@@ -104,7 +102,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 new StartUpdateOperation());
 
         // use PUT since request is a stream
-        operations.setOperation(ServletOperationSet.Method.PUT, Extension.json, Operation.pathupload,
+        operations.setOperation(ServletOperationSet.Method.PUT, Extension.zip, Operation.pathupload,
                 new PathUploadOperation());
 
         // use PUT since request is a potentially large JSON entity processable on the fly
@@ -154,7 +152,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 }
                 status.sendJson(); // resolver still has to be open
             } catch (LoginException e) { // serious misconfiguration
-                LOG.error("Could not get service resolver" + e, e);
+                LOG.error("Could not get service resolver: " + e, e);
                 throw new ServletException("Could not get service resolver", e);
             }
         }
@@ -321,7 +319,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 expectName(jsonReader, PARAM_CHILDORDERINGS, status);
                 jsonReader.beginArray();
 
-                Iterator<ChildrenOrderInfo> childOrderings = new Iterator<ChildrenOrderInfo>(){
+                Iterator<ChildrenOrderInfo> childOrderings = new Iterator<ChildrenOrderInfo>() {
                     @Override
                     public boolean hasNext() {
                         try {

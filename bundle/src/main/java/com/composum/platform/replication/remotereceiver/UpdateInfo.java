@@ -5,7 +5,7 @@ public class UpdateInfo {
 
     /**
      * The update id for the pending operation - has to be named like
-     * {@link AbstractContentUpdateOperation#PARAM_UPDATEID}.
+     * {@link RemoteReceiverConstants#PARAM_UPDATEID}.
      */
     public String updateId;
 
