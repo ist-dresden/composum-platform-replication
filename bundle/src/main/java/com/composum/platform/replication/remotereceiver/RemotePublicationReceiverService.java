@@ -312,6 +312,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
         try (ResourceResolver resolver = makeResolver()) {
             Resource tmpLocation = getTmpLocation(resolver, updateId, false);
             resolver.delete(tmpLocation);
+            resolver.commit();
         }
     }
 
