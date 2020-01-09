@@ -1,6 +1,8 @@
 package com.composum.platform.replication.remote;
 
 import com.composum.platform.commons.crypt.CryptoService;
+import com.composum.platform.commons.logging.Message;
+import com.composum.platform.commons.logging.MessageContainer;
 import com.composum.platform.replication.json.ChildrenOrderInfo;
 import com.composum.platform.replication.remotereceiver.RemotePublicationConfig;
 import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverFacade;
@@ -191,7 +193,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         protected final String releaseRootPath;
         protected final String name;
         protected final String description;
-        protected final List<String> messages = Collections.synchronizedList(new ArrayList<>());
+        protected volatile MessageContainer messages = new MessageContainer();
         protected final Object changedPathsChangeLock = new Object();
         @Nonnull
         protected volatile Set<String> changedPaths = new LinkedHashSet<>();
@@ -248,7 +250,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 state = ReleaseChangeProcessorState.awaiting;
                 startedAt = null;
                 finished = null;
-                messages.clear();
+                messages = new MessageContainer(LOG);
             }
         }
 
@@ -316,14 +318,12 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 }
 
             } catch (LoginException e) { // misconfiguration
-                LOG.error("Can't get service resolver", e);
-                messages.add("Can't get service resolver");
+                messages.add(Message.error("Can't get service resolver"), e);
             } catch (InterruptedException e) {
                 LOG.error("Interrupted " + e, e);
-                messages.add("Interrupted.");
+                messages.add(Message.warn("Interrupted"), e);
             } catch (ReplicationFailedException | RuntimeException e) {
-                LOG.error("" + e, e);
-                messages.add("Error: " + e);
+                messages.add(Message.error("Other error: ", e.toString()), e);
             } finally {
                 if (state != success && state != awaiting) {
                     runningStrategy = null;
@@ -405,7 +405,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
 
         @Nonnull
         @Override
-        public List<String> getMessages() {
+        public MessageContainer getMessages() {
             return messages;
         }
 
