@@ -205,9 +205,8 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         public RemoteReleasePublishingProcess(Resource releaseRoot, RemotePublicationConfig config) {
             configPath = config.getPath();
             releaseRootPath = releaseRoot.getPath();
-            // FIXME(hps,07.01.20) i18n?
-            name = "Replication of " + releaseRoot + " " + config.getReleaseMark() + " " + config.getRelPath();
-            description = name + " to " + config.getReceiverUri();
+            name = config.getName();
+            description = config.getDescription();
         }
 
 

@@ -443,11 +443,11 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
         @AttributeDefinition(
                 description = "Temporary directory to unpack received files."
         )
-        String tmpDir() default "/var/composum/tmp/platform/remotereceiver";
+        String tmpDir() default "/tmp/composum/platform/remotereceiver";
 
         @AttributeDefinition(
                 description = "Directory where the content is unpacked. For production use set to /, for testing e.g." +
-                        " to /var/composum/tmp to just have a temporary copy of the replicated content to manually " +
+                        " to /tmp/composum/platform/replicationtest to just have a temporary copy of the replicated content to manually " +
                         "inspect there."
         )
         String targetDir() default "/";

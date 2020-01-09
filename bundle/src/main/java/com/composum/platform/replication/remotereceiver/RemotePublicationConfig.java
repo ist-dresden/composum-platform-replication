@@ -47,6 +47,10 @@ public class RemotePublicationConfig extends AbstractSlingBean {
     public static final String PROP_PROXY_PORT = "proxyPort";
     /** Property name for {@link #getReleaseMark()}. */
     public static final String PROP_ACCESS_MODE = "releaseMark";
+    /** Property name for {@link #getName()}. */
+    public static final String PROP_NAME = "name";
+    /** Property name for {@link #getDescription()}. */
+    public static final String PROP_DESCRIPTION = "description";
 
     /** @see #isEnabled() */
     private transient Boolean enabled;
@@ -70,6 +74,10 @@ public class RemotePublicationConfig extends AbstractSlingBean {
     private transient String proxyPassword;
     /** @see #getReleaseMark() */
     private transient String releaseMark;
+    /** @see #getName() */
+    private transient String name;
+    /** @see #getDescription() */
+    private transient String description;
 
     /**
      * The release mark (mostly {@value com.composum.sling.platform.security.AccessMode#PUBLIC} /
@@ -171,6 +179,23 @@ public class RemotePublicationConfig extends AbstractSlingBean {
             proxyPort = getProperty(PROP_PROXY_PORT, Integer.class);
         }
         return proxyPort;
+    }
+
+    /** A short name for the replication. */
+    @Override
+    public String getName() {
+        if (name == null) {
+            name = getProperty(PROP_NAME, String.class);
+        }
+        return name;
+    }
+
+    /** A human readable description for the replication. */
+    public String getDescription() {
+        if (description == null) {
+            description = getProperty(PROP_DESCRIPTION, String.class);
+        }
+        return description;
     }
 
     /**

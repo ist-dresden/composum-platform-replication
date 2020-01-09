@@ -24,7 +24,7 @@ public interface RemotePublicationReceiver {
 
     /**
      * From the configuration the target directory where we synchronize to - in production use / , but while
-     * testing / debugging this might be elsewhere, e.g. /var/composum/tmp .
+     * testing / debugging this might be elsewhere, e.g. /tmp/composum/platform/replicationtest .
      */
     String getTargetDir();
 
