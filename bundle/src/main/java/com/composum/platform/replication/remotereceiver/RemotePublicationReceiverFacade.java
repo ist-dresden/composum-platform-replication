@@ -130,7 +130,7 @@ public class RemotePublicationReceiverFacade {
         HttpPost post = new HttpPost(uri);
         post.setEntity(entity);
 
-        LOG.info("Start update for {} , {}", releaseRoot, path);
+        LOG.info("Start update in release {} for path {}", releaseRoot, path);
         RemotePublicationReceiverServlet.StatusWithReleaseData status =
                 callRemotePublicationReceiver("Starting update with " + path,
                         httpClientContext, post, RemotePublicationReceiverServlet.StatusWithReleaseData.class, null);

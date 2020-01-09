@@ -145,7 +145,6 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
     protected List<RemotePublicationConfig> getReplicationConfigs(@Nonnull Resource releaseRoot,
                                                                   @Nonnull BeanContext context) {
         String releasePath = releaseRoot.getPath();
-        if (releasePath.startsWith("/content/")) { releasePath = StringUtils.removeStart(releasePath, "/content"); }
         String configparent = PATH_CONFIGROOT + releasePath + DIR_REPLICATION;
 
         List<RemotePublicationConfig> configs = new ArrayList<>();
@@ -529,7 +528,11 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 progress = 100;
                 if (!status.isValid()) {
                     LOG.error("Received invalid status on commit {}", updateInfo.updateId);
-                    throw new ReplicationFailedException("Remote commit failed for " + replicationConfig, null, null);
+                    try {
+                        abort(updateInfo); // remove temporary directory.
+                    } finally {
+                        throw new ReplicationFailedException("Remote commit failed for " + replicationConfig, null, null);
+                    }
                 }
 
                 LOG.info("Replication done {}", updateInfo.updateId);

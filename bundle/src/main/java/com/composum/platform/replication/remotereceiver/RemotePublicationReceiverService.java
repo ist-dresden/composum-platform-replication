@@ -262,7 +262,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
             }
 
             for (ChildrenOrderInfo childrenOrderInfo : new IteratorIterable<>(childOrderings)) {
-                if (!SlingResourceUtil.isSameOrDescendant(topContentPath, childrenOrderInfo.getPath())) { // safety check - Bug!
+                if (!SlingResourceUtil.isSameOrDescendant(releaseRootPath, childrenOrderInfo.getPath())) { // safety check - Bug!
                     throw new IllegalArgumentException("Not subpath of " + topContentPath + " : " + childrenOrderInfo);
                 }
                 String targetPath = appendPaths(targetRoot, childrenOrderInfo.getPath());
@@ -380,9 +380,9 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
         while (candidate != null && SlingResourceUtil.isSameOrDescendant(targetReleaseRootPath, candidate.getPath())
                 && !ResourceUtil.isNodeType(candidate, ResourceUtil.MIX_VERSIONABLE) && !candidate.hasChildren()) {
             Resource todelete = candidate;
+            candidate = candidate.getParent();
             LOG.info("Remove orphaned node {}", todelete.getPath());
             resolver.delete(todelete);
-            candidate = candidate.getParent();
         }
     }
 
