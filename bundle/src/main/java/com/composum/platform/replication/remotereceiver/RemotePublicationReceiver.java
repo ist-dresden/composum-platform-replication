@@ -28,12 +28,6 @@ public interface RemotePublicationReceiver {
      */
     String getTargetDir();
 
-    /**
-     * Traverses through the descendant tree of resource up to the content nodes and writes the versions of the
-     * versionables to output
-     */
-    void traverseTree(@Nullable Resource resource, @Nonnull Consumer<VersionableInfo> output) throws IOException;
-
     /** Prepares the temporary directory for an update operation. Take care to remove it later! */
     UpdateInfo startUpdate(@Nonnull String releaseRootPath, @Nonnull String contentPath)
             throws PersistenceException, LoginException, RemotePublicationReceiverException, RepositoryException;

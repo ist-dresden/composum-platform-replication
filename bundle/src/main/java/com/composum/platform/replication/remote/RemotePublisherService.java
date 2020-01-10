@@ -60,6 +60,7 @@ import java.util.stream.StreamSupport;
 import static com.composum.sling.core.util.SlingResourceUtil.isSameOrDescendant;
 import static com.composum.sling.platform.staging.ReleaseChangeProcess.ReleaseChangeProcessorState.awaiting;
 import static com.composum.sling.platform.staging.ReleaseChangeProcess.ReleaseChangeProcessorState.error;
+import static com.composum.sling.platform.staging.ReleaseChangeProcess.ReleaseChangeProcessorState.idle;
 import static com.composum.sling.platform.staging.ReleaseChangeProcess.ReleaseChangeProcessorState.success;
 import static java.util.Objects.requireNonNull;
 
@@ -171,9 +172,22 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
     @Deactivate
     protected void deactivate() throws IOException {
         LOG.info("deactivated");
-        processesCache.clear();
-        try (CloseableHttpClient ignored = httpClient) { // just make sure it's closed.
+        try (CloseableHttpClient closed = httpClient) { // just make sure it's closed afterwards
             this.config = null;
+            Collection<RemoteReleasePublishingProcess> processes = new ArrayList<>(processesCache.values());
+            processesCache.clear();
+            boolean hasRunningProcesses = false;
+            for (RemoteReleasePublishingProcess process : processes) {
+                hasRunningProcesses = process.abort(false) || hasRunningProcesses;
+            }
+            if (hasRunningProcesses) {
+                try { // wait a little to hopefully allow safe shutdown with resource cleanup, removing remote stuff
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    // shouldn't happen
+                }
+                for (RemoteReleasePublishingProcess process : processes) { process.abort(true); }
+            }
             this.httpClient = null;
         }
     }
@@ -199,7 +213,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         protected volatile Set<String> changedPaths = new LinkedHashSet<>();
         protected volatile String releaseUuid;
         protected volatile Date finished;
-        protected volatile ReleaseChangeProcessorState state;
+        protected volatile ReleaseChangeProcessorState state = idle;
         protected volatile Date startedAt;
         protected volatile ReplicatorStrategy runningStrategy;
         protected volatile Thread runningThread;
@@ -294,14 +308,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 try {
                     ReplicatorStrategy strategy = new ReplicatorStrategy(processedChangedPaths, release, context, replicationConfig);
 
-                    if (runningStrategy != null) {
-                        runningStrategy.setAbortAtNextPossibility();
-                        Thread.sleep(5000);
-                        if (runningThread != null) {
-                            runningThread.interrupt();
-                            Thread.sleep(2000);
-                        }
-                    }
+                    abortAlreadyRunningStrategy();
 
                     runningStrategy = strategy;
                     startedAt = new Date();
@@ -332,6 +339,39 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 finished = new Date();
                 LOG.info("Finished run with {} : {} - @{}", state, name, System.identityHashCode(this));
             }
+        }
+
+        protected void abortAlreadyRunningStrategy() throws InterruptedException {
+            if (runningStrategy != null) {
+                LOG.error("Strategy already running in parallel? How can that be? {}", runningStrategy);
+                runningStrategy.setAbortAtNextPossibility();
+                Thread.sleep(5000);
+                if (runningThread != null) {
+                    runningThread.interrupt();
+                    Thread.sleep(2000);
+                }
+            }
+        }
+
+        protected boolean abort(boolean hard) {
+            boolean hasRunningStuff = false;
+            synchronized (changedPathsChangeLock) {
+                ReplicatorStrategy runningStrategyCopy = runningStrategy;
+                if (runningStrategyCopy != null) {
+                    if (hard) { runningStrategy = null; }
+                    runningStrategyCopy.setAbortAtNextPossibility();
+                    hasRunningStuff = true;
+                }
+                if (hard) {
+                    Thread runningThreadCopy = runningThread;
+                    if (runningThreadCopy != null) {
+                        runningThread = null;
+                        runningThreadCopy.interrupt();
+                        hasRunningStuff = true;
+                    }
+                }
+            }
+            return hasRunningStuff;
         }
 
         /** Returns the current paths in {@link #changedPaths} resetting {@link #changedPaths}. */
@@ -439,6 +479,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
 
         /** If set, the replication process is aborted at the next step when this is checked. */
         protected volatile boolean abortAtNextPossibility = false;
+        protected volatile UpdateInfo cleanupUpdateInfo;
 
         protected ReplicatorStrategy(@Nonnull Set<String> changedPaths, @Nonnull StagingReleaseManager.Release release,
                                      @Nonnull BeanContext context, @Nonnull RemotePublicationConfig replicationConfig) {
@@ -462,7 +503,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         }
 
         protected void replicate() throws ReplicationFailedException {
-            UpdateInfo cleanupUpdateInfo = null;
+            cleanupUpdateInfo = null;
             try {
                 String commonParent = SlingResourceUtil.commonParent(changedPaths);
                 LOG.info("Changed paths below {}: {}", commonParent, changedPaths);
@@ -506,7 +547,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 pathsToTransmit.addAll(deletedPaths); // to synchronize parents
                 int count = 0;
                 for (String path : pathsToTransmit) {
-                    abortIfNecessary(updateInfo); // might be a performance risk, but is probably worth it.
+                    abortIfNecessary(updateInfo);
                     progress = 100 * (count++) / pathsToTransmit.size();
 
                     Resource resource = resolver.getResource(path);
@@ -606,7 +647,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 throw new ReplicationFailedException("Aborted publishing because process was interrupted.", null,
                         null);
             }
-            release.getMetaDataNode().getResourceResolver().refresh();
+            release.getMetaDataNode().getResourceResolver().refresh(); // might be a performance risk (?), but necessary
             if (!release.getChangeNumber().equals(originalReleaseChangeNumber)) {
                 LOG.info("Aborting publishing because of local release content change during publishing.");
                 abort(updateInfo);
@@ -623,6 +664,16 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             }
         }
 
+
+        @Override
+        public String toString() {
+            final StringBuilder sb = new StringBuilder("ReplicatorStrategy{");
+            sb.append("@").append(System.identityHashCode(this));
+            if (replicationConfig != null) sb.append(", receiver=").append(replicationConfig.getReceiverUri());
+            if (cleanupUpdateInfo != null) sb.append(", updateInfo=").append(cleanupUpdateInfo.updateId);
+            sb.append('}');
+            return sb.toString();
+        }
     }
 
     @ObjectClassDefinition(

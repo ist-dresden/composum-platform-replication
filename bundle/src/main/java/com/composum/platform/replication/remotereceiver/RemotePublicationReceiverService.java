@@ -1,7 +1,6 @@
 package com.composum.platform.replication.remotereceiver;
 
 import com.composum.platform.replication.json.ChildrenOrderInfo;
-import com.composum.platform.replication.json.VersionableInfo;
 import com.composum.platform.replication.json.VersionableTree;
 import com.composum.sling.core.ResourceHandle;
 import com.composum.sling.core.util.ResourceUtil;
@@ -52,11 +51,12 @@ import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -64,7 +64,7 @@ import static com.composum.platform.replication.remotereceiver.RemoteReceiverCon
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.ATTR_TOP_CONTENTPATH;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.ATTR_UPDATEDPATHS;
 import static com.composum.sling.core.util.SlingResourceUtil.appendPaths;
-import static com.composum.sling.platform.staging.StagingConstants.PROP_REPLICATED_VERSION;
+import static com.composum.sling.platform.staging.StagingConstants.PROP_LAST_REPLICATION_DATE;
 import static java.util.Arrays.asList;
 import static java.util.Objects.requireNonNull;
 
@@ -116,22 +116,6 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     @Override
     public String getTargetDir() {
         return config.targetDir();
-    }
-
-    @Override
-    public void traverseTree(Resource resource, @Nonnull Consumer<VersionableInfo> output) throws IOException {
-        if (resource == null) { return; }
-        if (ResourceUtil.isNodeType(resource, ResourceUtil.TYPE_VERSIONABLE)) {
-            VersionableInfo info = VersionableInfo.of(resource, null);
-            if (info != null) { output.accept(info); }
-        } else if (ResourceUtil.CONTENT_NODE.equals(resource.getName())) {
-            // that shouldn't happen in the intended usecase: non-versionable jcr:content
-            LOG.warn("Something's wrong here: {} has no {}", resource.getPath(), PROP_REPLICATED_VERSION);
-        } else { // traverse tree
-            for (Resource child : resource.getChildren()) {
-                traverseTree(child, output);
-            }
-        }
     }
 
     @Override
@@ -248,7 +232,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
             }
 
             @Nonnull String targetReleaseRootPath = appendPaths(targetRoot, releaseRootPath);
-            ResourceUtil.getOrCreateResource(resolver, targetReleaseRootPath);
+            Resource targetReleaseRoot = ResourceUtil.getOrCreateResource(resolver, targetReleaseRootPath);
 
             for (String updatedPath : updatedPaths) {
                 if (!SlingResourceUtil.isSameOrDescendant(topContentPath, updatedPath)) { // safety check - Bug!
@@ -278,6 +262,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                 }
             }
 
+            targetReleaseRoot.adaptTo(ModifiableValueMap.class).put(PROP_LAST_REPLICATION_DATE, Calendar.getInstance());
             resolver.delete(tmpLocation);
             resolver.commit();
         }
@@ -412,11 +397,14 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
         if (tmpLocation == null) {
             if (create) {
                 tmpLocation = ResourceUtil.getOrCreateResource(resolver, path);
+                tmpLocation.adaptTo(ModifiableValueMap.class).put(ResourceUtil.PROP_MIXINTYPES,
+                        new String[]{ResourceUtil.MIX_CREATED, ResourceUtil.MIX_LAST_MODIFIED});
             } else {
                 throw new IllegalArgumentException("Unknown updateId " + updateId);
             }
         } else {
-            ValueMap vm = tmpLocation.getValueMap();
+            ModifiableValueMap vm = tmpLocation.adaptTo(ModifiableValueMap.class);
+            vm.put(ResourceUtil.PROP_LAST_MODIFIED, new Date());
             String releaseRootPath = vm.get(RemoteReceiverConstants.ATTR_RELEASEROOT_PATH, String.class);
             String originalReleaseChangeId = vm.get(RemoteReceiverConstants.ATTR_OLDPUBLISHERCONTENT_RELEASECHANGEID, String.class);
             String releaseChangeId = getReleaseChangeId(resolver, releaseRootPath);
