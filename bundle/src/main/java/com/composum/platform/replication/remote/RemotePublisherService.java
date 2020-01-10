@@ -22,6 +22,7 @@ import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.sling.api.resource.LoginException;
+import org.apache.sling.api.resource.NonExistingResource;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
@@ -461,6 +462,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         }
 
         protected void replicate() throws ReplicationFailedException {
+            UpdateInfo cleanupUpdateInfo = null;
             try {
                 String commonParent = SlingResourceUtil.commonParent(changedPaths);
                 LOG.info("Changed paths below {}: {}", commonParent, changedPaths);
@@ -468,6 +470,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 progress = 0;
 
                 UpdateInfo updateInfo = publisher.startUpdate(release.getReleaseRoot().getPath(), commonParent);
+                cleanupUpdateInfo = updateInfo;
                 LOG.info("Received UpdateInfo {}", updateInfo);
 
                 if (originalReleaseChangeNumber.equals(updateInfo.originalPublisherReleaseChangeId)) {
@@ -500,21 +503,23 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 Set<String> pathsToTransmit = new LinkedHashSet<>(remotelyDifferentPaths);
                 pathsToTransmit.addAll(contentState.getVersionables().getChangedPaths());
                 Set<String> deletedPaths = new LinkedHashSet<>(contentState.getVersionables().getDeletedPaths());
+                pathsToTransmit.addAll(deletedPaths); // to synchronize parents
                 int count = 0;
                 for (String path : pathsToTransmit) {
                     abortIfNecessary(updateInfo); // might be a performance risk, but is probably worth it.
                     progress = 100 * (count++) / pathsToTransmit.size();
 
                     Resource resource = resolver.getResource(path);
-                    if (resource != null) {
-                        Status status = publisher.pathupload(updateInfo, resource);
-                        if (status == null || !status.isValid()) {
-                            LOG.error("Received invalid status on pathupload {} : {}", path, status);
-                            throw new ReplicationFailedException("Remote upload failed for " + replicationConfig + " " +
-                                    "path " + path, null, null);
-                        }
-                    } else {
+                    if (resource == null) { // we need to transmit the parent nodes of even deleted resources
                         deletedPaths.add(path);
+                        resource = new NonExistingResource(resolver, path);
+                    }
+
+                    Status status = publisher.pathupload(updateInfo, resource);
+                    if (status == null || !status.isValid()) {
+                        LOG.error("Received invalid status on pathupload {} : {}", path, status);
+                        throw new ReplicationFailedException("Remote upload failed for " + replicationConfig + " " +
+                                "path " + path, null, null);
                     }
                 }
 
@@ -528,17 +533,23 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 progress = 100;
                 if (!status.isValid()) {
                     LOG.error("Received invalid status on commit {}", updateInfo.updateId);
-                    try {
-                        abort(updateInfo); // remove temporary directory.
-                    } finally {
-                        throw new ReplicationFailedException("Remote commit failed for " + replicationConfig, null, null);
-                    }
+                    throw new ReplicationFailedException("Remote commit failed for " + replicationConfig, null, null);
+                } else {
+                    cleanupUpdateInfo = null;
                 }
 
                 LOG.info("Replication done {}", updateInfo.updateId);
             } catch (RuntimeException | RemotePublicationReceiverFacade.RemotePublicationFacadeException | URISyntaxException e) {
                 LOG.error("Remote publishing failed: " + e, e);
                 throw new ReplicationFailedException("Remote publishing failed for " + replicationConfig, e, null);
+            } finally {
+                if (cleanupUpdateInfo != null) { // remove temporary directory.
+                    try {
+                        abort(cleanupUpdateInfo);
+                    } catch (Exception e) {
+                        LOG.error("Error cleaning up {}", cleanupUpdateInfo.updateId, e);
+                    }
+                }
             }
         }
 

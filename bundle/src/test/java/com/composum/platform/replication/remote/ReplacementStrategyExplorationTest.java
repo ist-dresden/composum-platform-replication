@@ -130,6 +130,7 @@ public class ReplacementStrategyExplorationTest {
      * We can avoid the bug by moving the whole tree to somewhere else, such that the verification now thinks it is a
      * different node, then quickly move it back. That does, however, leave a small gap where the content tree is
      * somewhere else, so it's a bad workaround.
+     * @see https://issues.apache.org/jira/browse/OAK-8848
      */
     @Test
     public void bugWithReplaceBadWorkaround() throws PersistenceException, RepositoryException {
@@ -148,6 +149,7 @@ public class ReplacementStrategyExplorationTest {
      * This should actually work, but it complains about changing a protected property:
      * org.apache.jackrabbit.oak.api.CommitFailedException: OakConstraint0100: Property is protected: jcr:versionHistory
      * It seems oak thinks here the moved property from the second node is a property change. :-(
+     * @see https://issues.apache.org/jira/browse/OAK-8848
      */
     @Test(expected = PersistenceException.class)
     public void bugWithReplaceThroughSession() throws PersistenceException, RepositoryException {

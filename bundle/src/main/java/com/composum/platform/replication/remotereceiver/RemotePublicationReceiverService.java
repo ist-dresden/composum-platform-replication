@@ -244,7 +244,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                 if (!SlingResourceUtil.isSameOrDescendant(topContentPath, deletedPath)) { // safety check - Bug!
                     throw new IllegalArgumentException("Not subpath of " + topContentPath + " : " + deletedPath);
                 }
-                deletePath(resolver, targetRoot, deletedPath);
+                deletePath(resolver, tmpLocation, targetRoot, deletedPath);
             }
 
             @Nonnull String targetReleaseRootPath = appendPaths(targetRoot, releaseRootPath);
@@ -254,7 +254,11 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                 if (!SlingResourceUtil.isSameOrDescendant(topContentPath, updatedPath)) { // safety check - Bug!
                     throw new IllegalArgumentException("Not subpath of " + topContentPath + " : " + updatedPath);
                 }
-                moveVersionable(resolver, tmpLocation, updatedPath, targetRoot);
+                if (!deletedPaths.contains(updatedPath)) {
+                    // if it's deleted we needed to transfer a package for it, anyway, to update it's parents
+                    // attributes. So it's in updatedPath, too, but doesn't need to be moved.
+                    moveVersionable(resolver, tmpLocation, updatedPath, targetRoot);
+                }
             }
 
             for (String deletedPath : deletedPaths) {
@@ -361,8 +365,18 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                 SlingResourceUtil.getPath(destinationParent) + "/" + nodename);
     }
 
-    protected void deletePath(@Nonnull ResourceResolver resolver, @Nonnull String targetRoot,
-                              @Nonnull String deletedPath) throws PersistenceException {
+    protected void deletePath(@Nonnull ResourceResolver resolver, @Nonnull Resource tmpLocation,
+                              @Nonnull String targetRoot, @Nonnull String deletedPath) throws PersistenceException, RepositoryException {
+        NodeTreeSynchronizer synchronizer = new NodeTreeSynchronizer();
+        Resource source = tmpLocation;
+        Resource destination = requireNonNull(resolver.getResource(targetRoot), targetRoot);
+        for (String pathsegment : StringUtils.removeStart(ResourceUtil.getParent(deletedPath), "/").split("/")) {
+            source = source.getChild(pathsegment);
+            destination = destination.getChild(pathsegment);
+            if (source == null || destination == null) { break; }
+            synchronizer.updateAttributes(ResourceHandle.use(source), ResourceHandle.use(destination), ImmutableBiMap.of());
+        }
+
         Resource deletedResource = resolver.getResource(appendPaths(targetRoot, deletedPath));
         if (deletedResource != null) {
             LOG.info("Deleting {}", deletedPath);
