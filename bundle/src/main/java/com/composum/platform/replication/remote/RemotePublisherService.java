@@ -125,10 +125,6 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         List<RemotePublicationConfig> replicationConfigs = getReplicationConfigs(releaseRoot, context);
         Collection<RemoteReleasePublishingProcess> processes = new ArrayList<>();
         for (RemotePublicationConfig replicationConfig : replicationConfigs) {
-            if (!replicationConfig.isEnabled()) {
-                processesCache.remove(replicationConfig.getPath());
-                continue;
-            }
             RemoteReleasePublishingProcess process = processesCache.computeIfAbsent(replicationConfig.getPath(),
                     (k) -> new RemoteReleasePublishingProcess(releaseRoot, replicationConfig)
             );
@@ -207,22 +203,25 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         protected final String releaseRootPath;
         protected final String name;
         protected final String description;
+        protected final boolean enabled;
         protected volatile MessageContainer messages = new MessageContainer();
         protected final Object changedPathsChangeLock = new Object();
         @Nonnull
         protected volatile Set<String> changedPaths = new LinkedHashSet<>();
         protected volatile String releaseUuid;
-        protected volatile Date finished;
         protected volatile ReleaseChangeProcessorState state = idle;
-        protected volatile Date startedAt;
+        protected volatile Long finished;
+        protected volatile Long startedAt;
         protected volatile ReplicatorStrategy runningStrategy;
         protected volatile Thread runningThread;
 
         public RemoteReleasePublishingProcess(Resource releaseRoot, RemotePublicationConfig config) {
+            // FIXME(hps,13.01.20) how to handle config changes?
             configPath = config.getPath();
             releaseRootPath = releaseRoot.getPath();
             name = config.getName();
             description = config.getDescription();
+            enabled = config.isEnabled();
         }
 
 
@@ -287,7 +286,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 return;
             }
             state = ReleaseChangeProcessorState.processing;
-            startedAt = new Date();
+            startedAt = System.currentTimeMillis();
             try (ResourceResolver serviceResolver = makeResolver()) { // FIXME(hps,07.01.20) more error checks
 
                 LOG.info("Starting run of {}", name);
@@ -311,7 +310,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                     abortAlreadyRunningStrategy();
 
                     runningStrategy = strategy;
-                    startedAt = new Date();
+                    startedAt = System.currentTimeMillis();
                     try {
                         runningThread = Thread.currentThread();
                         runningStrategy.replicate();
@@ -336,7 +335,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                     runningStrategy = null;
                     state = error;
                 }
-                finished = new Date();
+                finished = System.currentTimeMillis();
                 LOG.info("Finished run with {} : {} - @{}", state, name, System.identityHashCode(this));
             }
         }
@@ -410,6 +409,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                     return 100;
                 case idle:
                 case awaiting:
+                case disabled:
                 default:
                     return 0;
             }
@@ -419,6 +419,11 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         @Override
         public ReleaseChangeProcessorState getState() {
             return state;
+        }
+
+        @Override
+        public boolean isEnabled() {
+            return enabled;
         }
 
         @Override
@@ -433,13 +438,13 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
 
         @Nullable
         @Override
-        public Date getRunStartedAt() {
+        public Long getRunStartedAt() {
             return startedAt;
         }
 
         @Nullable
         @Override
-        public Date getRunFinished() {
+        public Long getRunFinished() {
             return finished;
         }
 
