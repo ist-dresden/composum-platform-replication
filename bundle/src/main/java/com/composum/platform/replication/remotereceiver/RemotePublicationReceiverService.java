@@ -60,6 +60,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.ATTR_OLDPUBLISHERCONTENT_RELEASECHANGEID;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.ATTR_RELEASEROOT_PATH;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.ATTR_TOP_CONTENTPATH;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.ATTR_UPDATEDPATHS;
@@ -138,14 +139,43 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                         "subpath of release root " + releaseRootPath);
             }
 
-            String releaseChangeId = getReleaseChangeId(resolver, contentPath);
-            if (releaseChangeId != null) {
-                vm.put(RemoteReceiverConstants.ATTR_OLDPUBLISHERCONTENT_RELEASECHANGEID, releaseChangeId);
+            fillUpdateInfo(updateInfo, resolver, releaseRootPath);
+            if (StringUtils.isNotBlank(updateInfo.originalPublisherReleaseChangeId)) {
+                vm.put(ATTR_OLDPUBLISHERCONTENT_RELEASECHANGEID, updateInfo.originalPublisherReleaseChangeId);
             }
-            updateInfo.originalPublisherReleaseChangeId = releaseChangeId;
             resolver.commit();
             return updateInfo;
         }
+    }
+
+    protected void fillUpdateInfo(UpdateInfo updateInfo, ResourceResolver resolver, String releaseRootPath) {
+        Resource releaseRoot = getReleaseRoot(resolver, releaseRootPath);
+        updateInfo.originalPublisherReleaseChangeId = getReleaseChangeId(resolver, releaseRootPath);
+        Calendar lastReplicationDate = releaseRoot.getValueMap().get(PROP_LAST_REPLICATION_DATE,
+                Calendar.class);
+        updateInfo.lastReplication = lastReplicationDate != null ? lastReplicationDate.getTimeInMillis() : null;
+    }
+
+    @Nullable
+    protected Resource getReleaseRoot(ResourceResolver resolver, String releaseRootPath) {
+        return resolver.getResource(appendPaths(getTargetDir(), releaseRootPath));
+    }
+
+    @Nullable
+    @Override
+    public UpdateInfo releaseInfo(@Nullable String releaseRootPath) throws LoginException {
+        UpdateInfo result = null;
+        LOG.info("ReleaseInfo called for {}", releaseRootPath);
+        if (StringUtils.isNotBlank(releaseRootPath)) {
+            try (ResourceResolver resolver = makeResolver()) {
+                Resource releaseRoot = getReleaseRoot(resolver, releaseRootPath);
+                if (releaseRoot != null) {
+                    result = new UpdateInfo();
+                    fillUpdateInfo(result, resolver, releaseRootPath);
+                }
+            }
+        }
+        return result;
     }
 
     @Nonnull
@@ -213,7 +243,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
 
     @Override
     public void commit(@Nonnull String updateId, @Nonnull Set<String> deletedPaths,
-                       @Nonnull Iterator<ChildrenOrderInfo> childOrderings)
+                       @Nonnull Iterator<ChildrenOrderInfo> childOrderings, String newReleaseChangeId)
             throws LoginException, RemotePublicationReceiverException, RepositoryException, PersistenceException {
         LOG.info("Commit called for {} : {}", updateId, deletedPaths);
         try (ResourceResolver resolver = makeResolver()) {
@@ -262,7 +292,9 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                 }
             }
 
-            targetReleaseRoot.adaptTo(ModifiableValueMap.class).put(PROP_LAST_REPLICATION_DATE, Calendar.getInstance());
+            ModifiableValueMap releaseRootVm = targetReleaseRoot.adaptTo(ModifiableValueMap.class);
+            releaseRootVm.put(StagingConstants.PROP_LAST_REPLICATION_DATE, Calendar.getInstance());
+            releaseRootVm.put(StagingConstants.PROP_CHANGE_NUMBER, newReleaseChangeId);
             resolver.delete(tmpLocation);
             resolver.commit();
         }
@@ -406,7 +438,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
             ModifiableValueMap vm = tmpLocation.adaptTo(ModifiableValueMap.class);
             vm.put(ResourceUtil.PROP_LAST_MODIFIED, new Date());
             String releaseRootPath = vm.get(RemoteReceiverConstants.ATTR_RELEASEROOT_PATH, String.class);
-            String originalReleaseChangeId = vm.get(RemoteReceiverConstants.ATTR_OLDPUBLISHERCONTENT_RELEASECHANGEID, String.class);
+            String originalReleaseChangeId = vm.get(ATTR_OLDPUBLISHERCONTENT_RELEASECHANGEID, String.class);
             String releaseChangeId = getReleaseChangeId(resolver, releaseRootPath);
             if (releaseChangeId != null && !StringUtils.equals(releaseChangeId, originalReleaseChangeId)) {
                 LoggerFactory.getLogger(getClass()).error("Release change id changed since beginning of update: {} to" +
@@ -426,9 +458,9 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     }
 
     @Nullable
-    protected String getReleaseChangeId(@Nonnull ResourceResolver resolver, @Nonnull String contentPath) {
-        Resource resource = resolver.getResource(contentPath);
-        return resource != null ? resource.getValueMap().get(StagingConstants.PROP_REPLICATED_VERSION, String.class) : null;
+    protected String getReleaseChangeId(@Nonnull ResourceResolver resolver, @Nonnull String releaseRootPath) {
+        Resource releaseRoot = getReleaseRoot(resolver, releaseRootPath);
+        return releaseRoot != null ? releaseRoot.getValueMap().get(StagingConstants.PROP_CHANGE_NUMBER, String.class) : null;
     }
 
     @ObjectClassDefinition(

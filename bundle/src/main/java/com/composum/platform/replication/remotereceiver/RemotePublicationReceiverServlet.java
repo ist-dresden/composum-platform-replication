@@ -45,6 +45,7 @@ import java.util.stream.Collectors;
 
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_CHILDORDERINGS;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_DELETED_PATH;
+import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_RELEASE_CHANGENUMBER;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_UPDATEID;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PATTERN_UPDATEID;
 import static java.util.Objects.requireNonNull;
@@ -64,7 +65,8 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
 
     public enum Extension {zip, json}
 
-    public enum Operation {contentstate, comparecontent, startupdate, pathupload, commitupdate, abortupdate}
+    public enum Operation {contentstate, comparecontent, startupdate, pathupload, commitupdate, abortupdate,
+        releaseinfo}
 
     protected final ServletOperationSet<Extension, Operation> operations = new ServletOperationSet<>(Extension.json);
 
@@ -111,6 +113,9 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
 
         operations.setOperation(ServletOperationSet.Method.POST, Extension.json, Operation.abortupdate,
                 new AbortUpdateOperation());
+
+        operations.setOperation(ServletOperationSet.Method.GET, Extension.json, Operation.releaseinfo,
+                new ReleaseInfoOperation());
     }
 
     /** Creates the service resolver used to update the content. */
@@ -247,7 +252,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
     public static class StatusWithReleaseData extends Status {
 
         /** The created update data. */
-        UpdateInfo updateInfo;
+        public UpdateInfo updateInfo;
 
         public StatusWithReleaseData() {
             super(null, null);
@@ -255,11 +260,6 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
 
         public StatusWithReleaseData(SlingHttpServletRequest request, SlingHttpServletResponse response) {
             super(request, response);
-        }
-
-        @Override
-        public boolean isValid() {
-            return super.isValid() && updateInfo != null && updateInfo.updateId != null;
         }
     }
 
@@ -310,6 +310,13 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                     throw new IllegalArgumentException("Invalid updateId");
                 }
 
+                expectName(jsonReader, PARAM_RELEASE_CHANGENUMBER, status);
+                String newReleaseChangeId = jsonReader.nextString();
+                if (StringUtils.isBlank(newReleaseChangeId)) {
+                    status.withLogging(LOG).error("Missing releaseChangeNumber");
+                    throw new IllegalArgumentException("Missing releaseChangeNumber");
+                }
+
                 Set<String> deletedPaths = new HashSet<>();
                 expectName(jsonReader, PARAM_DELETED_PATH, status);
                 jsonReader.beginArray();
@@ -338,7 +345,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 if (status.isValid()) {
                     LOG.info("Commit on {} deleting {}", updateId, deletedPaths);
                     try {
-                        service.commit(updateId, deletedPaths, childOrderings);
+                        service.commit(updateId, deletedPaths, childOrderings, newReleaseChangeId);
                         jsonReader.endArray();
                         jsonReader.endObject();
                     } catch (LoginException e) { // serious misconfiguration
@@ -381,6 +388,25 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
                     status.withLogging(LOG).error("Import failed for {}: {}", updateId, e.toString(), e);
                 }
+            }
+            status.sendJson();
+        }
+    }
+
+    class ReleaseInfoOperation implements ServletOperation {
+
+        @Override
+        public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource) throws RepositoryException, IOException, ServletException {
+            String suffix = request.getRequestPathInfo().getSuffix();
+            StatusWithReleaseData status = new StatusWithReleaseData(request, response);
+            try {
+                UpdateInfo updateInfo = service.releaseInfo(suffix);
+                status.updateInfo = updateInfo;
+            } catch (LoginException e) { // serious misconfiguration
+                LOG.error("Could not get service resolver: " + e, e);
+                throw new ServletException("Could not get service resolver", e);
+            } catch (RuntimeException e) {
+                status.withLogging(LOG).error("Cannot get release info for {}: {}", suffix, e.toString(), e);
             }
             status.sendJson();
         }

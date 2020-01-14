@@ -5,7 +5,6 @@ import com.composum.platform.replication.json.VersionableInfo;
 import org.apache.jackrabbit.vault.fs.config.ConfigurationException;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
-import org.apache.sling.api.resource.Resource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -15,7 +14,6 @@ import java.io.InputStream;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Consumer;
 
 /** Interface for service that implements the functions behind the {@link RemotePublicationReceiverServlet}. */
 public interface RemotePublicationReceiver {
@@ -41,7 +39,7 @@ public interface RemotePublicationReceiver {
      * temporary directory is then deleted.
      */
     void commit(@Nonnull String updateId, @Nonnull Set<String> deletedPaths,
-                @Nonnull Iterator<ChildrenOrderInfo> childOrderings)
+                @Nonnull Iterator<ChildrenOrderInfo> childOrderings, String newReleaseChangeId)
             throws LoginException, RemotePublicationReceiverException, RepositoryException, PersistenceException;
 
     /**
@@ -55,6 +53,10 @@ public interface RemotePublicationReceiver {
     /** Aborts the update operation and deletes the temporary directory. */
     void abort(@Nonnull String updateId)
             throws LoginException, RemotePublicationReceiverException, RepositoryException, PersistenceException;
+
+    /** Gets general info about a release without starting an update. */
+    @Nullable
+    UpdateInfo releaseInfo(@Nullable String releaseRoot) throws LoginException;
 
     class RemotePublicationReceiverException extends Exception {
 

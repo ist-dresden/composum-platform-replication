@@ -20,6 +20,7 @@ import org.apache.http.NameValuePair;
 import org.apache.http.StatusLine;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpUriRequest;
@@ -60,6 +61,7 @@ import static com.composum.platform.replication.remotereceiver.RemotePublication
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.comparecontent;
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.contentstate;
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.pathupload;
+import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.releaseinfo;
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.startupdate;
 
 /** Provides a Java interface for accessing the remote publication receiver. */
@@ -134,7 +136,35 @@ public class RemotePublicationReceiverFacade {
         RemotePublicationReceiverServlet.StatusWithReleaseData status =
                 callRemotePublicationReceiver("Starting update with " + path,
                         httpClientContext, post, RemotePublicationReceiverServlet.StatusWithReleaseData.class, null);
+        if (status.updateInfo == null || StringUtils.isBlank(status.updateInfo.updateId)) { // impossible
+            throw ExceptionUtil.logAndThrow(LOG,
+                    new RemotePublicationFacadeException("Received no updateId for " + path, null, status, null));
+        }
         return status.updateInfo;
+    }
+
+    /**
+     * Starts an update process on the remote side. To clean up resources, either
+     * {@link #commitUpdate(UpdateInfo, Set, Stream, ExceptionThrowingRunnable)} or
+     * {@link #abortUpdate(UpdateInfo)} must be called afterwards.
+     *
+     * @param path        the root content path that should be considered. Might be the root of a release, or any
+     *                    subdirectory.
+     * @param releaseRootPath the root of the release containing {path} (may be equal to {path})
+     * @return the basic information about the update which must be used for all related calls on this update.
+     */
+    @Nonnull
+    public RemotePublicationReceiverServlet.StatusWithReleaseData releaseInfo(@NotNull String releaseRootPath) throws RemotePublicationFacadeException {
+        HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
+                passwordDecryptor());
+        String uri = replicationConfig.getReceiverUri() + "." + releaseinfo.name() + "." + json.name() + releaseRootPath;
+        HttpGet method = new HttpGet(uri);
+
+        LOG.info("Get releaseinfo for path {}", releaseRootPath);
+        RemotePublicationReceiverServlet.StatusWithReleaseData status =
+                callRemotePublicationReceiver("Get releaseinfo for " + releaseRootPath,
+                        httpClientContext, method, RemotePublicationReceiverServlet.StatusWithReleaseData.class, null);
+        return status;
     }
 
     /**
@@ -226,7 +256,8 @@ public class RemotePublicationReceiverFacade {
      *                                      checking for parallel modifications of the source
      */
     @Nonnull
-    public Status commitUpdate(@Nonnull UpdateInfo updateInfo, @Nonnull Set<String> deletedPaths,
+    public Status commitUpdate(@Nonnull UpdateInfo updateInfo, @Nonnull String newReleaseChangeNumber,
+                               @Nonnull Set<String> deletedPaths,
                                @Nonnull Stream<ChildrenOrderInfo> relevantOrderings,
                                @Nonnull ExceptionThrowingRunnable<? extends Exception> checkForParallelModifications)
             throws RemotePublicationFacadeException {
@@ -238,6 +269,7 @@ public class RemotePublicationReceiverFacade {
             protected void writeTo(@Nonnull JsonWriter jsonWriter) throws IOException {
                 jsonWriter.beginObject();
                 jsonWriter.name(RemoteReceiverConstants.PARAM_UPDATEID).value(updateInfo.updateId);
+                jsonWriter.name(RemoteReceiverConstants.PARAM_RELEASE_CHANGENUMBER).value(newReleaseChangeNumber);
                 jsonWriter.name(RemoteReceiverConstants.PARAM_DELETED_PATH).beginArray();
                 for (String deletedPath : deletedPaths) { jsonWriter.value(deletedPath); }
                 jsonWriter.endArray();
@@ -346,10 +378,10 @@ public class RemotePublicationReceiverFacade {
             if (status != null) {
                 try (StringWriter statusString = new StringWriter()) {
                     status.toJson(new JsonWriter(statusString));
-                    sb.append("status=").append(statusString.toString());
+                    sb.append(", status=").append(statusString.toString());
                 } catch (IOException e) {
                     LOG.error("" + e, e);
-                    sb.append("status=Cannot deserialize: ").append(e);
+                    sb.append(", status=Cannot deserialize: ").append(e);
                 }
             }
             sb.append('}');
