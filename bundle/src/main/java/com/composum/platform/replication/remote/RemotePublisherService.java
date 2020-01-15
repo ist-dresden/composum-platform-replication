@@ -130,6 +130,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             RemoteReleasePublishingProcess process = processesCache.computeIfAbsent(replicationConfig.getPath(),
                     (k) -> new RemoteReleasePublishingProcess(releaseRoot, replicationConfig)
             );
+            process.readConfig(replicationConfig);
             processes.add(process);
         }
         return processes;
@@ -200,13 +201,13 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
     protected class RemoteReleasePublishingProcess implements ReleaseChangeProcess {
         // we deliberately save nothing that refers to resolvers, since this is an object that lives long
         @Nonnull
-        protected final String configPath;
+        protected volatile String configPath;
         @Nonnull
-        protected final String releaseRootPath;
-        protected final String name;
-        protected final String description;
-        protected final boolean enabled;
-        protected final String mark;
+        protected volatile String releaseRootPath;
+        protected volatile String name;
+        protected volatile String description;
+        protected volatile boolean enabled;
+        protected volatile String mark;
         protected volatile MessageContainer messages = new MessageContainer(LOG);
         protected final Object changedPathsChangeLock = new Object();
         protected final CachedCalculation<UpdateInfo, RemotePublicationFacadeException> remoteReleaseInfo;
@@ -220,15 +221,19 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         protected volatile ReplicatorStrategy runningStrategy;
         protected volatile Thread runningThread;
 
-        public RemoteReleasePublishingProcess(Resource releaseRoot, RemotePublicationConfig config) {
-            // FIXME(hps,13.01.20) how to handle config changes?
-            configPath = config.getPath();
+        public RemoteReleasePublishingProcess(@Nonnull Resource releaseRoot, @Nonnull RemotePublicationConfig config) {
             releaseRootPath = releaseRoot.getPath();
-            name = config.getName();
-            description = config.getDescription();
-            enabled = config.isEnabled();
-            mark = config.getReleaseMark();
+            readConfig(config);
             remoteReleaseInfo = new CachedCalculation<>(this::remoteReleaseInfo, 60000);
+        }
+
+        /** Called as often as possible to adapt to config changes. */
+        public void readConfig(@Nonnull RemotePublicationConfig remotePublicationConfig) {
+            configPath = requireNonNull(remotePublicationConfig.getPath());
+            name = remotePublicationConfig.getName();
+            description = remotePublicationConfig.getDescription();
+            enabled = remotePublicationConfig.isEnabled();
+            mark = remotePublicationConfig.getReleaseMark();
         }
 
         protected UpdateInfo remoteReleaseInfo() throws RemotePublicationFacadeException {
@@ -308,13 +313,15 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             }
             state = ReleaseChangeProcessorState.processing;
             startedAt = System.currentTimeMillis();
+            ReplicatorStrategy strategy = null;
+            messages.clear();
             try (ResourceResolver serviceResolver = makeResolver()) {
 
                 LOG.info("Starting run of {}", name);
 
                 Set<String> processedChangedPaths = swapOutChangedPaths();
                 try {
-                    ReplicatorStrategy strategy = makeReplicatorStrategy(serviceResolver, processedChangedPaths);
+                    strategy = makeReplicatorStrategy(serviceResolver, processedChangedPaths);
                     if (strategy == null) {
                         messages.add(Message.error("Cannot create strategy - probably disabled"));
                         return;
@@ -343,7 +350,8 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             } catch (ReplicationFailedException | RuntimeException e) {
                 messages.add(Message.error("Other error: ", e.toString()), e);
             } finally {
-                runningStrategy = null;
+                //noinspection ObjectEquality : reset if there wasn't a new strategy created in the meantime
+                if (runningStrategy == strategy) { runningStrategy = null; }
                 if (state != success && state != awaiting) {
                     state = error;
                 }
@@ -355,10 +363,11 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         @Nullable
         protected ReplicatorStrategy makeReplicatorStrategy(ResourceResolver serviceResolver, Set<String> processedChangedPaths) {
             Resource configResource = serviceResolver.getResource(configPath);
-            RemotePublicationConfig replicationConfig = new BeanContext.Service(serviceResolver)
-                    .withResource(configResource).adaptTo(RemotePublicationConfig.class);
+            RemotePublicationConfig replicationConfig = configResource != null ?
+                    new BeanContext.Service(serviceResolver).withResource(configResource)
+                            .adaptTo(RemotePublicationConfig.class) : null;
             if (replicationConfig == null || !replicationConfig.isEnabled()) {
-                LOG.warn("Disabled / unreadable config, not run: {}", name);
+                LOG.warn("Disabled / unreadable config, not run: {}", getId());
                 return null; // warning - should normally have been caught before
             }
 
@@ -548,6 +557,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         @Override
         public String toString() {
             return new ToStringBuilder(this)
+                    .append("id", getId())
                     .append("name", name)
                     .append("state", state)
                     .toString();
@@ -769,7 +779,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             Status status = publisher.abortUpdate(updateInfo);
             if (status == null || !status.isValid()) {
                 messages.add(Message.error("Aborting replication failed for {} - " +
-                                "please manually clean up resources used there.", updateInfo.updateId));
+                        "please manually clean up resources used there.", updateInfo.updateId));
             }
         }
 

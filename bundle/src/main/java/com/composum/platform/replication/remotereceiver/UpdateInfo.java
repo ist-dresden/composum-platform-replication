@@ -22,7 +22,10 @@ public class UpdateInfo {
         final StringBuilder sb = new StringBuilder("UpdateInfo{");
         sb.append("updateId='").append(updateId).append('\'');
         if (lastReplication != null) {
-            sb.append("lastReplication='").append(new Date(lastReplication)).append('\'');
+            sb.append(", lastReplication='").append(new Date(lastReplication)).append('\'');
+        }
+        if (originalPublisherReleaseChangeId != null) {
+            sb.append(", relchgid='").append(originalPublisherReleaseChangeId).append('\'');
         }
         sb.append('}');
         return sb.toString();
