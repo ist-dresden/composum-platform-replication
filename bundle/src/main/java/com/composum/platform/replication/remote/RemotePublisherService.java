@@ -170,7 +170,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
     @Deactivate
     protected void deactivate() throws IOException {
         LOG.info("deactivated");
-        try (CloseableHttpClient closed = httpClient) { // just make sure it's closed afterwards
+        try (CloseableHttpClient ignored = httpClient) { // just make sure it's closed afterwards
             this.config = null;
             Collection<RemoteReleasePublishingProcess> processes = new ArrayList<>(processesCache.values());
             processesCache.clear();
@@ -207,7 +207,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         protected final String description;
         protected final boolean enabled;
         protected final String mark;
-        protected volatile MessageContainer messages = new MessageContainer();
+        protected volatile MessageContainer messages = new MessageContainer(LOG);
         protected final Object changedPathsChangeLock = new Object();
         protected final CachedCalculation<UpdateInfo, RemotePublicationFacadeException> remoteReleaseInfo;
 
@@ -228,19 +228,20 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             description = config.getDescription();
             enabled = config.isEnabled();
             mark = config.getReleaseMark();
-            remoteReleaseInfo = new CachedCalculation<UpdateInfo, RemotePublicationFacadeException>(this::remoteReleaseInfo, 60000);
+            remoteReleaseInfo = new CachedCalculation<>(this::remoteReleaseInfo, 60000);
         }
 
         protected UpdateInfo remoteReleaseInfo() throws RemotePublicationFacadeException {
             UpdateInfo result = null;
-            try (ResourceResolver serviceResolver = makeResolver()) { // FIXME(hps,07.01.20) more error checks
+            try (ResourceResolver serviceResolver = makeResolver()) {
                 LOG.info("Querying remote release info of {}", name);
                 ReplicatorStrategy strategy = makeReplicatorStrategy(serviceResolver, null);
                 if (strategy != null) {
                     result = strategy.remoteReleaseInfo();
                 }
             } catch (LoginException e) { // serious misconfiguration
-                LOG.error("Can't get service resolver" + e, e); // ignore - that'll reappear when publishing and treated there
+                LOG.error("Can't get service resolver: " + e, e);
+                // ignore - that'll reappear when publishing and treated there
             }
             return result;
         }
@@ -307,7 +308,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             }
             state = ReleaseChangeProcessorState.processing;
             startedAt = System.currentTimeMillis();
-            try (ResourceResolver serviceResolver = makeResolver()) { // FIXME(hps,07.01.20) more error checks
+            try (ResourceResolver serviceResolver = makeResolver()) {
 
                 LOG.info("Starting run of {}", name);
 
@@ -342,8 +343,8 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             } catch (ReplicationFailedException | RuntimeException e) {
                 messages.add(Message.error("Other error: ", e.toString()), e);
             } finally {
+                runningStrategy = null;
                 if (state != success && state != awaiting) {
-                    runningStrategy = null;
                     state = error;
                 }
                 finished = System.currentTimeMillis();
@@ -374,7 +375,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             }
             ResourceResolver releaseResolver = releaseManager.getResolverForRelease(release, null, false);
             BeanContext.Service context = new BeanContext.Service(releaseResolver);
-            return new ReplicatorStrategy(processedChangedPaths, release, context, replicationConfig);
+            return new ReplicatorStrategy(processedChangedPaths, release, context, replicationConfig, messages);
         }
 
         protected void abortAlreadyRunningStrategy() throws InterruptedException {
@@ -569,6 +570,8 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         protected final String originalSourceReleaseChangeNumber;
         @Nonnull
         protected final RemotePublicationReceiverFacade publisher;
+        @Nonnull
+        protected final MessageContainer messages;
 
         protected volatile int progress;
 
@@ -577,13 +580,15 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         protected volatile UpdateInfo cleanupUpdateInfo;
 
         protected ReplicatorStrategy(@Nonnull Set<String> changedPaths, @Nonnull StagingReleaseManager.Release release,
-                                     @Nonnull BeanContext context, @Nonnull RemotePublicationConfig replicationConfig) {
+                                     @Nonnull BeanContext context, @Nonnull RemotePublicationConfig replicationConfig,
+                                     @Nonnull MessageContainer messages) {
             this.changedPaths = changedPaths;
             this.release = release;
             this.originalSourceReleaseChangeNumber = release.getChangeNumber();
             this.resolver = context.getResolver();
             this.context = context;
             this.replicationConfig = replicationConfig;
+            this.messages = messages;
 
             publisher = new RemotePublicationReceiverFacade(replicationConfig,
                     context, httpClient, () -> config, cryptoService, nodesConfig);
@@ -594,6 +599,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
          * for some reason.
          */
         public void setAbortAtNextPossibility() {
+            messages.add(Message.info("Abort requested"));
             abortAtNextPossibility = true;
         }
 
@@ -610,30 +616,32 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 LOG.info("Received UpdateInfo {}", updateInfo);
 
                 if (originalSourceReleaseChangeNumber.equals(updateInfo.originalPublisherReleaseChangeId)) {
-                    LOG.info("Abort publishing since content on remote system is up to date.");
+                    messages.add(Message.info("Abort publishing since content on remote system is up to date."));
                     return; // abort is called in finally
                 }
+                messages.add(Message.info("Update {} started", updateInfo.updateId));
 
                 RemotePublicationReceiverServlet.ContentStateStatus contentState = publisher.contentState(updateInfo,
                         changedPaths, resolver, release.getReleaseRoot().getPath());
                 if (!contentState.isValid()) {
-                    LOG.error("Received invalid status on contentState for {}", updateInfo.updateId);
+                    messages.add(Message.error("Received invalid status on contentState for {}", updateInfo.updateId));
                     throw new ReplicationFailedException("Querying content state failed for " + replicationConfig,
                             null, null);
                 }
-                LOG.info("Content difference on remote side: {} , deleted {}",
-                        contentState.getVersionables().getChanged(), contentState.getVersionables().getDeleted());
+                messages.add(Message.info("Content difference on remote side: {} , deleted {}",
+                        contentState.getVersionables().getChanged(), contentState.getVersionables().getDeleted()));
                 abortIfNecessary(updateInfo);
 
                 Status compareContentState = publisher.compareContent(updateInfo, changedPaths, resolver, commonParent);
                 if (!compareContentState.isValid()) {
-                    LOG.error("Received invalid status on compare content for {}", updateInfo.updateId);
+                    messages.add(Message.error("Received invalid status on compare content for {}",
+                            updateInfo.updateId));
                     throw new ReplicationFailedException("Comparing content failed for " + replicationConfig, null,
                             null);
                 }
                 @SuppressWarnings("unchecked") List<String> remotelyDifferentPaths =
                         (List<String>) compareContentState.data(Status.DATA).get(RemoteReceiverConstants.PARAM_PATH);
-                LOG.info("Remotely different paths: {}", remotelyDifferentPaths);
+                messages.add(Message.info("Remotely different paths: {}", remotelyDifferentPaths));
 
                 Set<String> pathsToTransmit = new LinkedHashSet<>(remotelyDifferentPaths);
                 pathsToTransmit.addAll(contentState.getVersionables().getChangedPaths());
@@ -653,9 +661,11 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
 
                     Status status = publisher.pathupload(updateInfo, resource);
                     if (status == null || !status.isValid()) {
-                        LOG.error("Received invalid status on pathupload {} : {}", path, status);
+                        messages.add(Message.error("Received invalid status on pathupload {} : {}", path, status));
                         throw new ReplicationFailedException("Remote upload failed for " + replicationConfig + " " +
                                 "path " + path, null, null);
+                    } else {
+                        messages.add(Message.debug("Uploaded {} for {}", path, updateInfo.updateId));
                     }
                 }
 
@@ -667,23 +677,25 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 Status status = publisher.commitUpdate(updateInfo, originalSourceReleaseChangeNumber, deletedPaths,
                         relevantOrderings, () -> abortIfNecessary(updateInfo));
                 if (!status.isValid()) {
-                    LOG.error("Received invalid status on commit {}", updateInfo.updateId);
+                    messages.add(Message.error("Received invalid status on commit {}", updateInfo.updateId));
                     progress = 0;
                     throw new ReplicationFailedException("Remote commit failed for " + replicationConfig, null, null);
                 }
                 progress = 100;
                 cleanupUpdateInfo = null;
 
-                LOG.info("Replication done {}", updateInfo.updateId);
+                messages.add(Message.info("Replication done for {}", updateInfo.updateId));
             } catch (RuntimeException | RemotePublicationFacadeException | URISyntaxException e) {
-                LOG.error("Remote publishing failed: " + e, e);
+                messages.add(Message.error("Remote publishing failed for {} because of {}",
+                        cleanupUpdateInfo != null ? cleanupUpdateInfo.updateId : "",
+                        String.valueOf(e)), e);
                 throw new ReplicationFailedException("Remote publishing failed for " + replicationConfig, e, null);
             } finally {
                 if (cleanupUpdateInfo != null) { // remove temporary directory.
                     try {
                         abort(cleanupUpdateInfo);
-                    } catch (Exception e) {
-                        LOG.error("Error cleaning up {}", cleanupUpdateInfo.updateId, e);
+                    } catch (Exception e) { // notify user since temporary directory can ge huge
+                        messages.add(Message.error("Error cleaning up {}", cleanupUpdateInfo.updateId), e);
                     }
                 }
             }
@@ -699,7 +711,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
          * we hesitate to do for efficiency.)
          */
         @Nonnull
-        protected Stream<ChildrenOrderInfo> relevantOrderings(Collection<String> pathsToTransmit) {
+        protected Stream<ChildrenOrderInfo> relevantOrderings(@Nonnull Collection<String> pathsToTransmit) {
             Stream<Resource> parentsStream = pathsToTransmit.stream()
                     .flatMap(this::parentsUpToRelease)
                     .distinct()
@@ -735,27 +747,29 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                             .flatMap(this::childrenExcludingVersionables));
         }
 
-        protected void abortIfNecessary(UpdateInfo updateInfo) throws RemotePublicationFacadeException, ReplicationFailedException {
+        protected void abortIfNecessary(@Nonnull UpdateInfo updateInfo) throws RemotePublicationFacadeException,
+                ReplicationFailedException {
             if (abortAtNextPossibility) {
-                LOG.info("Aborting because process was interrupted.");
+                messages.add(Message.info("Aborting {} because process was interrupted.", updateInfo.updateId));
                 abort(updateInfo);
                 throw new ReplicationFailedException("Aborted publishing because process was interrupted.", null,
                         null);
             }
             release.getMetaDataNode().getResourceResolver().refresh(); // might be a performance risk (?), but necessary
             if (!release.getChangeNumber().equals(originalSourceReleaseChangeNumber)) {
-                LOG.info("Aborting publishing because of local release content change during publishing.");
+                messages.add(Message.info("Aborting {} because of local release content change during " +
+                        "publishing.", updateInfo.updateId));
                 abort(updateInfo);
-                throw new ReplicationFailedException("Aborted publishing because of local release content change " +
+                throw new ReplicationFailedException("Abort publishing because of local release content change " +
                         "during publishing.", null, null);
             }
         }
 
-        protected void abort(UpdateInfo updateInfo) throws RemotePublicationFacadeException {
+        protected void abort(@Nonnull UpdateInfo updateInfo) throws RemotePublicationFacadeException {
             Status status = publisher.abortUpdate(updateInfo);
             if (status == null || !status.isValid()) {
-                LOG.error("Aborting replication failed for {} - please manually clean up resources used there.",
-                        updateInfo);
+                messages.add(Message.error("Aborting replication failed for {} - " +
+                                "please manually clean up resources used there.", updateInfo.updateId));
             }
         }
 
@@ -765,6 +779,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             RemotePublicationReceiverServlet.StatusWithReleaseData status = publisher.releaseInfo(release.getReleaseRoot().getPath());
             if (status == null || !status.isValid()) {
                 LOG.error("Retrieve remote releaseinfo failed for {}", this.replicationConfig);
+                messages.add(Message.error("Retrieve remote releaseinfo failed."));
                 return null;
             }
             return status.updateInfo;

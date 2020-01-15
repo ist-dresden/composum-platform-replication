@@ -373,8 +373,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
             Resource sourceParent = source.getParent();
             resolver.move(source.getPath(), destinationParent.getPath());
             if (ResourceUtil.isFile(sourceParent) && !sourceParent.hasChildren()) {
-                resolver.delete(sourceParent); // otherwise it would be inconsistent.
-                // TODO we can remove this when the tmpdir is deleted afterwards.
+                resolver.delete(sourceParent); // otherwise tmpdir would be inconsistent.
             }
         }
 
