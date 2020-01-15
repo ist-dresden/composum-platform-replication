@@ -639,7 +639,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                             null, null);
                 }
                 messages.add(Message.info("Content difference on remote side: {} , deleted {}",
-                        contentState.getVersionables().getChanged(), contentState.getVersionables().getDeleted()));
+                        contentState.getVersionables().getChangedPaths(), contentState.getVersionables().getDeletedPaths()));
                 abortIfNecessary(updateInfo);
 
                 Status compareContentState = publisher.compareContent(updateInfo, changedPaths, resolver, commonParent);
