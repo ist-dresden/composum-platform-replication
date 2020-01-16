@@ -1,8 +1,8 @@
 package com.composum.platform.replication.remote;
 
 import com.composum.platform.commons.crypt.CryptoService;
-import com.composum.platform.commons.logging.Message;
-import com.composum.platform.commons.logging.MessageContainer;
+import com.composum.sling.core.logging.Message;
+import com.composum.sling.core.logging.MessageContainer;
 import com.composum.platform.commons.util.CachedCalculation;
 import com.composum.platform.replication.json.ChildrenOrderInfo;
 import com.composum.platform.replication.remotereceiver.RemotePublicationConfig;
