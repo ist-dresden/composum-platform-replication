@@ -310,7 +310,13 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
             Node node = requireNonNull(resource.adaptTo(Node.class));
             try {
                 for (String childName : childNames) {
-                    node.orderBefore(childName, null); // move to end of list
+                    try {
+                        node.orderBefore(childName, null); // move to end of list
+                    } catch (RepositoryException | RuntimeException e) {
+                        LOG.error("Trouble reordering {} : {} from {}", SlingResourceUtil.getPath(resource),
+                                childName, childNames);
+                        throw e;
+                    }
                 }
 
                 currentChildNames = StreamSupport.stream(resource.getChildren().spliterator(), false)

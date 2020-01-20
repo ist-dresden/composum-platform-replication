@@ -239,7 +239,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         protected UpdateInfo remoteReleaseInfo() throws RemotePublicationFacadeException {
             UpdateInfo result = null;
             try (ResourceResolver serviceResolver = makeResolver()) {
-                LOG.info("Querying remote release info of {}", name);
+                LOG.info("Querying remote release info of {}", configPath);
                 ReplicatorStrategy strategy = makeReplicatorStrategy(serviceResolver, null);
                 if (strategy != null) {
                     result = strategy.remoteReleaseInfo();
@@ -308,7 +308,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         @Override
         public void run() {
             if (state != ReleaseChangeProcessorState.awaiting || changedPaths.isEmpty() || !isEnabled()) {
-                LOG.info("Nothing to do in {} state {}", name, state);
+                LOG.info("Nothing to do in replication {} state {}", configPath, state);
                 return;
             }
             state = ReleaseChangeProcessorState.processing;
@@ -317,7 +317,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             messages.clear();
             try (ResourceResolver serviceResolver = makeResolver()) {
 
-                LOG.info("Starting run of {}", name);
+                LOG.info("Starting run of replication {}", configPath);
 
                 Set<String> processedChangedPaths = swapOutChangedPaths();
                 try {
@@ -356,7 +356,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                     state = error;
                 }
                 finished = System.currentTimeMillis();
-                LOG.info("Finished run with {} : {} - @{}", state, name, System.identityHashCode(this));
+                LOG.info("Finished run with {} : {} - @{}", state, configPath, System.identityHashCode(this));
             }
         }
 
@@ -763,9 +763,9 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         protected void abortIfNecessary(@Nonnull UpdateInfo updateInfo) throws RemotePublicationFacadeException,
                 ReplicationFailedException {
             if (abortAtNextPossibility) {
-                messages.add(Message.info("Aborting {} because process was interrupted.", updateInfo.updateId));
+                messages.add(Message.info("Aborting {} because that was requested.", updateInfo.updateId));
                 abort(updateInfo);
-                throw new ReplicationFailedException("Aborted publishing because process was interrupted.", null,
+                throw new ReplicationFailedException("Aborted publishing because that was requested.", null,
                         null);
             }
             release.getMetaDataNode().getResourceResolver().refresh(); // might be a performance risk (?), but necessary
@@ -783,6 +783,8 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             if (status == null || !status.isValid()) {
                 messages.add(Message.error("Aborting replication failed for {} - " +
                         "please manually clean up resources used there.", updateInfo.updateId));
+            } else if (cleanupUpdateInfo == updateInfo) {
+                cleanupUpdateInfo = null;
             }
         }
 
