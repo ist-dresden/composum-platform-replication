@@ -9,6 +9,7 @@ import org.apache.sling.api.resource.PersistenceException;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.jcr.RepositoryException;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Iterator;
@@ -47,7 +48,7 @@ public interface RemotePublicationReceiver {
      * returns the paths where differences in the version number exist / paths that do not exist.
      */
     @Nonnull
-    List<String> compareContent(@Nonnull String updateId, @Nonnull InputStream jsonInputStream)
+    List<String> compareContent(@Nonnull String updateId, @Nonnull BufferedReader jsonInputReader)
             throws LoginException, RemotePublicationReceiverException, RepositoryException, IOException;
 
     /** Aborts the update operation and deletes the temporary directory. */

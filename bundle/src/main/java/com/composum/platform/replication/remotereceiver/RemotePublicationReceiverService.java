@@ -43,6 +43,7 @@ import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.UnsupportedRepositoryOperationException;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -151,8 +152,9 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     protected void fillUpdateInfo(UpdateInfo updateInfo, ResourceResolver resolver, String releaseRootPath) {
         Resource releaseRoot = getReleaseRoot(resolver, releaseRootPath);
         updateInfo.originalPublisherReleaseChangeId = getReleaseChangeId(resolver, releaseRootPath);
-        Calendar lastReplicationDate = releaseRoot.getValueMap().get(PROP_LAST_REPLICATION_DATE,
-                Calendar.class);
+        Calendar lastReplicationDate = releaseRoot != null ?
+                releaseRoot.getValueMap().get(PROP_LAST_REPLICATION_DATE, Calendar.class)
+                : null;
         updateInfo.lastReplication = lastReplicationDate != null ? lastReplicationDate.getTimeInMillis() : null;
     }
 
@@ -180,11 +182,10 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
 
     @Nonnull
     @Override
-    public List<String> compareContent(@Nonnull String updateId, @Nonnull InputStream jsonInputStream)
+    public List<String> compareContent(@Nonnull String updateId, @Nonnull BufferedReader json)
             throws LoginException, RemotePublicationReceiverException, RepositoryException, IOException {
         LOG.info("Compare content {}", updateId);
-        try (ResourceResolver resolver = makeResolver();
-             Reader json = new InputStreamReader(jsonInputStream, StandardCharsets.UTF_8)) {
+        try (ResourceResolver resolver = makeResolver(); Reader ignored = json) {
             Resource tmpLocation = getTmpLocation(resolver, updateId, false);
             String contentPath = tmpLocation.getValueMap().get(ATTR_TOP_CONTENTPATH, String.class);
             VersionableTree.VersionableTreeDeserializer factory =

@@ -134,8 +134,8 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                          @Nullable ResourceHandle ignoredResource) throws IOException, ServletException {
             String targetDir = requireNonNull(service.getTargetDir());
             VersionableTree.VersionableTreeSerializer factory = new VersionableTree.VersionableTreeSerializer(targetDir);
-            Gson gson = new GsonBuilder().registerTypeAdapterFactory(factory).create();
-            ContentStateStatus status = new ContentStateStatus(gson, request, response);
+            GsonBuilder gsonBuilder = new GsonBuilder().registerTypeAdapterFactory(factory);
+            ContentStateStatus status = new ContentStateStatus(gsonBuilder, request, response, LOG);
 
             String contentPath = request.getRequestPathInfo().getSuffix();
             String[] additionalPaths = request.getParameterValues(RemoteReceiverConstants.PARAM_PATH);
@@ -178,9 +178,9 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
             return versionables;
         }
 
-        public ContentStateStatus(@Nonnull final Gson gson, @Nonnull SlingHttpServletRequest request,
-                                  @Nonnull SlingHttpServletResponse response) {
-            super(gson, request, response);
+        public ContentStateStatus(@Nonnull final GsonBuilder gsonBuilder, @Nonnull SlingHttpServletRequest request,
+                                  @Nonnull SlingHttpServletResponse response, @Nonnull Logger logger) {
+            super(gsonBuilder, request, response, logger);
         }
 
         /** @deprecated for instantiation by GSon only */
@@ -201,17 +201,17 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         @Override
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource)
                 throws IOException, ServletException {
-            Status status = new Status(request, response);
+            Status status = new Status(request, response, LOG);
             String updateId = status.getRequiredParameter(PARAM_UPDATEID, PATTERN_UPDATEID, "PatternId required");
             try {
                 if (status.isValid()) {
-                    List<String> diffpaths = service.compareContent(updateId, request.getInputStream());
+                    List<String> diffpaths = service.compareContent(updateId, request.getReader());
                     status.data(Status.DATA).put(RemoteReceiverConstants.PARAM_PATH, diffpaths);
                 } else {
-                    status.withLogging(LOG).error("Broken parameter upd ", updateId);
+                    status.error("Broken parameter upd ", updateId);
                 }
             } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
-                status.withLogging(LOG).error("Error comparing content for {} : {}", updateId, e.toString(), e);
+                status.error("Error comparing content for {} : {}", updateId, e.toString(), e);
             } catch (LoginException e) { // serious misconfiguration
                 LOG.error("Could not get service resolver: " + e, e);
                 throw new ServletException("Could not get service resolver", e);
@@ -226,7 +226,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         @Override
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle ignored)
                 throws IOException, ServletException {
-            StatusWithReleaseData status = new StatusWithReleaseData(request, response);
+            StatusWithReleaseData status = new StatusWithReleaseData(request, response, LOG);
             String contentPath = request.getRequestPathInfo().getSuffix();
             String releaseRootPath = request.getParameter(RemoteReceiverConstants.PARAM_RELEASEROOT);
             if (isNotBlank(releaseRootPath) && isNotBlank(contentPath) &&
@@ -237,11 +237,11 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                     LOG.error("Could not get service resolver: " + e, e);
                     throw new ServletException("Could not get service resolver", e);
                 } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
-                    status.withLogging(LOG).error("Error starting update for {} , {} : {}", contentPath,
+                    status.error("Error starting update for {} , {} : {}", contentPath,
                             releaseRootPath, e.toString(), e);
                 }
             } else {
-                status.withLogging(LOG).error("Broken parameters {} : {}", releaseRootPath, contentPath);
+                status.error("Broken parameters {} : {}", releaseRootPath, contentPath);
             }
             status.sendJson();
         }
@@ -254,12 +254,14 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         /** The created update data. */
         public UpdateInfo updateInfo;
 
+        /** @deprecated for instantiation by GSon only */
+        @Deprecated
         public StatusWithReleaseData() {
             super(null, null);
         }
 
-        public StatusWithReleaseData(SlingHttpServletRequest request, SlingHttpServletResponse response) {
-            super(request, response);
+        public StatusWithReleaseData(SlingHttpServletRequest request, SlingHttpServletResponse response, Logger log) {
+            super(request, response, log);
         }
     }
 
@@ -269,7 +271,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         @Override
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource)
                 throws IOException, ServletException {
-            Status status = new Status(request, response);
+            Status status = new Status(request, response, LOG);
             String packageRootPath = request.getRequestPathInfo().getSuffix();
             String updateId = status.getRequiredParameter(PARAM_UPDATEID, PATTERN_UPDATEID, "PatternId required");
             if (isNotBlank(packageRootPath) && status.isValid()) {
@@ -287,7 +289,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                     status.error("Import failed: {}", e.toString());
                 }
             } else {
-                status.withLogging(LOG).error("Broken parameters pkg {}, upd {}", packageRootPath, updateId);
+                status.error("Broken parameters pkg {}, upd {}", packageRootPath, updateId);
             }
             status.sendJson();
         }
@@ -297,7 +299,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         @Override
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource)
                 throws IOException, ServletException {
-            Status status = new Status(request, response);
+            Status status = new Status(request, response, LOG);
             Gson gson = new GsonBuilder().create();
 
             try (JsonReader jsonReader = new JsonReader(request.getReader())) {
@@ -306,14 +308,14 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 expectName(jsonReader, PARAM_UPDATEID, status);
                 String updateId = jsonReader.nextString();
                 if (!PATTERN_UPDATEID.matcher(updateId).matches()) {
-                    status.withLogging(LOG).error("Invalid updateId");
+                    status.error("Invalid updateId");
                     throw new IllegalArgumentException("Invalid updateId");
                 }
 
                 expectName(jsonReader, PARAM_RELEASE_CHANGENUMBER, status);
                 String newReleaseChangeId = jsonReader.nextString();
                 if (StringUtils.isBlank(newReleaseChangeId)) {
-                    status.withLogging(LOG).error("Missing releaseChangeNumber");
+                    status.error("Missing releaseChangeNumber");
                     throw new IllegalArgumentException("Missing releaseChangeNumber");
                 }
 
@@ -352,11 +354,11 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                         LOG.error("Could not get service resolver: " + e, e);
                         throw new ServletException("Could not get service resolver", e);
                     } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
-                        status.withLogging(LOG).error("Import failed for {}: {}", updateId, e.toString(), e);
+                        status.error("Import failed for {}: {}", updateId, e.toString(), e);
                     }
                 }
             } catch (IOException | RuntimeException e) {
-                status.withLogging(LOG).error("Reading request for commit failed", e);
+                status.error("Reading request for commit failed", e);
             }
 
             status.sendJson();
@@ -365,7 +367,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         protected void expectName(JsonReader jsonReader, String expectedName, Status status) throws IOException {
             String nextName = jsonReader.nextName();
             if (!expectedName.equals(nextName)) {
-                status.withLogging(LOG).error("{} expected but got {}", expectedName, nextName);
+                status.error("{} expected but got {}", expectedName, nextName);
                 throw new IllegalArgumentException(expectedName + " expected but got " + nextName);
             }
         }
@@ -376,7 +378,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
 
         @Override
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource) throws RepositoryException, IOException, ServletException {
-            Status status = new Status(request, response);
+            Status status = new Status(request, response, LOG);
             String updateId = status.getRequiredParameter(PARAM_UPDATEID, PATTERN_UPDATEID, "PatternId required");
             LOG.info("Aborting update {}", updateId);
             if (status.isValid()) {
@@ -386,7 +388,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                     LOG.error("Could not get service resolver: " + e, e);
                     throw new ServletException("Could not get service resolver", e);
                 } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
-                    status.withLogging(LOG).error("Import failed for {}: {}", updateId, e.toString(), e);
+                    status.error("Import failed for {}: {}", updateId, e.toString(), e);
                 }
             }
             status.sendJson();
@@ -398,7 +400,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         @Override
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource) throws RepositoryException, IOException, ServletException {
             String suffix = request.getRequestPathInfo().getSuffix();
-            StatusWithReleaseData status = new StatusWithReleaseData(request, response);
+            StatusWithReleaseData status = new StatusWithReleaseData(request, response, LOG);
             try {
                 UpdateInfo updateInfo = service.releaseInfo(suffix);
                 status.updateInfo = updateInfo;
@@ -406,7 +408,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 LOG.error("Could not get service resolver: " + e, e);
                 throw new ServletException("Could not get service resolver", e);
             } catch (RuntimeException e) {
-                status.withLogging(LOG).error("Cannot get release info for {}: {}", suffix, e.toString(), e);
+                status.error("Cannot get release info for {}: {}", suffix, e.toString(), e);
             }
             status.sendJson();
         }

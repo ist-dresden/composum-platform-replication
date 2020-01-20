@@ -24,6 +24,8 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.jcr.Session;
@@ -44,6 +46,8 @@ import static org.mockito.Mockito.when;
 
 /** Test {@link RemotePublicationReceiverServlet.ContentStateOperation}. */
 public class ContentStateOperationTest {
+
+    private static final Logger LOG = LoggerFactory.getLogger(ContentStateOperationTest.class);
 
     @Rule
     public final SlingContext context = new SlingContext(ResourceResolverType.JCR_OAK);
@@ -119,7 +123,7 @@ public class ContentStateOperationTest {
     private static class TestStatusWithAttributes extends Status {
 
         public TestStatusWithAttributes(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response) {
-            super(request, response);
+            super(request, response, LOG);
         }
 
         List<Map<String, Object>> versionables;

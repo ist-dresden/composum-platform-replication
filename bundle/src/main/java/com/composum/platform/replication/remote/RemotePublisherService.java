@@ -1,8 +1,6 @@
 package com.composum.platform.replication.remote;
 
 import com.composum.platform.commons.crypt.CryptoService;
-import com.composum.sling.core.logging.Message;
-import com.composum.sling.core.logging.MessageContainer;
 import com.composum.platform.commons.util.CachedCalculation;
 import com.composum.platform.replication.json.ChildrenOrderInfo;
 import com.composum.platform.replication.remotereceiver.RemotePublicationConfig;
@@ -12,6 +10,8 @@ import com.composum.platform.replication.remotereceiver.RemotePublicationReceive
 import com.composum.platform.replication.remotereceiver.RemoteReceiverConstants;
 import com.composum.platform.replication.remotereceiver.UpdateInfo;
 import com.composum.sling.core.BeanContext;
+import com.composum.sling.core.logging.Message;
+import com.composum.sling.core.logging.MessageContainer;
 import com.composum.sling.core.servlet.Status;
 import com.composum.sling.core.util.ResourceUtil;
 import com.composum.sling.core.util.SlingResourceUtil;
@@ -339,7 +339,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                     state = success;
                     processedChangedPaths.clear();
                 } finally {
-                    maybeResetChangedPaths(processedChangedPaths);
+                    addBackChangedPaths(processedChangedPaths);
                 }
 
             } catch (LoginException e) { // misconfiguration
@@ -431,8 +431,11 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             return processedChangedPaths;
         }
 
-        /** Adds unprocessed paths taken out of {@link #changedPaths} with {@link #swapOutChangedPaths()} back. */
-        protected void maybeResetChangedPaths(Set<String> unProcessedChangedPaths) {
+        /**
+         * Adds unprocessed paths which were taken out of {@link #changedPaths} by {@link #swapOutChangedPaths()}
+         * back into the {@link #changedPaths}.
+         */
+        protected void addBackChangedPaths(Set<String> unProcessedChangedPaths) {
             if (!unProcessedChangedPaths.isEmpty()) { // add them back
                 synchronized (changedPathsChangeLock) {
                     if (changedPaths.isEmpty()) {
