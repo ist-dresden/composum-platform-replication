@@ -3,6 +3,7 @@ package com.composum.platform.replication.remote;
 import com.composum.platform.commons.crypt.CryptoService;
 import com.composum.platform.commons.util.CachedCalculation;
 import com.composum.platform.replication.json.ChildrenOrderInfo;
+import com.composum.platform.replication.json.VersionableTree;
 import com.composum.platform.replication.remotereceiver.RemotePublicationConfig;
 import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverFacade;
 import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverFacade.RemotePublicationFacadeException;
@@ -10,6 +11,7 @@ import com.composum.platform.replication.remotereceiver.RemotePublicationReceive
 import com.composum.platform.replication.remotereceiver.RemoteReceiverConstants;
 import com.composum.platform.replication.remotereceiver.UpdateInfo;
 import com.composum.sling.core.BeanContext;
+import com.composum.sling.core.ResourceHandle;
 import com.composum.sling.core.logging.Message;
 import com.composum.sling.core.logging.MessageContainer;
 import com.composum.sling.core.servlet.Status;
@@ -17,6 +19,7 @@ import com.composum.sling.core.util.ResourceUtil;
 import com.composum.sling.core.util.SlingResourceUtil;
 import com.composum.sling.nodes.NodesConfiguration;
 import com.composum.sling.platform.staging.ReleaseChangeEventListener;
+import com.composum.sling.platform.staging.ReleaseChangeEventPublisher;
 import com.composum.sling.platform.staging.ReleaseChangeProcess;
 import com.composum.sling.platform.staging.StagingReleaseManager;
 import org.apache.commons.lang3.StringUtils;
@@ -118,10 +121,16 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
 
     @Nonnull
     @Override
-    public Collection<RemoteReleasePublishingProcess> processesFor(@Nullable Resource releaseRoot) {
-        if (releaseRoot == null || !isEnabled()) { return Collections.emptyList(); }
+    public Collection<RemoteReleasePublishingProcess> processesFor(@Nullable Resource resource) {
+        if (resource == null || !isEnabled()) { return Collections.emptyList(); }
 
-        ResourceResolver resolver = releaseRoot.getResourceResolver();
+        ResourceResolver resolver = resource.getResourceResolver();
+        Resource releaseRoot;
+        try {
+            releaseRoot = releaseManager.findReleaseRoot(resource);
+        } catch (StagingReleaseManager.ReleaseRootNotFoundException e) {
+            return Collections.emptyList();
+        }
         BeanContext context = new BeanContext.Service(resolver);
 
         List<RemotePublicationConfig> replicationConfigs = getReplicationConfigs(releaseRoot, context);
@@ -357,6 +366,20 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 }
                 finished = System.currentTimeMillis();
                 LOG.info("Finished run with {} : {} - @{}", state, configPath, System.identityHashCode(this));
+            }
+        }
+
+        @Override
+        @Nullable
+        public ReleaseChangeEventPublisher.CompareResult compareTree(@Nonnull ResourceHandle resource,
+                                                                     boolean returnDetails) throws ReplicationFailedException {
+            if (!isEnabled()) { return null; }
+            ReplicatorStrategy strategy = makeReplicatorStrategy(resource.getResourceResolver(), Collections.singleton(resource.getPath()));
+            if (strategy == null) { return null; }
+            try {
+                return strategy.compareTree(returnDetails);
+            } catch (RemotePublicationFacadeException e) {
+                throw new ReplicationFailedException(e.getMessage(), e, null);
             }
         }
 
@@ -810,6 +833,45 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             return sb.toString();
         }
 
+        @Nullable
+        public ReleaseChangeEventPublisher.CompareResult compareTree(boolean returnDetails) throws RemotePublicationFacadeException, ReplicationFailedException {
+            if (!isEnabled()) { return null; }
+            ReleaseChangeEventPublisher.CompareResult result = new ReleaseChangeEventPublisher.CompareResult();
+            RemotePublicationReceiverServlet.StatusWithReleaseData releaseInfoStatus = publisher.releaseInfo(release.getReleaseRoot().getPath());
+            if (!releaseInfoStatus.isValid() || releaseInfoStatus.updateInfo == null) {
+                LOG.error("Retrieve remote releaseinfo failed for {}", this.replicationConfig);
+                return null;
+            }
+            result.releaseChangeNumbersEqual = StringUtils.equals(release.getChangeNumber(),
+                    releaseInfoStatus.updateInfo.originalPublisherReleaseChangeId);
+
+            String commonParent = SlingResourceUtil.commonParent(changedPaths);
+            RemotePublicationReceiverServlet.ContentStateStatus contentState =
+                    publisher.contentState(releaseInfoStatus.updateInfo, changedPaths, resolver, commonParent);
+            if (!contentState.isValid() || contentState.getVersionables() == null) {
+                throw new ReplicationFailedException("Querying content state failed for " + replicationConfig + " " +
+                        "path " + commonParent, null, null);
+            }
+            VersionableTree v = contentState.getVersionables();
+            result.removedVersionableCount = v.getDeleted().size();
+            result.updatedVersionableCount = v.getChanged().size();
+            if (returnDetails) {
+                result.removedVersionables = v.getDeletedPaths().toArray(new String[0]);
+                result.updatedVersionables = v.getChangedPaths().toArray(new String[0]);
+            }
+
+            // repeat releaseInfo since this might have taken a while and there might have been a change
+            releaseInfoStatus = publisher.releaseInfo(release.getReleaseRoot().getPath());
+            if (!releaseInfoStatus.isValid() || releaseInfoStatus.updateInfo == null) {
+                LOG.error("Retrieve remote releaseinfo failed for {}", this.replicationConfig);
+                return null;
+            }
+            result.releaseChangeNumbersEqual = result.releaseChangeNumbersEqual &&
+                    StringUtils.equals(release.getChangeNumber(), releaseInfoStatus.updateInfo.originalPublisherReleaseChangeId);
+
+            result.equal = result.calculateEqual();
+            return result;
+        }
     }
 
     @ObjectClassDefinition(

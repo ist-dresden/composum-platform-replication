@@ -148,8 +148,8 @@ public class RemotePublicationReceiverFacade {
      * {@link #commitUpdate(UpdateInfo, Set, Stream, ExceptionThrowingRunnable)} or
      * {@link #abortUpdate(UpdateInfo)} must be called afterwards.
      *
-     * @param path        the root content path that should be considered. Might be the root of a release, or any
-     *                    subdirectory.
+     * @param path            the root content path that should be considered. Might be the root of a release, or any
+     *                        subdirectory.
      * @param releaseRootPath the root of the release containing {path} (may be equal to {path})
      * @return the basic information about the update which must be used for all related calls on this update.
      */
