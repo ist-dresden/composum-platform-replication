@@ -66,8 +66,8 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
     public enum Extension {zip, json}
 
     public enum Operation {
-        contentstate, comparecontent, startupdate, pathupload, commitupdate, abortupdate,
-        releaseinfo
+        contentState, compareContent, startUpdate, pathUpload, commitUpdate, abortUpdate,
+        releaseInfo, compareParents
     }
 
     protected final ServletOperationSet<Extension, Operation> operations = new ServletOperationSet<>(Extension.json);
@@ -93,36 +93,48 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         super.init();
 
         // we allow both GET and POST for contentstate since it might have many parameters.
-        operations.setOperation(ServletOperationSet.Method.GET, Extension.json, Operation.contentstate,
+        operations.setOperation(ServletOperationSet.Method.GET, Extension.json, Operation.contentState,
                 new ContentStateOperation());
-        operations.setOperation(ServletOperationSet.Method.POST, Extension.json, Operation.contentstate,
+        operations.setOperation(ServletOperationSet.Method.POST, Extension.json, Operation.contentState,
                 new ContentStateOperation());
 
         // use PUT since request is a potentially large JSON entity processable on the fly
-        operations.setOperation(ServletOperationSet.Method.PUT, Extension.json, Operation.comparecontent,
+        operations.setOperation(ServletOperationSet.Method.PUT, Extension.json, Operation.compareContent,
                 new CompareContentOperation());
 
-        operations.setOperation(ServletOperationSet.Method.POST, Extension.json, Operation.startupdate,
+        operations.setOperation(ServletOperationSet.Method.POST, Extension.json, Operation.startUpdate,
                 new StartUpdateOperation());
 
         // use PUT since request is a stream
-        operations.setOperation(ServletOperationSet.Method.PUT, Extension.zip, Operation.pathupload,
+        operations.setOperation(ServletOperationSet.Method.PUT, Extension.zip, Operation.pathUpload,
                 new PathUploadOperation());
 
         // use PUT since request is a potentially large JSON entity processable on the fly
-        operations.setOperation(ServletOperationSet.Method.PUT, Extension.json, Operation.commitupdate,
+        operations.setOperation(ServletOperationSet.Method.PUT, Extension.json, Operation.commitUpdate,
                 new CommitUpdateOperation());
 
-        operations.setOperation(ServletOperationSet.Method.POST, Extension.json, Operation.abortupdate,
+        operations.setOperation(ServletOperationSet.Method.POST, Extension.json, Operation.abortUpdate,
                 new AbortUpdateOperation());
 
-        operations.setOperation(ServletOperationSet.Method.GET, Extension.json, Operation.releaseinfo,
+        operations.setOperation(ServletOperationSet.Method.GET, Extension.json, Operation.releaseInfo,
                 new ReleaseInfoOperation());
+
+        // use PUT since request is a potentially large JSON entity processable on the fly
+        operations.setOperation(ServletOperationSet.Method.PUT, Extension.json, Operation.compareParents,
+                new CompareParentsOperation());
     }
 
     /** Creates the service resolver used to update the content. */
     protected ResourceResolver makeResolver() throws LoginException {
         return resolverFactory.getServiceResourceResolver(null);
+    }
+
+    protected void expectName(JsonReader jsonReader, String expectedName, Status status) throws IOException {
+        String nextName = jsonReader.nextName();
+        if (!expectedName.equals(nextName)) {
+            status.error("{} expected but got {}", expectedName, nextName);
+            throw new IllegalArgumentException(expectedName + " expected but got " + nextName);
+        }
     }
 
     /**
@@ -363,14 +375,6 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
             status.sendJson();
         }
 
-        protected void expectName(JsonReader jsonReader, String expectedName, Status status) throws IOException {
-            String nextName = jsonReader.nextName();
-            if (!expectedName.equals(nextName)) {
-                status.error("{} expected but got {}", expectedName, nextName);
-                throw new IllegalArgumentException(expectedName + " expected but got " + nextName);
-            }
-        }
-
     }
 
     class AbortUpdateOperation implements ServletOperation {
@@ -409,6 +413,58 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
             } catch (RuntimeException e) {
                 status.error("Cannot get release info for {}: {}", suffix, e.toString(), e);
             }
+            status.sendJson();
+        }
+    }
+
+    class CompareParentsOperation implements ServletOperation {
+        @Override
+        public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource) throws RepositoryException, IOException, ServletException {
+            Status status = new Status(request, response, LOG);
+            Gson gson = new GsonBuilder().create();
+            String releaseRoot = request.getRequestPathInfo().getSuffix();
+
+            try (JsonReader jsonReader = new JsonReader(request.getReader())) {
+                jsonReader.beginObject();
+
+                expectName(jsonReader, PARAM_CHILDORDERINGS, status);
+                jsonReader.beginArray();
+
+                Iterator<ChildrenOrderInfo> childOrderings = new Iterator<ChildrenOrderInfo>() {
+                    @Override
+                    public boolean hasNext() {
+                        try {
+                            return jsonReader.hasNext();
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+
+                    @Override
+                    public ChildrenOrderInfo next() {
+                        return requireNonNull(gson.fromJson(jsonReader, ChildrenOrderInfo.class));
+                    }
+                };
+
+                try {
+                    List<String> differentChildorderings = service.compareChildorderings(releaseRoot, childOrderings);
+                    status.data(PARAM_CHILDORDERINGS).put(PARAM_PATH, differentChildorderings);
+                } catch (LoginException e) { // serious misconfiguration
+                    LOG.error("Could not get service resolver: " + e, e);
+                    throw new ServletException("Could not get service resolver", e);
+                } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | RuntimeException e) {
+                    status.error("Compare childorderings failed: {}", e.toString(), e);
+                }
+
+                jsonReader.endArray();
+
+                // FIXME(hps,22.01.20) do the same for parents attributes
+
+                jsonReader.endObject();
+            } catch (IOException | RuntimeException e) {
+                status.error("Reading request for compareParents failed", e);
+            }
+
             status.sendJson();
         }
     }

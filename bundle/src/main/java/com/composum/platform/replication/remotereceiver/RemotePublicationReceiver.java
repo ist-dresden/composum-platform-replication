@@ -60,6 +60,14 @@ public interface RemotePublicationReceiver {
     @Nullable
     UpdateInfo releaseInfo(@Nullable String releaseRoot) throws LoginException;
 
+    /**
+     * Reads childorderings and compares these to whatever we have in our repository, and returns the paths where
+     * it's different.
+     */
+    @Nonnull
+    List<String> compareChildorderings(String releaseRoot, Iterator<ChildrenOrderInfo> childOrderings)
+            throws LoginException, RemotePublicationReceiverException, RepositoryException;
+
     class RemotePublicationReceiverException extends Exception {
 
         enum RetryAdvice {

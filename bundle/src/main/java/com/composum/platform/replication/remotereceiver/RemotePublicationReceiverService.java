@@ -289,7 +289,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
 
             for (ChildrenOrderInfo childrenOrderInfo : new IteratorIterable<>(childOrderings)) {
                 if (!SlingResourceUtil.isSameOrDescendant(releaseRootPath, childrenOrderInfo.getPath())) { // safety check - Bug!
-                    throw new IllegalArgumentException("Not subpath of " + topContentPath + " : " + childrenOrderInfo);
+                    throw new IllegalArgumentException("Not subpath of " + releaseRootPath + " : " + childrenOrderInfo);
                 }
                 String targetPath = appendPaths(targetRoot, childrenOrderInfo.getPath());
                 Resource resource = resolver.getResource(targetPath);
@@ -462,6 +462,48 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
 
         }
         return tmpLocation;
+    }
+
+    @Override
+    @Nonnull
+    public List<String> compareChildorderings(String releaseRootPath, Iterator<ChildrenOrderInfo> childOrderings) throws LoginException, RemotePublicationReceiverException, RepositoryException {
+        LOG.info("Compare child orderings for {}", releaseRootPath);
+        List<String> result = new ArrayList<>();
+        try (ResourceResolver resolver = makeResolver()) {
+            String targetRoot = requireNonNull(config.targetDir());
+            Resource releaseRoot = StringUtils.isNotBlank(releaseRootPath) ? resolver.getResource(appendPaths(targetRoot, releaseRootPath)) : null;
+            if (targetRoot == null) {
+                LOG.error("Release root for {} not found below {}", releaseRootPath, targetRoot);
+                throw new RemotePublicationReceiverException("Release root not found",
+                        RemotePublicationReceiverException.RetryAdvice.NO_AUTOMATIC_RETRY);
+            }
+            for (ChildrenOrderInfo childrenOrderInfo : new IteratorIterable<>(childOrderings)) {
+                if (!SlingResourceUtil.isSameOrDescendant(releaseRootPath, childrenOrderInfo.getPath())) { // safety check - Bug!
+                    throw new IllegalArgumentException("Not subpath of " + releaseRootPath + " : " + childrenOrderInfo);
+                }
+                String targetPath = appendPaths(targetRoot, childrenOrderInfo.getPath());
+                Resource resource = resolver.getResource(targetPath);
+                if (resource != null) {
+                    if (!equalChildrenOrder(resource, childrenOrderInfo.getChildNames())) {
+                        result.add(childrenOrderInfo.getPath());
+                    }
+                } else {
+                    LOG.debug("resource for compareChildorderings not found: {}", targetPath);
+                    result.add(childrenOrderInfo.getPath());
+                }
+            }
+        }
+        return result;
+    }
+
+    protected boolean equalChildrenOrder(@Nonnull Resource resource, @Nonnull List<String> childNames) {
+        LOG.debug("compare: {}, {}", SlingResourceUtil.getPath(resource), childNames);
+        List<String> currentChildNames = StreamSupport.stream(resource.getChildren().spliterator(), false)
+                .map(Resource::getName)
+                .collect(Collectors.toList());
+        boolean result = currentChildNames.equals(childNames);
+        if (!result) { LOG.debug("different children order at {}", resource.getPath()); }
+        return result;
     }
 
     /** Creates the service resolver used to update the content. */

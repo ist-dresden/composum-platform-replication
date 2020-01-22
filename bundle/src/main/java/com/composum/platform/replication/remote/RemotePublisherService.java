@@ -62,6 +62,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_CHILDORDERINGS;
+import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_PATH;
 import static com.composum.sling.core.util.SlingResourceUtil.isSameOrDescendant;
 import static com.composum.sling.platform.staging.ReleaseChangeProcess.ReleaseChangeProcessorState.awaiting;
 import static com.composum.sling.platform.staging.ReleaseChangeProcess.ReleaseChangeProcessorState.error;
@@ -677,7 +679,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                             null);
                 }
                 @SuppressWarnings("unchecked") List<String> remotelyDifferentPaths =
-                        (List<String>) compareContentState.data(Status.DATA).get(RemoteReceiverConstants.PARAM_PATH);
+                        (List<String>) compareContentState.data(Status.DATA).get(PARAM_PATH);
                 messages.add(Message.info("Remotely different paths: {}", remotelyDifferentPaths));
 
                 Set<String> pathsToTransmit = new LinkedHashSet<>(remotelyDifferentPaths);
@@ -863,15 +865,28 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                             null);
                 }
                 @SuppressWarnings("unchecked") List<String> remotelyDifferentPaths =
-                        (List<String>) compareContentState.data(Status.DATA).get(RemoteReceiverConstants.PARAM_PATH);
+                        (List<String>) compareContentState.data(Status.DATA).get(PARAM_PATH);
 
-                Set<String> differentPaths = new HashSet<>();
+                Set<String> differentPaths = new LinkedHashSet<>();
+                differentPaths.addAll(remotelyDifferentPaths);
                 differentPaths.addAll(v.getDeletedPaths());
                 differentPaths.addAll(v.getChangedPaths());
-                differentPaths.addAll(remotelyDifferentPaths);
                 result.differentVersionablesCount = differentPaths.size();
                 if (returnDetails) {
                     result.differentVersionables = differentPaths.toArray(new String[0]);
+                }
+
+                Stream<ChildrenOrderInfo> relevantOrderings = relevantOrderings(changedPaths);
+
+                Status compareParentState = publisher.compareParents(commonParent, resolver, relevantOrderings);
+                if (!compareParentState.isValid()) {
+                    throw new ReplicationFailedException("Comparing parents failed for " + replicationConfig, null,
+                            null);
+                }
+                List<String> differentChildorderings = (List<String>) compareParentState.data(PARAM_CHILDORDERINGS).get(PARAM_PATH);
+                result.changedChildrenOrderCount = differentChildorderings.size();
+                if (returnDetails) {
+                    result.changedChildrenOrders = differentChildorderings.toArray(new String[0]);
                 }
 
                 // repeat releaseInfo since this might have taken a while and there might have been a change
