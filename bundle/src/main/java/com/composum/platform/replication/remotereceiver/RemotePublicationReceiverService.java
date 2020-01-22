@@ -180,12 +180,21 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
 
     @Nonnull
     @Override
-    public List<String> compareContent(@Nonnull String updateId, @Nonnull BufferedReader json)
+    public List<String> compareContent(String contentPath, @Nonnull String updateId, @Nonnull BufferedReader json)
             throws LoginException, RemotePublicationReceiverException, RepositoryException, IOException {
-        LOG.info("Compare content {}", updateId);
+        LOG.info("Compare content {} - {}", updateId, contentPath);
         try (ResourceResolver resolver = makeResolver(); Reader ignored = json) {
-            Resource tmpLocation = getTmpLocation(resolver, updateId, false);
-            String contentPath = tmpLocation.getValueMap().get(ATTR_TOP_CONTENTPATH, String.class);
+            String path = contentPath;
+            if (StringUtils.isNotBlank(updateId)) {
+                Resource tmpLocation = getTmpLocation(resolver, updateId, false);
+                String releaseRootPath = tmpLocation.getValueMap().get(ATTR_RELEASEROOT_PATH, String.class);
+                if (StringUtils.isBlank(contentPath)) {
+                    path = tmpLocation.getValueMap().get(ATTR_TOP_CONTENTPATH, String.class);
+                } else if (!StringUtils.startsWith(path, releaseRootPath)) { // safety-check - that'd be a bug.
+                    throw new IllegalArgumentException("contentpath " + path + " is not subpath of release root " + releaseRootPath);
+                }
+            }
+
             VersionableTree.VersionableTreeDeserializer factory =
                     new VersionableTree.VersionableTreeDeserializer(config.targetDir(), resolver, contentPath);
             Gson gson = new GsonBuilder().registerTypeAdapterFactory(factory).create();

@@ -52,6 +52,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -412,7 +413,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
 
         protected void abortAlreadyRunningStrategy() throws InterruptedException {
             if (runningStrategy != null) {
-                LOG.error("Strategy already running in parallel? How can that be? {}", runningStrategy);
+                LOG.error("Bug: Strategy already running in parallel? How can that be? {}", runningStrategy);
                 runningStrategy.setAbortAtNextPossibility();
                 Thread.sleep(5000);
                 if (runningThread != null) {
@@ -836,41 +837,58 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         @Nullable
         public ReleaseChangeEventPublisher.CompareResult compareTree(boolean returnDetails) throws RemotePublicationFacadeException, ReplicationFailedException {
             if (!isEnabled()) { return null; }
-            ReleaseChangeEventPublisher.CompareResult result = new ReleaseChangeEventPublisher.CompareResult();
-            RemotePublicationReceiverServlet.StatusWithReleaseData releaseInfoStatus = publisher.releaseInfo(release.getReleaseRoot().getPath());
-            if (!releaseInfoStatus.isValid() || releaseInfoStatus.updateInfo == null) {
-                LOG.error("Retrieve remote releaseinfo failed for {}", this.replicationConfig);
-                return null;
-            }
-            result.releaseChangeNumbersEqual = StringUtils.equals(release.getChangeNumber(),
-                    releaseInfoStatus.updateInfo.originalPublisherReleaseChangeId);
+            try {
+                ReleaseChangeEventPublisher.CompareResult result = new ReleaseChangeEventPublisher.CompareResult();
+                RemotePublicationReceiverServlet.StatusWithReleaseData releaseInfoStatus = publisher.releaseInfo(release.getReleaseRoot().getPath());
+                UpdateInfo updateInfo = releaseInfoStatus.updateInfo;
+                if (!releaseInfoStatus.isValid() || updateInfo == null) {
+                    LOG.error("Retrieve remote releaseinfo failed for {}", this.replicationConfig);
+                    return null;
+                }
+                result.releaseChangeNumbersEqual = StringUtils.equals(release.getChangeNumber(),
+                        updateInfo.originalPublisherReleaseChangeId);
 
-            String commonParent = SlingResourceUtil.commonParent(changedPaths);
-            RemotePublicationReceiverServlet.ContentStateStatus contentState =
-                    publisher.contentState(releaseInfoStatus.updateInfo, changedPaths, resolver, commonParent);
-            if (!contentState.isValid() || contentState.getVersionables() == null) {
-                throw new ReplicationFailedException("Querying content state failed for " + replicationConfig + " " +
-                        "path " + commonParent, null, null);
-            }
-            VersionableTree v = contentState.getVersionables();
-            result.removedVersionableCount = v.getDeleted().size();
-            result.updatedVersionableCount = v.getChanged().size();
-            if (returnDetails) {
-                result.removedVersionables = v.getDeletedPaths().toArray(new String[0]);
-                result.updatedVersionables = v.getChangedPaths().toArray(new String[0]);
-            }
+                String commonParent = SlingResourceUtil.commonParent(changedPaths);
+                RemotePublicationReceiverServlet.ContentStateStatus contentState =
+                        publisher.contentState(updateInfo, changedPaths, resolver, commonParent);
+                if (!contentState.isValid() || contentState.getVersionables() == null) {
+                    throw new ReplicationFailedException("Querying content state failed for " + replicationConfig + " " +
+                            "path " + commonParent, null, null);
+                }
+                VersionableTree v = contentState.getVersionables();
 
-            // repeat releaseInfo since this might have taken a while and there might have been a change
-            releaseInfoStatus = publisher.releaseInfo(release.getReleaseRoot().getPath());
-            if (!releaseInfoStatus.isValid() || releaseInfoStatus.updateInfo == null) {
-                LOG.error("Retrieve remote releaseinfo failed for {}", this.replicationConfig);
-                return null;
-            }
-            result.releaseChangeNumbersEqual = result.releaseChangeNumbersEqual &&
-                    StringUtils.equals(release.getChangeNumber(), releaseInfoStatus.updateInfo.originalPublisherReleaseChangeId);
+                Status compareContentState = publisher.compareContent(updateInfo, changedPaths, resolver, commonParent);
+                if (!compareContentState.isValid()) {
+                    throw new ReplicationFailedException("Comparing content failed for " + replicationConfig, null,
+                            null);
+                }
+                @SuppressWarnings("unchecked") List<String> remotelyDifferentPaths =
+                        (List<String>) compareContentState.data(Status.DATA).get(RemoteReceiverConstants.PARAM_PATH);
 
-            result.equal = result.calculateEqual();
-            return result;
+                Set<String> differentPaths = new HashSet<>();
+                differentPaths.addAll(v.getDeletedPaths());
+                differentPaths.addAll(v.getChangedPaths());
+                differentPaths.addAll(remotelyDifferentPaths);
+                result.differentVersionablesCount = differentPaths.size();
+                if (returnDetails) {
+                    result.differentVersionables = differentPaths.toArray(new String[0]);
+                }
+
+                // repeat releaseInfo since this might have taken a while and there might have been a change
+                releaseInfoStatus = publisher.releaseInfo(release.getReleaseRoot().getPath());
+                if (!releaseInfoStatus.isValid() || updateInfo == null) {
+                    LOG.error("Retrieve remote releaseinfo failed for {}", this.replicationConfig);
+                    return null;
+                }
+                result.releaseChangeNumbersEqual = result.releaseChangeNumbersEqual &&
+                        StringUtils.equals(release.getChangeNumber(), updateInfo.originalPublisherReleaseChangeId);
+
+                result.equal = result.calculateEqual();
+                return result;
+            } catch (URISyntaxException e) {
+                LOG.error("" + e, e);
+                throw new ReplicationFailedException("Internal error", e, null);
+            }
         }
     }
 

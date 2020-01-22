@@ -204,14 +204,11 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource)
                 throws IOException, ServletException {
             Status status = new Status(request, response, LOG);
-            String updateId = status.getRequiredParameter(PARAM_UPDATEID, PATTERN_UPDATEID, "PatternId required");
+            String updateId = request.getParameter(PARAM_UPDATEID);
+            String contentPath = request.getRequestPathInfo().getSuffix();
             try {
-                if (status.isValid()) {
-                    List<String> diffpaths = service.compareContent(updateId, request.getReader());
-                    status.data(Status.DATA).put(RemoteReceiverConstants.PARAM_PATH, diffpaths);
-                } else {
-                    status.error("Broken parameter upd ", updateId);
-                }
+                List<String> diffpaths = service.compareContent(contentPath, updateId, request.getReader());
+                status.data(Status.DATA).put(RemoteReceiverConstants.PARAM_PATH, diffpaths);
             } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
                 status.error("Error comparing content for {} : {}", updateId, e.toString(), e);
             } catch (LoginException e) { // serious misconfiguration

@@ -48,7 +48,8 @@ public interface RemotePublicationReceiver {
      * returns the paths where differences in the version number exist / paths that do not exist.
      */
     @Nonnull
-    List<String> compareContent(@Nonnull String updateId, @Nonnull BufferedReader jsonInputReader)
+    List<String> compareContent(@Nullable String contentPath, @Nullable String updateId,
+                                @Nonnull BufferedReader jsonInputReader)
             throws LoginException, RemotePublicationReceiverException, RepositoryException, IOException;
 
     /** Aborts the update operation and deletes the temporary directory. */
