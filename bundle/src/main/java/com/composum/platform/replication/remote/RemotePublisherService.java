@@ -219,6 +219,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         protected volatile String name;
         protected volatile String description;
         protected volatile boolean enabled;
+        protected volatile Boolean active;
         protected volatile String mark;
         protected volatile MessageContainer messages = new MessageContainer(LOG);
         protected final Object changedPathsChangeLock = new Object();
@@ -246,6 +247,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             description = remotePublicationConfig.getDescription();
             enabled = remotePublicationConfig.isEnabled();
             mark = remotePublicationConfig.getReleaseMark();
+            active = null;
         }
 
         protected UpdateInfo remoteReleaseInfo() throws RemotePublicationFacadeException {
@@ -500,6 +502,21 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         @Override
         public boolean isEnabled() {
             return enabled;
+        }
+
+        @Override
+        public boolean isActive() {
+            if (!enabled || StringUtils.isBlank(mark) || StringUtils.isBlank(releaseRootPath)) { return false; }
+            if (active == null) {
+                try (ResourceResolver serviceResolver = makeResolver()) {
+                    Resource releaseRoot = serviceResolver.getResource(releaseRootPath);
+                    StagingReleaseManager.Release release = releaseRoot != null ? releaseManager.findReleaseByMark(releaseRoot, mark) : null;
+                    active = release != null;
+                } catch (LoginException e) {
+                    LOG.error("Can't get service resolver" + e, e);
+                }
+            }
+            return active;
         }
 
         @Override
