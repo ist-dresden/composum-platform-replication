@@ -901,7 +901,8 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 // compare the children orderings and parent attributes
                 Stream<ChildrenOrderInfo> relevantOrderings = relevantOrderings(changedPaths);
                 Stream<NodeAttributeComparisonInfo> attributeInfos = parentAttributeInfos(changedPaths);
-                Status compareParentState = publisher.compareParents(commonParent, resolver, relevantOrderings, attributeInfos);
+                Status compareParentState = publisher.compareParents(release.getReleaseRoot().getPath(), resolver,
+                        relevantOrderings, attributeInfos);
                 if (!compareParentState.isValid()) {
                     throw new ReplicationFailedException("Comparing parents failed for " + replicationConfig, null,
                             null);

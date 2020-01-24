@@ -323,7 +323,7 @@ public class RemotePublicationReceiverFacade {
     }
 
     /** Compares children order and attributes of the parents. */
-    public Status compareParents(String commonParent, ResourceResolver resolver, Stream<ChildrenOrderInfo> relevantOrderings,
+    public Status compareParents(String releaseRoot, ResourceResolver resolver, Stream<ChildrenOrderInfo> relevantOrderings,
                                  Stream<NodeAttributeComparisonInfo> attributeInfos) throws RemotePublicationFacadeException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(), passwordDecryptor());
         Gson gson = new GsonBuilder().create();
@@ -347,12 +347,12 @@ public class RemotePublicationReceiverFacade {
             }
         };
 
-        String uri = replicationConfig.getReceiverUri() + "." + compareParents.name() + "." + json.name() + commonParent;
+        String uri = replicationConfig.getReceiverUri() + "." + compareParents.name() + "." + json.name() + releaseRoot;
         HttpPut put = new HttpPut(uri);
         put.setEntity(entity);
 
-        LOG.info("Comparing parents for {}", commonParent);
-        Status status = callRemotePublicationReceiver("Comparing parents for " + commonParent,
+        LOG.info("Comparing parents for {}", releaseRoot);
+        Status status = callRemotePublicationReceiver("Comparing parents for " + releaseRoot,
                 httpClientContext, put, Status.class, null);
         return status;
     }

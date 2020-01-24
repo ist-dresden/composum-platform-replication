@@ -33,7 +33,7 @@ public interface RemotePublicationReceiver {
             throws PersistenceException, LoginException, RemotePublicationReceiverException, RepositoryException;
 
     /** Uploads one package into the temporary directory, taking note of the root path for later moving to content. */
-    void pathUpload(@Nonnull String updateId, @Nonnull String packageRootPath, @Nonnull InputStream inputStream)
+    void pathUpload(@Nullable String updateId, @Nonnull String packageRootPath, @Nonnull InputStream inputStream)
             throws LoginException, RemotePublicationReceiverException, RepositoryException, IOException, ConfigurationException;
 
     /**
@@ -54,7 +54,7 @@ public interface RemotePublicationReceiver {
             throws LoginException, RemotePublicationReceiverException, RepositoryException, IOException;
 
     /** Aborts the update operation and deletes the temporary directory. */
-    void abort(@Nonnull String updateId)
+    void abort(@Nullable String updateId)
             throws LoginException, RemotePublicationReceiverException, RepositoryException, PersistenceException;
 
     /** Gets general info about a release without starting an update. */
@@ -66,7 +66,8 @@ public interface RemotePublicationReceiver {
      * and returns the paths where it's different.
      */
     @Nonnull
-    List<String> compareChildorderings(@Nonnull String releaseRoot, @Nonnull JsonArrayAsIterable<ChildrenOrderInfo> childOrderings)
+    List<String> compareChildorderings(@Nullable String releaseRoot,
+                                       @Nonnull JsonArrayAsIterable<ChildrenOrderInfo> childOrderings)
             throws LoginException, RemotePublicationReceiverException, RepositoryException;
 
     /**
@@ -74,7 +75,7 @@ public interface RemotePublicationReceiver {
      * in our repository, and returns the paths where it's different.
      */
     @Nonnull
-    List<String> compareAttributes(@Nonnull String releaseRoot,
+    List<String> compareAttributes(@Nullable String releaseRoot,
                                    @Nonnull JsonArrayAsIterable<NodeAttributeComparisonInfo> attributeInfos) throws LoginException, RemotePublicationReceiverException;
 
     class RemotePublicationReceiverException extends Exception {

@@ -367,7 +367,8 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
     class AbortUpdateOperation implements ServletOperation {
 
         @Override
-        public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource) throws RepositoryException, IOException, ServletException {
+        public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource)
+                throws IOException, ServletException {
             Status status = new Status(request, response, LOG);
             String updateId = status.getRequiredParameter(PARAM_UPDATEID, PATTERN_UPDATEID, "PatternId required");
             LOG.info("Aborting update {}", updateId);
@@ -388,12 +389,12 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
     class ReleaseInfoOperation implements ServletOperation {
 
         @Override
-        public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource) throws RepositoryException, IOException, ServletException {
+        public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource)
+                throws IOException, ServletException {
             String suffix = request.getRequestPathInfo().getSuffix();
             StatusWithReleaseData status = new StatusWithReleaseData(request, response, LOG);
             try {
-                UpdateInfo updateInfo = service.releaseInfo(suffix);
-                status.updateInfo = updateInfo;
+                status.updateInfo = service.releaseInfo(suffix);
             } catch (LoginException e) { // serious misconfiguration
                 LOG.error("Could not get service resolver: " + e, e);
                 throw new ServletException("Could not get service resolver", e);
@@ -406,7 +407,8 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
 
     class CompareParentsOperation implements ServletOperation {
         @Override
-        public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource) throws RepositoryException, IOException, ServletException {
+        public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource)
+                throws IOException, ServletException {
             Status status = new Status(request, response, LOG);
             Gson gson = new GsonBuilder().create();
             String releaseRoot = request.getRequestPathInfo().getSuffix();
@@ -414,26 +416,24 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
             try (JsonReader jsonReader = new JsonReader(request.getReader())) {
                 jsonReader.beginObject();
 
-                try (JsonArrayAsIterable<ChildrenOrderInfo> childOrderings =
-                             new JsonArrayAsIterable<>(jsonReader, ChildrenOrderInfo.class, gson, PARAM_CHILDORDERINGS);
-                     JsonArrayAsIterable<NodeAttributeComparisonInfo> attributeInfos =
-                             new JsonArrayAsIterable<>(jsonReader, NodeAttributeComparisonInfo.class, gson, PARAM_ATTRIBUTEINFOS)) {
+                JsonArrayAsIterable<ChildrenOrderInfo> childOrderings =
+                        new JsonArrayAsIterable<>(jsonReader, ChildrenOrderInfo.class, gson, PARAM_CHILDORDERINGS);
+                JsonArrayAsIterable<NodeAttributeComparisonInfo> attributeInfos =
+                        new JsonArrayAsIterable<>(jsonReader, NodeAttributeComparisonInfo.class, gson,
+                                PARAM_ATTRIBUTEINFOS);
 
-                    List<String> differentChildorderings = service.compareChildorderings(releaseRoot, childOrderings);
-                    status.data(PARAM_CHILDORDERINGS).put(PARAM_PATH, differentChildorderings);
+                List<String> differentChildorderings = service.compareChildorderings(releaseRoot, childOrderings);
+                status.data(PARAM_CHILDORDERINGS).put(PARAM_PATH, differentChildorderings);
 
-                    List<String> differentParentAttributes = service.compareAttributes(releaseRoot, attributeInfos);
-                    status.data(PARAM_ATTRIBUTEINFOS).put(PARAM_PATH, differentParentAttributes);
-                } catch (LoginException e) { // serious misconfiguration
-                    LOG.error("Could not get service resolver: " + e, e);
-                    throw new ServletException("Could not get service resolver", e);
-                } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | RuntimeException e) {
-                    status.error("Compare childorderings failed: {}", e.toString(), e);
-                }
+                List<String> differentParentAttributes = service.compareAttributes(releaseRoot, attributeInfos);
+                status.data(PARAM_ATTRIBUTEINFOS).put(PARAM_PATH, differentParentAttributes);
 
                 jsonReader.endObject();
-            } catch (IOException | RuntimeException e) {
-                status.error("Reading request for compareParents failed", e);
+            } catch (LoginException e) { // serious misconfiguration
+                LOG.error("Could not get service resolver: " + e, e);
+                throw new ServletException("Could not get service resolver", e);
+            } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | RuntimeException | IOException e) {
+                status.error("Compare childorderings failed: {}", e.toString(), e);
             }
 
             status.sendJson();

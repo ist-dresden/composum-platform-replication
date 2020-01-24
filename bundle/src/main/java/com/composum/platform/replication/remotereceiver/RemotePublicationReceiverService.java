@@ -180,7 +180,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
 
     @Nonnull
     @Override
-    public List<String> compareContent(String contentPath, @Nonnull String updateId, @Nonnull BufferedReader json)
+    public List<String> compareContent(String contentPath, @Nullable String updateId, @Nonnull BufferedReader json)
             throws LoginException, RemotePublicationReceiverException, RepositoryException, IOException {
         LOG.info("Compare content {} - {}", updateId, contentPath);
         try (ResourceResolver resolver = makeResolver(); Reader ignored = json) {
@@ -196,7 +196,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
             }
 
             VersionableTree.VersionableTreeDeserializer factory =
-                    new VersionableTree.VersionableTreeDeserializer(config.targetDir(), resolver, contentPath);
+                    new VersionableTree.VersionableTreeDeserializer(config.targetDir(), resolver, path);
             Gson gson = new GsonBuilder().registerTypeAdapterFactory(factory).create();
             VersionableTree versionableTree = gson.fromJson(json, VersionableTree.class);
             List<String> result = new ArrayList<>();
@@ -208,7 +208,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     }
 
     @Override
-    public void pathUpload(@Nonnull String updateId, @Nonnull String packageRootPath, @Nonnull InputStream inputStream)
+    public void pathUpload(@Nullable String updateId, @Nonnull String packageRootPath, @Nonnull InputStream inputStream)
             throws LoginException, RemotePublicationReceiverException, RepositoryException, IOException, ConfigurationException {
         LOG.info("Pathupload called for {} : {}", updateId, packageRootPath);
         try (ResourceResolver resolver = makeResolver()) {
@@ -342,7 +342,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     }
 
     @Override
-    public void abort(@Nonnull String updateId) throws LoginException, RemotePublicationReceiverException,
+    public void abort(@Nullable String updateId) throws LoginException, RemotePublicationReceiverException,
             RepositoryException, PersistenceException {
         LOG.info("Abort called for {}", updateId);
         try (ResourceResolver resolver = makeResolver()) {
@@ -433,7 +433,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
 
 
     @Nonnull
-    protected Resource getTmpLocation(@Nonnull ResourceResolver resolver, @Nonnull String updateId, boolean create)
+    protected Resource getTmpLocation(@Nonnull ResourceResolver resolver, @Nullable String updateId, boolean create)
             throws RepositoryException, RemotePublicationReceiverException {
         if (StringUtils.isBlank(updateId) || !RemoteReceiverConstants.PATTERN_UPDATEID.matcher(updateId).matches()) {
             throw new IllegalArgumentException("Broken updateId: " + updateId);
@@ -467,7 +467,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
 
     @Override
     @Nonnull
-    public List<String> compareChildorderings(@Nonnull String releaseRootPath,
+    public List<String> compareChildorderings(@Nullable String releaseRootPath,
                                               @Nonnull JsonArrayAsIterable<ChildrenOrderInfo> childOrderings)
             throws LoginException, RemotePublicationReceiverException {
         LOG.info("Compare child orderings for {}", releaseRootPath);
@@ -512,7 +512,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
 
     @Override
     @Nonnull
-    public List<String> compareAttributes(@Nonnull String releaseRootPath,
+    public List<String> compareAttributes(@Nullable String releaseRootPath,
                                           @Nonnull JsonArrayAsIterable<NodeAttributeComparisonInfo> attributeInfos)
             throws LoginException, RemotePublicationReceiverException {
         LOG.info("Compare parent attributes for {}", releaseRootPath);
