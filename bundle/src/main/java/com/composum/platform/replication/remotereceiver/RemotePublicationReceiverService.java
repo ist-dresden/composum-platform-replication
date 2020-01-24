@@ -536,6 +536,10 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                             NodeAttributeComparisonInfo.of(resource, config.targetDir());
                     if (!attributeInfo.equals(ourAttributeInfo)) {
                         result.add(attributeInfo.path);
+                        if (LOG.isDebugEnabled()) {
+                            LOG.debug("Different attributes for {} : {}", attributeInfo.path,
+                                    attributeInfo.difference(ourAttributeInfo));
+                        }
                     }
                 } else {
                     LOG.debug("resource for compareParentPaths not found: {}", targetPath);

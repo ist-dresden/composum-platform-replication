@@ -61,6 +61,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_ATTRIBUTEINFOS;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_CHILDORDERINGS;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_PATH;
 import static com.composum.sling.core.util.SlingResourceUtil.isSameOrDescendant;
@@ -906,9 +907,12 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                             null);
                 }
                 List<String> differentChildorderings = (List<String>) compareParentState.data(PARAM_CHILDORDERINGS).get(PARAM_PATH);
+                List<String> changedAttributes = (List<String>) compareParentState.data(PARAM_ATTRIBUTEINFOS).get(PARAM_PATH);
                 result.changedChildrenOrderCount = differentChildorderings.size();
+                result.changedParentNodeCount = changedAttributes.size();
                 if (returnDetails) {
                     result.changedChildrenOrders = differentChildorderings.toArray(new String[0]);
+                    result.changedParentNodes = changedAttributes.toArray(new String[0]);
                 }
 
                 // repeat releaseInfo since this might have taken a while and there might have been a change

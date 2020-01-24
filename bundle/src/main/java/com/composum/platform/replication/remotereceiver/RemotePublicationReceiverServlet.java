@@ -431,8 +431,6 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                     status.error("Compare childorderings failed: {}", e.toString(), e);
                 }
 
-                // FIXME(hps,22.01.20) do the same for parents attributes
-
                 jsonReader.endObject();
             } catch (IOException | RuntimeException e) {
                 status.error("Reading request for compareParents failed", e);

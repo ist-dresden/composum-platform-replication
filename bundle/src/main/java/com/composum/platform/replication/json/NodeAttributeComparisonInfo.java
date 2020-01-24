@@ -1,13 +1,16 @@
 package com.composum.platform.replication.json;
 
 import com.composum.platform.commons.util.ExceptionUtil;
+import com.composum.sling.core.filter.StringFilter;
 import com.composum.sling.core.util.ResourceUtil;
 import com.composum.sling.core.util.SlingResourceUtil;
+import com.composum.sling.platform.staging.StagingConstants;
 import com.google.common.hash.HashCode;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
 import org.apache.commons.collections4.ListUtils;
+import org.apache.commons.collections4.SetUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.JcrConstants;
 import org.apache.sling.api.SlingException;
@@ -76,9 +79,19 @@ public class NodeAttributeComparisonInfo {
      * Caches for each nodetype (primary and mixin) which properties are protected. We cache this for one resolver
      * only, since that automatically clears the cache without needing to resort to timing etc.
      */
-    @Nonnull
     protected static final Map<ResourceResolver, Map<String, List<String>>> cacheProtectedProperties =
             Collections.synchronizedMap(new WeakHashMap<>());
+
+    /**
+     * Attributes that legitimately can be different on the remote side / don't matter for the purpose of our
+     * comparison. (The change number is compared elsewhere and would just confuse people.)
+     */
+    protected static final StringFilter IGNORED_ATTRIBUTES =
+            new StringFilter.WhiteList(StagingConstants.PROP_CHANGE_NUMBER, StagingConstants.PROP_LAST_REPLICATION_DATE);
+
+    /** Attributes to be included even if they are protected. */
+    protected static final StringFilter IMPORTANT_ATTRIBUTES =
+            new StringFilter.WhiteList(ResourceUtil.PROP_PRIMARY_TYPE, ResourceUtil.PROP_MIXINTYPES);
 
     /** The absolute path to the node. */
     public String path;
@@ -121,8 +134,10 @@ public class NodeAttributeComparisonInfo {
             Node node = requireNonNull(resource.adaptTo(Node.class));
             for (PropertyIterator it = node.getProperties(); it.hasNext(); ) {
                 Property prop = it.nextProperty();
-                if (!protectedProperties.contains(prop.getName())) {
-                    result.propertyHashes.put(prop.getName(), stringRep(prop, hash));
+                String name = prop.getName();
+                if (IMPORTANT_ATTRIBUTES.accept(name) ||
+                        (!IGNORED_ATTRIBUTES.accept(name) && !protectedProperties.contains(name))) {
+                    result.propertyHashes.put(name, stringRep(prop, hash));
                 }
             }
             return result;
@@ -176,7 +191,7 @@ public class NodeAttributeComparisonInfo {
      */
     protected static String stringRep(Property prop, HashFunction hash) throws RepositoryException, IOException {
         StringBuilder buf = new StringBuilder();
-        buf.append(prop.getType()).append(":");
+        buf.append(typeCode(prop.getType())).append(":");
         if (prop.isMultiple()) {
             Value[] values = prop.getValues();
             if (valueOrderingIsUnimportant(prop.getName())) {
@@ -242,6 +257,32 @@ public class NodeAttributeComparisonInfo {
         }
     }
 
+    /** We unify some types since they can differ in the two repositories even after correct transmission. */
+    protected static String typeCode(int type) {
+        switch (type) {
+            case DATE:
+                return "C"; // calendar
+            case BINARY:
+                return "B";
+            case LONG:
+            case DOUBLE:
+                return "n"; // number
+            case DECIMAL:
+                return "D";
+            case BOOLEAN:
+                return "b";
+            case STRING:
+            case NAME:
+            case PATH:
+            case REFERENCE:
+            case WEAKREFERENCE:
+            case URI:
+                return "S";
+            default: // impossible
+                throw new IllegalArgumentException("Unknown type " + type);
+        }
+    }
+
     protected static boolean valueOrderingIsUnimportant(String propertyName) {
         return JcrConstants.JCR_MIXINTYPES.equals(propertyName);
     }
@@ -272,5 +313,22 @@ public class NodeAttributeComparisonInfo {
         return "NodeAttributeComparisonInfo{" + "path='" + path + '\'' +
                 ", propertyHashes=" + propertyHashes +
                 '}';
+    }
+
+    /**
+     * Human readable description of the difference between two attributeInfo - for logging / debugging purposes
+     * only.
+     */
+    public String difference(@Nonnull NodeAttributeComparisonInfo other) {
+        StringBuilder buf = new StringBuilder();
+        if (!StringUtils.equals(path, other.path)) { buf.append("Paths different. "); }
+        for (String name : SetUtils.union(propertyHashes.keySet(), other.propertyHashes.keySet())) {
+            String val = propertyHashes.get(name);
+            String val2 = other.propertyHashes.get(name);
+            if (!StringUtils.equals(val, val2)) {
+                buf.append(name).append("=").append(val).append("|").append(val2).append(" ");
+            }
+        }
+        return buf.toString();
     }
 }

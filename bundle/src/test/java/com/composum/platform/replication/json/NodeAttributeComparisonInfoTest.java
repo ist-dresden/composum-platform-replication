@@ -52,14 +52,16 @@ public class NodeAttributeComparisonInfoTest {
         ec.checkThat(gson.toJson(attcinfo), is("{\n" +
                 "  \"path\": \"/some/node\",\n" +
                 "  \"propertyHashes\": {\n" +
-                "    \"bigdec\": \"12:12.3\",\n" +
-                "    \"date\": \"5:1579778000000\",\n" +
-                "    \"double\": \"4:3.141592653589793\",\n" +
-                "    \"long\": \"3:1579778715114\",\n" +
-                "    \"longstr\": \"1:d71a0ee77f01428d\",\n" +
-                "    \"num\": \"3:15\",\n" +
-                "    \"str\": \"1:hello!\",\n" +
-                "    \"stream\": \"2:6c58da8f83345ab1\"\n" +
+                "    \"bigdec\": \"D:12.3\",\n" +
+                "    \"date\": \"C:1579778000000\",\n" +
+                "    \"double\": \"n:3.141592653589793\",\n" +
+                "    \"jcr:mixinTypes\": \"S:40ee9673a56cc0bf\",\n" +
+                "    \"jcr:primaryType\": \"S:nt:unstructured\",\n" +
+                "    \"long\": \"n:1579778715114\",\n" +
+                "    \"longstr\": \"S:d71a0ee77f01428d\",\n" +
+                "    \"num\": \"n:15\",\n" +
+                "    \"str\": \"S:hello!\",\n" +
+                "    \"stream\": \"B:6c58da8f83345ab1\"\n" +
                 "  }\n" +
                 "}"));
 
