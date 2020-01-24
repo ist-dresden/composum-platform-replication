@@ -3,12 +3,12 @@ package com.composum.platform.replication.remote;
 import com.composum.platform.commons.crypt.CryptoService;
 import com.composum.platform.commons.util.CachedCalculation;
 import com.composum.platform.replication.json.ChildrenOrderInfo;
+import com.composum.platform.replication.json.NodeAttributeComparisonInfo;
 import com.composum.platform.replication.json.VersionableTree;
 import com.composum.platform.replication.remotereceiver.RemotePublicationConfig;
 import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverFacade;
 import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverFacade.RemotePublicationFacadeException;
 import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet;
-import com.composum.platform.replication.remotereceiver.RemoteReceiverConstants;
 import com.composum.platform.replication.remotereceiver.UpdateInfo;
 import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.ResourceHandle;
@@ -52,7 +52,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -751,18 +750,38 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
          */
         @Nonnull
         protected Stream<ChildrenOrderInfo> relevantOrderings(@Nonnull Collection<String> pathsToTransmit) {
+            Stream<Resource> relevantNodes = relevantParentNodesOfVersionables(pathsToTransmit);
+            return relevantNodes
+                    .map(ChildrenOrderInfo::of)
+                    .filter(Objects::nonNull);
+        }
+
+        /** The attribute infos for all parent nodes of versionables within pathsToTransmit within the release root. */
+        @Nonnull
+        protected Stream<NodeAttributeComparisonInfo> parentAttributeInfos(@Nonnull Collection<String> pathsToTransmit) {
+            return relevantParentNodesOfVersionables(pathsToTransmit)
+                    .map(resource -> NodeAttributeComparisonInfo.of(resource, null))
+                    .filter(Objects::nonNull);
+        }
+
+        /**
+         * Stream of all parent nodes of the versionables within pathsToTransmit that are within the release root.
+         * This consists of the parent nodes of pathsToTransmit and the children of pathsToTransmit (including
+         * themselves) up to (and excluding) the versionables.
+         */
+        @Nonnull
+        protected Stream<Resource> relevantParentNodesOfVersionables(@Nonnull Collection<String> pathsToTransmit) {
             Stream<Resource> parentsStream = pathsToTransmit.stream()
                     .flatMap(this::parentsUpToRelease)
                     .distinct()
-                    .map(resolver::getResource);
+                    .map(resolver::getResource)
+                    .filter(Objects::nonNull);
             Stream<Resource> childrenStream = pathsToTransmit.stream()
                     .distinct()
                     .map(resolver::getResource)
                     .filter(Objects::nonNull)
                     .flatMap(this::childrenExcludingVersionables);
-            return Stream.concat(parentsStream, childrenStream)
-                    .map(ChildrenOrderInfo::of)
-                    .filter(Objects::nonNull);
+            return Stream.concat(parentsStream, childrenStream);
         }
 
         @Nonnull
@@ -850,6 +869,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 result.releaseChangeNumbersEqual = StringUtils.equals(release.getChangeNumber(),
                         updateInfo.originalPublisherReleaseChangeId);
 
+                // get info on the remote versionables and check which are changed / not present here
                 String commonParent = SlingResourceUtil.commonParent(changedPaths);
                 RemotePublicationReceiverServlet.ContentStateStatus contentState =
                         publisher.contentState(updateInfo, changedPaths, resolver, commonParent);
@@ -857,8 +877,9 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                     throw new ReplicationFailedException("Querying content state failed for " + replicationConfig + " " +
                             "path " + commonParent, null, null);
                 }
-                VersionableTree v = contentState.getVersionables();
+                VersionableTree contentStateComparison = contentState.getVersionables();
 
+                // check which of our versionables are changed / not present on the remote
                 Status compareContentState = publisher.compareContent(updateInfo, changedPaths, resolver, commonParent);
                 if (!compareContentState.isValid()) {
                     throw new ReplicationFailedException("Comparing content failed for " + replicationConfig, null,
@@ -869,16 +890,17 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
 
                 Set<String> differentPaths = new LinkedHashSet<>();
                 differentPaths.addAll(remotelyDifferentPaths);
-                differentPaths.addAll(v.getDeletedPaths());
-                differentPaths.addAll(v.getChangedPaths());
+                differentPaths.addAll(contentStateComparison.getDeletedPaths());
+                differentPaths.addAll(contentStateComparison.getChangedPaths());
                 result.differentVersionablesCount = differentPaths.size();
                 if (returnDetails) {
                     result.differentVersionables = differentPaths.toArray(new String[0]);
                 }
 
+                // compare the children orderings and parent attributes
                 Stream<ChildrenOrderInfo> relevantOrderings = relevantOrderings(changedPaths);
-
-                Status compareParentState = publisher.compareParents(commonParent, resolver, relevantOrderings);
+                Stream<NodeAttributeComparisonInfo> attributeInfos = parentAttributeInfos(changedPaths);
+                Status compareParentState = publisher.compareParents(commonParent, resolver, relevantOrderings, attributeInfos);
                 if (!compareParentState.isValid()) {
                     throw new ReplicationFailedException("Comparing parents failed for " + replicationConfig, null,
                             null);
@@ -905,6 +927,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 throw new ReplicationFailedException("Internal error", e, null);
             }
         }
+
     }
 
     @ObjectClassDefinition(

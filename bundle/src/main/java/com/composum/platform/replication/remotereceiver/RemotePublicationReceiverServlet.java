@@ -1,6 +1,8 @@
 package com.composum.platform.replication.remotereceiver;
 
+import com.composum.platform.commons.json.JsonArrayAsIterable;
 import com.composum.platform.replication.json.ChildrenOrderInfo;
+import com.composum.platform.replication.json.NodeAttributeComparisonInfo;
 import com.composum.platform.replication.json.VersionableTree;
 import com.composum.sling.core.ResourceHandle;
 import com.composum.sling.core.servlet.AbstractServiceServlet;
@@ -10,6 +12,7 @@ import com.composum.sling.core.servlet.Status;
 import com.composum.sling.core.util.SlingResourceUtil;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonParseException;
 import com.google.gson.stream.JsonReader;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.vault.fs.config.ConfigurationException;
@@ -37,12 +40,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_ATTRIBUTEINFOS;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_CHILDORDERINGS;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_DELETED_PATH;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_RELEASE_CHANGENUMBER;
@@ -129,11 +132,11 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         return resolverFactory.getServiceResourceResolver(null);
     }
 
-    protected void expectName(JsonReader jsonReader, String expectedName, Status status) throws IOException {
+    protected void expectName(JsonReader jsonReader, String expectedName, Status status) throws IOException, JsonParseException {
         String nextName = jsonReader.nextName();
         if (!expectedName.equals(nextName)) {
             status.error("{} expected but got {}", expectedName, nextName);
-            throw new IllegalArgumentException(expectedName + " expected but got " + nextName);
+            throw new JsonParseException(" expected " + expectedName + " but got " + nextName);
         }
     }
 
@@ -337,29 +340,13 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 jsonReader.endArray();
 
                 expectName(jsonReader, PARAM_CHILDORDERINGS, status);
-                jsonReader.beginArray();
-
-                Iterator<ChildrenOrderInfo> childOrderings = new Iterator<ChildrenOrderInfo>() {
-                    @Override
-                    public boolean hasNext() {
-                        try {
-                            return jsonReader.hasNext();
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                    }
-
-                    @Override
-                    public ChildrenOrderInfo next() {
-                        return requireNonNull(gson.fromJson(jsonReader, ChildrenOrderInfo.class));
-                    }
-                };
+                Iterable<ChildrenOrderInfo> childOrderings =
+                        new JsonArrayAsIterable<>(jsonReader, ChildrenOrderInfo.class, gson, null);
 
                 if (status.isValid()) {
                     LOG.info("Commit on {} deleting {}", updateId, deletedPaths);
                     try {
                         service.commit(updateId, deletedPaths, childOrderings, newReleaseChangeId);
-                        jsonReader.endArray();
                         jsonReader.endObject();
                     } catch (LoginException e) { // serious misconfiguration
                         LOG.error("Could not get service resolver: " + e, e);
@@ -427,36 +414,22 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
             try (JsonReader jsonReader = new JsonReader(request.getReader())) {
                 jsonReader.beginObject();
 
-                expectName(jsonReader, PARAM_CHILDORDERINGS, status);
-                jsonReader.beginArray();
+                try (JsonArrayAsIterable<ChildrenOrderInfo> childOrderings =
+                             new JsonArrayAsIterable<>(jsonReader, ChildrenOrderInfo.class, gson, PARAM_CHILDORDERINGS);
+                     JsonArrayAsIterable<NodeAttributeComparisonInfo> attributeInfos =
+                             new JsonArrayAsIterable<>(jsonReader, NodeAttributeComparisonInfo.class, gson, PARAM_ATTRIBUTEINFOS)) {
 
-                Iterator<ChildrenOrderInfo> childOrderings = new Iterator<ChildrenOrderInfo>() {
-                    @Override
-                    public boolean hasNext() {
-                        try {
-                            return jsonReader.hasNext();
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                    }
-
-                    @Override
-                    public ChildrenOrderInfo next() {
-                        return requireNonNull(gson.fromJson(jsonReader, ChildrenOrderInfo.class));
-                    }
-                };
-
-                try {
                     List<String> differentChildorderings = service.compareChildorderings(releaseRoot, childOrderings);
                     status.data(PARAM_CHILDORDERINGS).put(PARAM_PATH, differentChildorderings);
+
+                    List<String> differentParentAttributes = service.compareAttributes(releaseRoot, attributeInfos);
+                    status.data(PARAM_ATTRIBUTEINFOS).put(PARAM_PATH, differentParentAttributes);
                 } catch (LoginException e) { // serious misconfiguration
                     LOG.error("Could not get service resolver: " + e, e);
                     throw new ServletException("Could not get service resolver", e);
                 } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | RuntimeException e) {
                     status.error("Compare childorderings failed: {}", e.toString(), e);
                 }
-
-                jsonReader.endArray();
 
                 // FIXME(hps,22.01.20) do the same for parents attributes
 

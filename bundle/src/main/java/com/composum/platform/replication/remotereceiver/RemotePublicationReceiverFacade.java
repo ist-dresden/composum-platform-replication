@@ -4,6 +4,7 @@ import com.composum.platform.commons.crypt.CryptoService;
 import com.composum.platform.commons.util.ExceptionThrowingRunnable;
 import com.composum.platform.commons.util.ExceptionUtil;
 import com.composum.platform.replication.json.ChildrenOrderInfo;
+import com.composum.platform.replication.json.NodeAttributeComparisonInfo;
 import com.composum.platform.replication.json.VersionableTree;
 import com.composum.platform.replication.remote.RemotePublisherService;
 import com.composum.sling.core.BeanContext;
@@ -322,7 +323,8 @@ public class RemotePublicationReceiverFacade {
     }
 
     /** Compares children order and attributes of the parents. */
-    public Status compareParents(String commonParent, ResourceResolver resolver, Stream<ChildrenOrderInfo> relevantOrderings) throws RemotePublicationFacadeException {
+    public Status compareParents(String commonParent, ResourceResolver resolver, Stream<ChildrenOrderInfo> relevantOrderings,
+                                 Stream<NodeAttributeComparisonInfo> attributeInfos) throws RemotePublicationFacadeException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(), passwordDecryptor());
         Gson gson = new GsonBuilder().create();
 
@@ -330,12 +332,17 @@ public class RemotePublicationReceiverFacade {
             @Override
             protected void writeTo(@Nonnull JsonWriter jsonWriter) throws IOException {
                 jsonWriter.beginObject();
+
                 jsonWriter.name(RemoteReceiverConstants.PARAM_CHILDORDERINGS).beginArray();
                 relevantOrderings.forEachOrdered(childrenOrderInfo ->
                         gson.toJson(childrenOrderInfo, childrenOrderInfo.getClass(), jsonWriter));
-
-                jsonWriter.flush();
                 jsonWriter.endArray();
+
+                jsonWriter.name(RemoteReceiverConstants.PARAM_ATTRIBUTEINFOS).beginArray();
+                attributeInfos.forEachOrdered(attributeInfo ->
+                        gson.toJson(attributeInfo, attributeInfo.getClass(), jsonWriter));
+                jsonWriter.endArray();
+
                 jsonWriter.endObject();
             }
         };

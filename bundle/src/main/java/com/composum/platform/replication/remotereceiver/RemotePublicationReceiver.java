@@ -1,6 +1,8 @@
 package com.composum.platform.replication.remotereceiver;
 
+import com.composum.platform.commons.json.JsonArrayAsIterable;
 import com.composum.platform.replication.json.ChildrenOrderInfo;
+import com.composum.platform.replication.json.NodeAttributeComparisonInfo;
 import com.composum.platform.replication.json.VersionableInfo;
 import org.apache.jackrabbit.vault.fs.config.ConfigurationException;
 import org.apache.sling.api.resource.LoginException;
@@ -12,7 +14,6 @@ import javax.jcr.RepositoryException;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
@@ -40,7 +41,7 @@ public interface RemotePublicationReceiver {
      * temporary directory is then deleted.
      */
     void commit(@Nonnull String updateId, @Nonnull Set<String> deletedPaths,
-                @Nonnull Iterator<ChildrenOrderInfo> childOrderings, String newReleaseChangeId)
+                @Nonnull JsonArrayAsIterable<ChildrenOrderInfo> childOrderings, String newReleaseChangeId)
             throws LoginException, RemotePublicationReceiverException, RepositoryException, PersistenceException;
 
     /**
@@ -61,12 +62,20 @@ public interface RemotePublicationReceiver {
     UpdateInfo releaseInfo(@Nullable String releaseRoot) throws LoginException;
 
     /**
-     * Reads childorderings and compares these to whatever we have in our repository, and returns the paths where
-     * it's different.
+     * Reads childorderings as {@link ChildrenOrderInfo} and compares these to whatever we have in our repository,
+     * and returns the paths where it's different.
      */
     @Nonnull
-    List<String> compareChildorderings(String releaseRoot, Iterator<ChildrenOrderInfo> childOrderings)
+    List<String> compareChildorderings(@Nonnull String releaseRoot, @Nonnull JsonArrayAsIterable<ChildrenOrderInfo> childOrderings)
             throws LoginException, RemotePublicationReceiverException, RepositoryException;
+
+    /**
+     * Reads node attribute information {@link NodeAttributeComparisonInfo}  and compares these to whatever we have
+     * in our repository, and returns the paths where it's different.
+     */
+    @Nonnull
+    List<String> compareAttributes(@Nonnull String releaseRoot,
+                                   @Nonnull JsonArrayAsIterable<NodeAttributeComparisonInfo> attributeInfos) throws LoginException, RemotePublicationReceiverException;
 
     class RemotePublicationReceiverException extends Exception {
 

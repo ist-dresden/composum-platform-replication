@@ -8,7 +8,10 @@ import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.JcrConstants;
+import org.apache.sling.api.SlingException;
 import org.apache.sling.api.resource.Resource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -48,6 +51,8 @@ import static javax.jcr.PropertyType.WEAKREFERENCE;
 @SuppressWarnings("UnstableApiUsage")
 public class NodeAttributeComparisonInfo {
 
+    private static final Logger LOG = LoggerFactory.getLogger(NodeAttributeComparisonInfo.class);
+
     /** The maximum string length that is used directly without hashing it. */
     private static final int MAXSTRINGLEN = 64;
 
@@ -75,27 +80,35 @@ public class NodeAttributeComparisonInfo {
      * @throws IllegalArgumentException if the path of the resource does not start with the given pathOffset
      */
     @Nonnull
-    public static NodeAttributeComparisonInfo of(@Nonnull Resource resource, @Nullable String pathOffset)
-            throws RepositoryException, IOException, IllegalArgumentException {
-        HashFunction hash = Hashing.sipHash24();
-        NodeAttributeComparisonInfo result = new NodeAttributeComparisonInfo();
-        if (StringUtils.isBlank(pathOffset)) {
-            result.path = resource.getPath();
-        } else {
-            if (!SlingResourceUtil.isSameOrDescendant(pathOffset, resource.getPath()) || !pathOffset.startsWith("/")) {
-                throw new IllegalArgumentException("Not a subpath of " + pathOffset + " : " + resource.getPath());
+    public static NodeAttributeComparisonInfo of(@Nonnull Resource resource, @Nullable String pathOffset) {
+        try {
+            HashFunction hash = Hashing.sipHash24();
+            NodeAttributeComparisonInfo result = new NodeAttributeComparisonInfo();
+            if (StringUtils.isBlank(pathOffset)) {
+                result.path = resource.getPath();
+            } else {
+                if (!SlingResourceUtil.isSameOrDescendant(pathOffset, resource.getPath()) || !pathOffset.startsWith("/")) {
+                    throw new IllegalArgumentException("Not a subpath of " + pathOffset + " : " + resource.getPath());
+                }
+                result.path = "/" + SlingResourceUtil.relativePath(pathOffset, resource.getPath());
             }
-            result.path = "/" + SlingResourceUtil.relativePath(pathOffset, resource.getPath());
-        }
-        result.propertyHashes = new TreeMap<>();
-        Node node = Objects.requireNonNull(resource.adaptTo(Node.class));
-        for (PropertyIterator it = node.getProperties(); it.hasNext(); ) {
-            Property prop = it.nextProperty();
-            if (!prop.getDefinition().isProtected()) {
-                result.propertyHashes.put(prop.getName(), stringRep(prop, hash));
+            result.propertyHashes = new TreeMap<>();
+            Node node = Objects.requireNonNull(resource.adaptTo(Node.class));
+            for (PropertyIterator it = node.getProperties(); it.hasNext(); ) {
+                Property prop = it.nextProperty();
+                if (!prop.getDefinition().isProtected()) {
+                    result.propertyHashes.put(prop.getName(), stringRep(prop, hash));
+                }
             }
+            return result;
+        } catch (RepositoryException | IOException e) {
+            LOG.error("For {} , {}", SlingResourceUtil.getPath(resource), pathOffset, e);
+            throw new SlingException("Strange trouble reading attributes of " + SlingResourceUtil.getPath(resource), e);
+        } catch (RuntimeException e) {
+            LOG.error("Strange trouble reading attributes of {}, {}",
+                    SlingResourceUtil.getPath(resource), pathOffset, e);
+            throw e;
         }
-        return result;
     }
 
     /**

@@ -1,6 +1,8 @@
 package com.composum.platform.replication.remotereceiver;
 
+import com.composum.platform.commons.json.JsonArrayAsIterable;
 import com.composum.platform.replication.json.ChildrenOrderInfo;
+import com.composum.platform.replication.json.NodeAttributeComparisonInfo;
 import com.composum.platform.replication.json.VersionableTree;
 import com.composum.sling.core.ResourceHandle;
 import com.composum.sling.core.util.ResourceUtil;
@@ -10,7 +12,6 @@ import com.composum.sling.platform.staging.impl.NodeTreeSynchronizer;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import org.apache.commons.collections4.iterators.IteratorIterable;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.vault.fs.config.ConfigurationException;
@@ -52,7 +53,6 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
@@ -251,7 +251,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
 
     @Override
     public void commit(@Nonnull String updateId, @Nonnull Set<String> deletedPaths,
-                       @Nonnull Iterator<ChildrenOrderInfo> childOrderings, String newReleaseChangeId)
+                       @Nonnull JsonArrayAsIterable<ChildrenOrderInfo> childOrderings, String newReleaseChangeId)
             throws LoginException, RemotePublicationReceiverException, RepositoryException, PersistenceException {
         LOG.info("Commit called for {} : {}", updateId, deletedPaths);
         try (ResourceResolver resolver = makeResolver()) {
@@ -287,7 +287,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                 removeOrphans(resolver, targetRoot, deletedPath, targetReleaseRootPath);
             }
 
-            for (ChildrenOrderInfo childrenOrderInfo : new IteratorIterable<>(childOrderings)) {
+            for (ChildrenOrderInfo childrenOrderInfo : childOrderings) {
                 if (!SlingResourceUtil.isSameOrDescendant(releaseRootPath, childrenOrderInfo.getPath())) { // safety check - Bug!
                     throw new IllegalArgumentException("Not subpath of " + releaseRootPath + " : " + childrenOrderInfo);
                 }
@@ -299,6 +299,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                     LOG.error("Resource for childorder doesn't exist: {}", targetPath);
                 }
             }
+            LOG.debug("Number of child orderings read for {} was {}", topContentPath, childOrderings.getNumberRead());
 
             ModifiableValueMap releaseRootVm = targetReleaseRoot.adaptTo(ModifiableValueMap.class);
             releaseRootVm.put(StagingConstants.PROP_LAST_REPLICATION_DATE, Calendar.getInstance());
@@ -466,18 +467,20 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
 
     @Override
     @Nonnull
-    public List<String> compareChildorderings(String releaseRootPath, Iterator<ChildrenOrderInfo> childOrderings) throws LoginException, RemotePublicationReceiverException, RepositoryException {
+    public List<String> compareChildorderings(@Nonnull String releaseRootPath,
+                                              @Nonnull JsonArrayAsIterable<ChildrenOrderInfo> childOrderings)
+            throws LoginException, RemotePublicationReceiverException {
         LOG.info("Compare child orderings for {}", releaseRootPath);
         List<String> result = new ArrayList<>();
         try (ResourceResolver resolver = makeResolver()) {
             String targetRoot = requireNonNull(config.targetDir());
             Resource releaseRoot = StringUtils.isNotBlank(releaseRootPath) ? resolver.getResource(appendPaths(targetRoot, releaseRootPath)) : null;
-            if (targetRoot == null) {
+            if (releaseRoot == null) {
                 LOG.error("Release root for {} not found below {}", releaseRootPath, targetRoot);
                 throw new RemotePublicationReceiverException("Release root not found",
                         RemotePublicationReceiverException.RetryAdvice.NO_AUTOMATIC_RETRY);
             }
-            for (ChildrenOrderInfo childrenOrderInfo : new IteratorIterable<>(childOrderings)) {
+            for (ChildrenOrderInfo childrenOrderInfo : childOrderings) {
                 if (!SlingResourceUtil.isSameOrDescendant(releaseRootPath, childrenOrderInfo.getPath())) { // safety check - Bug!
                     throw new IllegalArgumentException("Not subpath of " + releaseRootPath + " : " + childrenOrderInfo);
                 }
@@ -493,6 +496,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                 }
             }
         }
+        LOG.debug("Number of child orderings read for {} was {}", releaseRootPath, childOrderings.getNumberRead());
         return result;
     }
 
@@ -505,6 +509,46 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
         if (!result) { LOG.debug("different children order at {}", resource.getPath()); }
         return result;
     }
+
+    @Override
+    @Nonnull
+    public List<String> compareAttributes(@Nonnull String releaseRootPath,
+                                          @Nonnull JsonArrayAsIterable<NodeAttributeComparisonInfo> attributeInfos)
+            throws LoginException, RemotePublicationReceiverException {
+        LOG.info("Compare parent attributes for {}", releaseRootPath);
+        List<String> result = new ArrayList<>();
+        try (ResourceResolver resolver = makeResolver()) {
+            String targetRoot = requireNonNull(config.targetDir());
+            Resource releaseRoot = StringUtils.isNotBlank(releaseRootPath) ? resolver.getResource(appendPaths(targetRoot, releaseRootPath)) : null;
+            if (releaseRoot == null) {
+                LOG.error("Release root for {} not found below {}", releaseRootPath, targetRoot);
+                throw new RemotePublicationReceiverException("Release root not found",
+                        RemotePublicationReceiverException.RetryAdvice.NO_AUTOMATIC_RETRY);
+            }
+            for (NodeAttributeComparisonInfo attributeInfo : attributeInfos) {
+                if (!SlingResourceUtil.isSameOrDescendant(releaseRootPath, attributeInfo.path)) { // safety check - Bug!
+                    throw new IllegalArgumentException("Not subpath of " + releaseRootPath + " : " + attributeInfo);
+                }
+                String targetPath = appendPaths(targetRoot, attributeInfo.path);
+                Resource resource = resolver.getResource(targetPath);
+                if (resource != null) {
+                    NodeAttributeComparisonInfo ourAttributeInfo =
+                            NodeAttributeComparisonInfo.of(resource, config.targetDir());
+                    if (!attributeInfo.equals(ourAttributeInfo)) {
+                        result.add(attributeInfo.path);
+                    }
+                } else {
+                    LOG.debug("resource for compareParentPaths not found: {}", targetPath);
+                    result.add(attributeInfo.path);
+                }
+            }
+        }
+        LOG.debug("Number of parent attribute infos read for {} was {}", releaseRootPath,
+                attributeInfos.getNumberRead());
+        return result;
+
+    }
+
 
     /** Creates the service resolver used to update the content. */
     @Nonnull
