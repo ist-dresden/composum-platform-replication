@@ -340,7 +340,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 jsonReader.endArray();
 
                 expectName(jsonReader, PARAM_CHILDORDERINGS, status);
-                Iterable<ChildrenOrderInfo> childOrderings =
+                JsonArrayAsIterable<ChildrenOrderInfo> childOrderings =
                         new JsonArrayAsIterable<>(jsonReader, ChildrenOrderInfo.class, gson, null);
 
                 if (status.isValid()) {

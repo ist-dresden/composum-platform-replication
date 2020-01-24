@@ -1,15 +1,19 @@
 package com.composum.platform.replication.json;
 
 import com.composum.platform.commons.util.ExceptionUtil;
+import com.composum.sling.core.util.ResourceUtil;
 import com.composum.sling.core.util.SlingResourceUtil;
 import com.google.common.hash.HashCode;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
+import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.JcrConstants;
 import org.apache.sling.api.SlingException;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.api.resource.ValueMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,16 +24,28 @@ import javax.jcr.Node;
 import javax.jcr.Property;
 import javax.jcr.PropertyIterator;
 import javax.jcr.RepositoryException;
+import javax.jcr.Session;
 import javax.jcr.Value;
+import javax.jcr.nodetype.NodeType;
+import javax.jcr.nodetype.NodeTypeManager;
+import javax.jcr.nodetype.PropertyDefinition;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.WeakHashMap;
 
+import static java.util.Objects.requireNonNull;
 import static javax.jcr.PropertyType.BINARY;
 import static javax.jcr.PropertyType.BOOLEAN;
 import static javax.jcr.PropertyType.DATE;
@@ -55,6 +71,14 @@ public class NodeAttributeComparisonInfo {
 
     /** The maximum string length that is used directly without hashing it. */
     private static final int MAXSTRINGLEN = 64;
+
+    /**
+     * Caches for each nodetype (primary and mixin) which properties are protected. We cache this for one resolver
+     * only, since that automatically clears the cache without needing to resort to timing etc.
+     */
+    @Nonnull
+    protected static final Map<ResourceResolver, Map<String, List<String>>> cacheProtectedProperties =
+            Collections.synchronizedMap(new WeakHashMap<>());
 
     /** The absolute path to the node. */
     public String path;
@@ -84,6 +108,7 @@ public class NodeAttributeComparisonInfo {
         try {
             HashFunction hash = Hashing.sipHash24();
             NodeAttributeComparisonInfo result = new NodeAttributeComparisonInfo();
+            Set<String> protectedProperties = protectedProperties(resource);
             if (StringUtils.isBlank(pathOffset)) {
                 result.path = resource.getPath();
             } else {
@@ -93,10 +118,10 @@ public class NodeAttributeComparisonInfo {
                 result.path = "/" + SlingResourceUtil.relativePath(pathOffset, resource.getPath());
             }
             result.propertyHashes = new TreeMap<>();
-            Node node = Objects.requireNonNull(resource.adaptTo(Node.class));
+            Node node = requireNonNull(resource.adaptTo(Node.class));
             for (PropertyIterator it = node.getProperties(); it.hasNext(); ) {
                 Property prop = it.nextProperty();
-                if (!prop.getDefinition().isProtected()) {
+                if (!protectedProperties.contains(prop.getName())) {
                     result.propertyHashes.put(prop.getName(), stringRep(prop, hash));
                 }
             }
@@ -109,6 +134,39 @@ public class NodeAttributeComparisonInfo {
                     SlingResourceUtil.getPath(resource), pathOffset, e);
             throw e;
         }
+    }
+
+    /**
+     * Returns a list of protected properties.
+     * <p>
+     * We need to check this by hand, since the staging resource manager does not support
+     * {@link Property#getDefinition()}, and is would be a rather large effort to implement this.
+     */
+    protected static Set<String> protectedProperties(Resource resource) throws RepositoryException {
+        Set<String> protectedProperties = new HashSet<>();
+        Map<String, List<String>> ourcache = cacheProtectedProperties.computeIfAbsent(resource.getResourceResolver(), ignored ->
+                Collections.synchronizedMap(new HashMap<>())
+        );
+        ValueMap vm = resource.getValueMap();
+        List<String> nodeTypes = ListUtils.union(
+                Collections.singletonList(vm.get(ResourceUtil.PROP_PRIMARY_TYPE, String.class)),
+                Arrays.asList(vm.get(ResourceUtil.PROP_MIXINTYPES, new String[0]))
+        );
+        for (String type : nodeTypes) {
+            List<String> props = ourcache.get(type);
+            if (props == null) {
+                props = new ArrayList<>();
+                NodeTypeManager nodeTypeManager = requireNonNull(resource.getResourceResolver().adaptTo(Session.class))
+                        .getWorkspace().getNodeTypeManager();
+                NodeType nodeType = nodeTypeManager.getNodeType(type);
+                for (PropertyDefinition def : nodeType.getPropertyDefinitions()) {
+                    if (def.isProtected()) { props.add(def.getName()); }
+                }
+                ourcache.putIfAbsent(type, props);
+            }
+            protectedProperties.addAll(props);
+        }
+        return protectedProperties;
     }
 
     /**
@@ -193,6 +251,7 @@ public class NodeAttributeComparisonInfo {
     }
 
     /** Compares path and attributes. */
+    @SuppressWarnings("ObjectEquality")
     @Override
     public boolean equals(Object o) {
         if (this == o) { return true; }
@@ -202,6 +261,7 @@ public class NodeAttributeComparisonInfo {
                 Objects.equals(propertyHashes, that.propertyHashes);
     }
 
+    @SuppressWarnings("ObjectInstantiationInEqualsHashCode")
     @Override
     public int hashCode() {
         return Objects.hash(path, propertyHashes);
@@ -209,10 +269,8 @@ public class NodeAttributeComparisonInfo {
 
     @Override
     public String toString() {
-        final StringBuilder sb = new StringBuilder("NodeAttributeComparisonInfo{");
-        sb.append("path='").append(path).append('\'');
-        sb.append(", propertyHashes=").append(propertyHashes);
-        sb.append('}');
-        return sb.toString();
+        return "NodeAttributeComparisonInfo{" + "path='" + path + '\'' +
+                ", propertyHashes=" + propertyHashes +
+                '}';
     }
 }

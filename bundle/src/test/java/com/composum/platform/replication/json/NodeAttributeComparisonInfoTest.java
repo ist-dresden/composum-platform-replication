@@ -7,10 +7,15 @@ import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit.SlingContext;
+import org.jetbrains.annotations.Nullable;
 import org.junit.Rule;
 import org.junit.Test;
 
 import javax.annotation.Nonnull;
+import javax.jcr.Node;
+import javax.jcr.Property;
+import javax.jcr.Session;
+import javax.jcr.nodetype.NodeTypeManager;
 import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -38,6 +43,9 @@ public class NodeAttributeComparisonInfoTest {
         Calendar calendar = Calendar.getInstance();
         calendar.setTimeInMillis(1579778000000L);
         Resource node = context.build().resource("/some/node", makeProperties(calendar)).commit().getCurrentParent();
+
+        context.resourceResolver().adaptTo(Session.class).getWorkspace().getNodeTypeManager();
+
         NodeAttributeComparisonInfo attcinfo = NodeAttributeComparisonInfo.of(node, null);
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
         System.out.println(gson.toJson(attcinfo));
