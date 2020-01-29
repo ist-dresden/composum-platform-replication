@@ -35,6 +35,7 @@ import org.apache.sling.commons.threads.ThreadPoolManager;
 import org.osgi.framework.Constants;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.ConfigurationPolicy;
 import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Modified;
 import org.osgi.service.component.annotations.Reference;
@@ -80,7 +81,7 @@ import static org.apache.commons.lang3.StringUtils.isNotBlank;
 @Component(
         service = ReleaseChangeEventListener.class,
         property = {Constants.SERVICE_DESCRIPTION + "=Composum Platform Remote Publisher Service"},
-        immediate = true)
+        configurationPolicy = ConfigurationPolicy.REQUIRE)
 @Designate(ocd = RemotePublisherService.Configuration.class)
 public class RemotePublisherService implements ReleaseChangeEventListener {
 
@@ -110,7 +111,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
 
     protected final Map<String, RemoteReleasePublishingProcess> processesCache = Collections.synchronizedMap(new HashMap<>());
 
-    @Nullable
+    @Nonnull
     @Override
     public Collection<RemoteReleasePublishingProcess> processesFor(@Nullable StagingReleaseManager.Release release) {
         if (release == null || !isEnabled()) { return Collections.emptyList(); }
@@ -826,7 +827,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         protected void abortIfNecessary(@Nonnull UpdateInfo updateInfo) throws RemotePublicationFacadeException,
                 ReplicationFailedException {
             if (abortAtNextPossibility) {
-                messages.add(Message.info("Aborting {} because that was requested.", updateInfo.updateId));
+                messages.add(Message.info("Aborting because that was requested: {}", updateInfo.updateId));
                 abort(updateInfo);
                 throw new ReplicationFailedException("Aborted publishing because that was requested.", null,
                         null);
