@@ -57,6 +57,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -64,6 +65,7 @@ import static com.composum.platform.replication.remotereceiver.RemoteReceiverCon
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.ATTR_RELEASEROOT_PATH;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.ATTR_TOP_CONTENTPATH;
 import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.ATTR_UPDATEDPATHS;
+import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PATTERN_UPDATEID;
 import static com.composum.sling.core.util.SlingResourceUtil.appendPaths;
 import static com.composum.sling.platform.staging.StagingConstants.PROP_LAST_REPLICATION_DATE;
 import static java.util.Arrays.asList;
@@ -438,6 +440,8 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     @Nonnull
     protected Resource getTmpLocation(@Nonnull ResourceResolver resolver, @Nullable String updateId, boolean create)
             throws RepositoryException, RemotePublicationReceiverException {
+        cleanup(resolver);
+
         if (StringUtils.isBlank(updateId) || !RemoteReceiverConstants.PATTERN_UPDATEID.matcher(updateId).matches()) {
             throw new IllegalArgumentException("Broken updateId: " + updateId);
         }
@@ -466,6 +470,40 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
 
         }
         return tmpLocation;
+    }
+
+    /**
+     * Removes old temporary directories to make space. That shouldn't be necessary except in serious failure cases
+     * like interrupted connection or crashed servers during a replication.
+     * We assume a directory last touched more than a day ago needs
+     * to be removed - the {@link ResourceUtil#PROP_LAST_MODIFIED} is changed on each access with {@link #getTmpLocation(ResourceResolver, String, boolean)}.
+     */
+    protected void cleanup(ResourceResolver resolver) {
+        int cleanupDays = config.cleanupTmpdirDays();
+        if (cleanupDays < 1 || StringUtils.length(config.tmpDir()) < 4) { return; }
+        Resource tmpDir = resolver.getResource(config.tmpDir());
+        if (tmpDir == null) { // impossible
+            LOG.warn("Can't find temporary directory for cleanup: {}", config.tmpDir());
+            return;
+        }
+        long expireTime = System.currentTimeMillis() + TimeUnit.DAYS.toMillis(cleanupDays);
+        for (Resource child : tmpDir.getChildren()) {
+            if (PATTERN_UPDATEID.matcher(child.getName()).matches()) {
+                Date modificationDate = child.getValueMap().get(ResourceUtil.PROP_LAST_MODIFIED, Date.class);
+                if (modificationDate == null) {
+                    modificationDate = child.getValueMap().get(ResourceUtil.PROP_CREATED, Date.class);
+                }
+                if (modificationDate != null && modificationDate.getTime() < expireTime) {
+                    LOG.error("Cleanup: needing to delete temporary directory not touched for {} days: {}",
+                            cleanupDays, child.getPath());
+                    try {
+                        resolver.delete(child);
+                    } catch (PersistenceException e) {
+                        LOG.error("Error deleting " + child.getPath(), e);
+                    }
+                }
+            }
+        }
     }
 
     @Override
@@ -591,6 +629,12 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                         "inspect there."
         )
         String targetDir() default "/";
+
+        @AttributeDefinition(
+                description = "Automatic removal of stale temporary directories used for replication after this many " +
+                        "days. Normally they are removed immediately after completion / abort."
+        )
+        int cleanupTmpdirDays() default 1;
     }
 
 }
