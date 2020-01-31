@@ -378,12 +378,12 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         @Override
         @Nullable
         public ReleaseChangeEventPublisher.CompareResult compareTree(@Nonnull ResourceHandle resource,
-                                                                     boolean returnDetails) throws ReplicationFailedException {
+                                                                     int details) throws ReplicationFailedException {
             if (!isEnabled()) { return null; }
             ReplicatorStrategy strategy = makeReplicatorStrategy(resource.getResourceResolver(), Collections.singleton(resource.getPath()));
             if (strategy == null) { return null; }
             try {
-                return strategy.compareTree(returnDetails);
+                return strategy.compareTree(details);
             } catch (RemotePublicationFacadeException e) {
                 throw new ReplicationFailedException(e.getMessage(), e, null);
             }
@@ -875,7 +875,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         }
 
         @Nullable
-        public ReleaseChangeEventPublisher.CompareResult compareTree(boolean returnDetails) throws RemotePublicationFacadeException, ReplicationFailedException {
+        public ReleaseChangeEventPublisher.CompareResult compareTree(int details) throws RemotePublicationFacadeException, ReplicationFailedException {
             if (!isEnabled()) { return null; }
             try {
                 ReleaseChangeEventPublisher.CompareResult result = new ReleaseChangeEventPublisher.CompareResult();
@@ -912,7 +912,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 differentPaths.addAll(contentStateComparison.getDeletedPaths());
                 differentPaths.addAll(contentStateComparison.getChangedPaths());
                 result.differentVersionablesCount = differentPaths.size();
-                if (returnDetails) {
+                if (details > 0) {
                     result.differentVersionables = differentPaths.toArray(new String[0]);
                 }
 
@@ -929,7 +929,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 List<String> changedAttributes = (List<String>) compareParentState.data(PARAM_ATTRIBUTEINFOS).get(PARAM_PATH);
                 result.changedChildrenOrderCount = differentChildorderings.size();
                 result.changedParentNodeCount = changedAttributes.size();
-                if (returnDetails) {
+                if (details > 0) {
                     result.changedChildrenOrders = differentChildorderings.toArray(new String[0]);
                     result.changedParentNodes = changedAttributes.toArray(new String[0]);
                 }
