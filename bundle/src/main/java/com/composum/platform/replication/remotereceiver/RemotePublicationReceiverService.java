@@ -486,7 +486,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
             LOG.warn("Can't find temporary directory for cleanup: {}", config.tmpDir());
             return;
         }
-        long expireTime = System.currentTimeMillis() + TimeUnit.DAYS.toMillis(cleanupDays);
+        long expireTime = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(cleanupDays);
         for (Resource child : tmpDir.getChildren()) {
             if (PATTERN_UPDATEID.matcher(child.getName()).matches()) {
                 Date modificationDate = child.getValueMap().get(ResourceUtil.PROP_LAST_MODIFIED, Date.class);
