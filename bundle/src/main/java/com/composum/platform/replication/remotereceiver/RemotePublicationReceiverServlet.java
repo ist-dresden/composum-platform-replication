@@ -287,7 +287,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 throws IOException, ServletException {
             Status status = new Status(request, response, LOG);
             String packageRootPath = request.getRequestPathInfo().getSuffix();
-            String updateId = status.getRequiredParameter(PARAM_UPDATEID, PATTERN_UPDATEID, "PatternId required");
+            String updateId = status.getRequiredParameter(PARAM_UPDATEID, PATTERN_UPDATEID, "UpdateId required");
             if (isNotBlank(packageRootPath) && status.isValid()) {
 
                 try {
