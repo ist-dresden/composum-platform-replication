@@ -172,7 +172,7 @@ public class NodeAttributeComparisonInfo {
             List<String> props = ourcache.get(type);
             if (props == null) {
                 props = new ArrayList<>();
-                NodeTypeManager nodeTypeManager = requireNonNull(StagingResourceResolver.underlyingSession(resource.getResourceResolver()))
+                NodeTypeManager nodeTypeManager = requireNonNull(resource.getResourceResolver().adaptTo(Session.class))
                         .getWorkspace().getNodeTypeManager();
                 NodeType nodeType = nodeTypeManager.getNodeType(type);
                 for (PropertyDefinition def : nodeType.getPropertyDefinitions()) {
