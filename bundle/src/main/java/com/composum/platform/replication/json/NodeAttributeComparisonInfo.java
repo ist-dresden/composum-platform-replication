@@ -5,6 +5,7 @@ import com.composum.sling.core.filter.StringFilter;
 import com.composum.sling.core.util.ResourceUtil;
 import com.composum.sling.core.util.SlingResourceUtil;
 import com.composum.sling.platform.staging.StagingConstants;
+import com.composum.sling.platform.staging.impl.StagingResourceResolver;
 import com.google.common.hash.HashCode;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hasher;
@@ -171,7 +172,7 @@ public class NodeAttributeComparisonInfo {
             List<String> props = ourcache.get(type);
             if (props == null) {
                 props = new ArrayList<>();
-                NodeTypeManager nodeTypeManager = requireNonNull(resource.getResourceResolver().adaptTo(Session.class))
+                NodeTypeManager nodeTypeManager = requireNonNull(StagingResourceResolver.underlyingSession(resource.getResourceResolver()))
                         .getWorkspace().getNodeTypeManager();
                 NodeType nodeType = nodeTypeManager.getNodeType(type);
                 for (PropertyDefinition def : nodeType.getPropertyDefinitions()) {
