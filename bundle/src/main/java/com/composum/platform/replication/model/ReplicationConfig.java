@@ -16,6 +16,8 @@ public interface ReplicationConfig {
 
     @Nonnull
     ReplicationType getReplicationType();
+    
+    boolean isEditable();
 
     //
     // to support grouping...
