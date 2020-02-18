@@ -100,6 +100,9 @@
 
                     <filters>
                         <filter>
+                            <root>/libs/composum/platform/replication</root>
+                        </filter>
+                        <filter>
                             <root>/libs/composum/platform/install</root>
                             <includes>
                                 <include>.*/cpm-platform-replication-bundle.*\.jar</include>

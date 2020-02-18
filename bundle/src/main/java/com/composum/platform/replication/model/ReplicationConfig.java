@@ -9,7 +9,8 @@ public interface ReplicationConfig {
 
     String PN_CONTENT_PATH = "contentPath";
     String PN_REPLICATIN_TYPE = "replicationType";
-    String PN_IS_EDITABLE = "isEditable";
+    String PN_IS_ENABLED = "enabled";
+    String PN_IS_EDITABLE = "editable";
 
     @Nonnull
     String getTitle();
@@ -20,7 +21,6 @@ public interface ReplicationConfig {
     /**
      * @return the path of the configuration resource itself
      */
-    @Nonnull
     String getPath();
 
     /**
@@ -34,6 +34,14 @@ public interface ReplicationConfig {
      */
     @Nonnull
     ReplicationType getReplicationType();
+
+    /**
+     * @return the resource type if the component to view / edit the configuration
+     */
+    @Nonnull
+    String getConfigResourceType();
+
+    boolean isEnabled();
 
     /**
      * @return 'true' if the configuration can be changed by the user
@@ -65,7 +73,7 @@ public interface ReplicationConfig {
 
         @Override
         public String getSortValue(ReplicationConfig config) {
-            return getKey(config) + "_@@@_" + config.getReplicationType().getTitle();
+            return getKey(config) + "\r" + config.getTitle();
         }
     }
 
@@ -78,7 +86,7 @@ public interface ReplicationConfig {
 
         @Override
         public String getSortValue(ReplicationConfig config) {
-            return getKey(config) + "_@@@_" + config.getContentPath();
+            return getKey(config) + "\r" + config.getTitle();
         }
     }
 }

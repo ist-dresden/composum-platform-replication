@@ -1,76 +1,64 @@
 package com.composum.platform.replication.model;
 
-import com.composum.platform.replication.inplace.InplaceReplicationType;
 import com.composum.platform.replication.ReplicationType;
+import com.composum.platform.replication.inplace.InplaceReplicationType;
 import com.composum.platform.replication.remote.RemoteReplicationType;
 import com.composum.sling.core.AbstractSlingBean;
-import com.composum.sling.core.util.ResourceUtil;
+import com.composum.sling.cpnl.CpnlElFunctions;
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ValueMap;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import static com.composum.platform.replication.ReplicationConstants.RT_REPLICATION_SETUP;
 
 public class ReplicationSetup extends AbstractSlingBean {
 
+    public static final Pattern NO_IDENTIFIER_CHAR = Pattern.compile("[^a-zA-Z0-9_-]+");
+
     private transient Map<String, ReplicationType> replicationTypes;
 
-    private transient Map<String, List<ReplicationConfig>> setupByPath;
-    private transient Map<String, List<ReplicationConfig>> setupByType;
+    public class ConfigSet {
 
-    private transient List<ReplicationConfig> setup;
+        protected final String key;
+        protected final List<ReplicationConfig> set = new ArrayList<>();
 
-    public class ConfigNode implements ReplicationConfig {
-
-        protected final Resource node;
-        protected final ValueMap values;
-
-        public ConfigNode(Resource node) {
-            this.node = node;
-            this.values = node.getValueMap();
+        public ConfigSet(String key) {
+            this.key = CpnlElFunctions.text(key);
         }
 
-        @Nonnull
-        @Override
+        public String getId() {
+            return NO_IDENTIFIER_CHAR.matcher(getKey()
+                    .replace('/', '-'))
+                    .replaceAll("");
+        }
+
+        public String getKey() {
+            return key;
+        }
+
         public String getTitle() {
-            return values.get(ResourceUtil.JCR_TITLE, node.getName());
+            return getKey();
         }
 
-        @Nullable
-        @Override
-        public String getDescription() {
-            return values.get(ResourceUtil.JCR_DESCRIPTION, String.class);
-        }
-
-        @Nonnull
-        @Override
-        public String getPath() {
-            return node.getPath();
-        }
-
-        @Nonnull
-        @Override
-        public String getContentPath() {
-            return values.get(PN_CONTENT_PATH, "");
-        }
-
-        @Nonnull
-        @Override
-        public ReplicationType getReplicationType() {
-            return getReplicationTypes().get(values.get(PN_REPLICATIN_TYPE, InplaceReplicationType.SERVICE_ID));
+        public List<ReplicationConfig> getSet() {
+            return set;
         }
 
         @Override
-        public boolean isEditable() {
-            return values.get(PN_IS_EDITABLE, Boolean.FALSE);
+        public String toString() {
+            return getKey();
         }
     }
+
+    private transient Map<String, ConfigSet> setupByPath;
+    private transient Map<String, ConfigSet> setupByType;
+
+    private transient List<ReplicationConfig> setup;
 
     public Map<String, ReplicationType> getReplicationTypes() {
         // ToDo scan available services...
@@ -83,18 +71,18 @@ public class ReplicationSetup extends AbstractSlingBean {
         return replicationTypes;
     }
 
-    public Map<String, List<ReplicationConfig>> getSetupByPath() {
+    public Collection<ConfigSet> getSetupByPath() {
         if (setupByPath == null) {
             setupByPath = getGrouped(new ReplicationConfig.PathComparator());
         }
-        return setupByPath;
+        return setupByPath.values();
     }
 
-    public Map<String, List<ReplicationConfig>> getSetupByType() {
+    public Collection<ConfigSet> getSetupByType() {
         if (setupByType == null) {
             setupByType = getGrouped(new ReplicationConfig.TypeComparator());
         }
-        return setupByType;
+        return setupByType.values();
     }
 
     /**
@@ -106,19 +94,20 @@ public class ReplicationSetup extends AbstractSlingBean {
             setup = new ArrayList<>();
             if (resource.isResourceType(RT_REPLICATION_SETUP)) {
                 for (Resource node : resource.getChildren()) {
-                    setup.add(new ConfigNode(node));
+                    setup.add(new ReplicationConfigNode(context, node));
                 }
             }
         }
         return setup;
     }
 
-    protected Map<String, List<ReplicationConfig>> getGrouped(ReplicationConfig.Comparator comparator) {
-        Map<String, List<ReplicationConfig>> result = new LinkedHashMap<>();
+    protected Map<String, ConfigSet> getGrouped(ReplicationConfig.Comparator comparator) {
+        Map<String, ConfigSet> result = new LinkedHashMap<>();
         List<ReplicationConfig> setup = getSetup();
         setup.sort(comparator);
         for (ReplicationConfig config : setup) {
-            result.computeIfAbsent(comparator.getKey(config), k -> new ArrayList<>()).add(config);
+            String key = comparator.getKey(config);
+            result.computeIfAbsent(key, k -> new ConfigSet(key)).getSet().add(config);
         }
         return result;
     }
