@@ -32,4 +32,10 @@ public class InplaceReplicationType implements ReplicationType {
     public String getConfigResourceType() {
         return "composum/platform/replication/config/inplace";
     }
+
+    @Nonnull
+    @Override
+    public String getStatusResourceType() {
+        return "composum/platform/replication/status/inplace";
+    }
 }

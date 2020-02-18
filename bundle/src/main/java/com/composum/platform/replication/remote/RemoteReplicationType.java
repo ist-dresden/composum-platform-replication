@@ -32,4 +32,10 @@ public class RemoteReplicationType implements ReplicationType {
     public String getConfigResourceType() {
         return "composum/platform/replication/config/remote";
     }
+
+    @Nonnull
+    @Override
+    public String getStatusResourceType() {
+        return "composum/platform/replication/status/remote";
+    }
 }

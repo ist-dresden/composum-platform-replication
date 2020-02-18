@@ -36,57 +36,18 @@ public interface ReplicationConfig {
     ReplicationType getReplicationType();
 
     /**
-     * @return the resource type if the component to view / edit the configuration
+     * @return the resource type of the component to view / edit the configuration
      */
     @Nonnull
     String getConfigResourceType();
 
+    /**
+     * @return 'true' if the replication declared by this configuration is enabled
+     */
     boolean isEnabled();
 
     /**
      * @return 'true' if the configuration can be changed by the user
      */
     boolean isEditable();
-
-    //
-    // to support grouping...
-    //
-
-    abstract class Comparator implements java.util.Comparator<ReplicationConfig> {
-
-        public abstract String getKey(ReplicationConfig config);
-
-        public abstract String getSortValue(ReplicationConfig config);
-
-        @Override
-        public int compare(ReplicationConfig o1, ReplicationConfig o2) {
-            return getSortValue(o1).compareTo(getSortValue(o2));
-        }
-    }
-
-    class PathComparator extends Comparator {
-
-        @Override
-        public String getKey(ReplicationConfig config) {
-            return config.getContentPath();
-        }
-
-        @Override
-        public String getSortValue(ReplicationConfig config) {
-            return getKey(config) + "\r" + config.getTitle();
-        }
-    }
-
-    class TypeComparator extends Comparator {
-
-        @Override
-        public String getKey(ReplicationConfig config) {
-            return config.getReplicationType().getTitle();
-        }
-
-        @Override
-        public String getSortValue(ReplicationConfig config) {
-            return getKey(config) + "\r" + config.getTitle();
-        }
-    }
 }

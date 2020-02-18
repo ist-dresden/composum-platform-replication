@@ -73,14 +73,14 @@ public class ReplicationSetup extends AbstractSlingBean {
 
     public Collection<ConfigSet> getSetupByPath() {
         if (setupByPath == null) {
-            setupByPath = getGrouped(new ReplicationConfig.PathComparator());
+            setupByPath = getGrouped(new PathComparator());
         }
         return setupByPath.values();
     }
 
     public Collection<ConfigSet> getSetupByType() {
         if (setupByType == null) {
-            setupByType = getGrouped(new ReplicationConfig.TypeComparator());
+            setupByType = getGrouped(new TypeComparator());
         }
         return setupByType.values();
     }
@@ -101,7 +101,7 @@ public class ReplicationSetup extends AbstractSlingBean {
         return setup;
     }
 
-    protected Map<String, ConfigSet> getGrouped(ReplicationConfig.Comparator comparator) {
+    protected Map<String, ConfigSet> getGrouped(Comparator comparator) {
         Map<String, ConfigSet> result = new LinkedHashMap<>();
         List<ReplicationConfig> setup = getSetup();
         setup.sort(comparator);
@@ -110,5 +110,47 @@ public class ReplicationSetup extends AbstractSlingBean {
             result.computeIfAbsent(key, k -> new ConfigSet(key)).getSet().add(config);
         }
         return result;
+    }
+
+    //
+    // to support grouping...
+    //
+
+    abstract class Comparator implements java.util.Comparator<ReplicationConfig> {
+
+        public abstract String getKey(ReplicationConfig config);
+
+        public abstract String getSortValue(ReplicationConfig config);
+
+        @Override
+        public int compare(ReplicationConfig o1, ReplicationConfig o2) {
+            return getSortValue(o1).compareTo(getSortValue(o2));
+        }
+    }
+
+    class PathComparator extends Comparator {
+
+        @Override
+        public String getKey(ReplicationConfig config) {
+            return config.getContentPath();
+        }
+
+        @Override
+        public String getSortValue(ReplicationConfig config) {
+            return getKey(config) + "\r" + config.getTitle();
+        }
+    }
+
+    class TypeComparator extends Comparator {
+
+        @Override
+        public String getKey(ReplicationConfig config) {
+            return config.getReplicationType().getTitle();
+        }
+
+        @Override
+        public String getSortValue(ReplicationConfig config) {
+            return getKey(config) + "\r" + config.getTitle();
+        }
     }
 }
