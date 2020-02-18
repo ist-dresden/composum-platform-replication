@@ -1,9 +1,15 @@
 package com.composum.platform.replication.model;
 
+import com.composum.platform.replication.ReplicationType;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 public interface ReplicationConfig {
+
+    String PN_CONTENT_PATH = "contentPath";
+    String PN_REPLICATIN_TYPE = "replicationType";
+    String PN_IS_EDITABLE = "isEditable";
 
     @Nonnull
     String getTitle();
@@ -11,12 +17,27 @@ public interface ReplicationConfig {
     @Nullable
     String getDescription();
 
+    /**
+     * @return the path of the configuration resource itself
+     */
+    @Nonnull
+    String getPath();
+
+    /**
+     * @return the path of the content affected by this configuration
+     */
     @Nonnull
     String getContentPath();
 
+    /**
+     * @return the replication service type (implementation type)
+     */
     @Nonnull
     ReplicationType getReplicationType();
-    
+
+    /**
+     * @return 'true' if the configuration can be changed by the user
+     */
     boolean isEditable();
 
     //
