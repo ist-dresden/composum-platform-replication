@@ -90,6 +90,9 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     /** Random number generator for creating unique ids etc. */
     protected final Random random;
 
+    /** Debugging aid - if set to true, the temporary directory will not be deleted. */
+    protected boolean nodelete = false;
+
     public RemotePublicationReceiverService() {
         Random therandom;
         try {
@@ -309,7 +312,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
             ModifiableValueMap releaseRootVm = targetReleaseRoot.adaptTo(ModifiableValueMap.class);
             releaseRootVm.put(StagingConstants.PROP_LAST_REPLICATION_DATE, Calendar.getInstance());
             releaseRootVm.put(StagingConstants.PROP_CHANGE_NUMBER, newReleaseChangeId);
-            resolver.delete(tmpLocation);
+            if (!nodelete) { resolver.delete(tmpLocation); }
             resolver.commit();
         }
     }
@@ -350,6 +353,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     public void abort(@Nullable String updateId) throws LoginException, RemotePublicationReceiverException,
             RepositoryException, PersistenceException {
         LOG.info("Abort called for {}", updateId);
+        if (nodelete) { return; }
         try (ResourceResolver resolver = makeResolver()) {
             Resource tmpLocation = getTmpLocation(resolver, updateId, false);
             resolver.delete(tmpLocation);
