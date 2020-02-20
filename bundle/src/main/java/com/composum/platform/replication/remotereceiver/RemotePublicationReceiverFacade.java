@@ -130,7 +130,7 @@ public class RemotePublicationReceiverFacade {
         List<NameValuePair> form = new ArrayList<>();
         form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_RELEASEROOT, releaseRoot));
         UrlEncodedFormEntity entity = new UrlEncodedFormEntity(form, Consts.UTF_8);
-        String uri = replicationConfig.getReceiverUri() + "." + startUpdate.name() + "." + json.name() + path;
+        String uri = replicationConfig.getTargetUrl() + "." + startUpdate.name() + "." + json.name() + path;
         HttpPost post = new HttpPost(uri);
         post.setEntity(entity);
 
@@ -159,7 +159,7 @@ public class RemotePublicationReceiverFacade {
     public RemotePublicationReceiverServlet.StatusWithReleaseData releaseInfo(@NotNull String releaseRootPath) throws RemotePublicationFacadeException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 passwordDecryptor());
-        String uri = replicationConfig.getReceiverUri() + "." + releaseInfo.name() + "." + json.name() + releaseRootPath;
+        String uri = replicationConfig.getTargetUrl() + "." + releaseInfo.name() + "." + json.name() + releaseRootPath;
         HttpGet method = new HttpGet(uri);
 
         LOG.info("Get releaseinfo for path {}", releaseRootPath);
@@ -187,7 +187,7 @@ public class RemotePublicationReceiverFacade {
         form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId));
         for (String path : paths) { form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_PATH, path)); }
         UrlEncodedFormEntity entity = new UrlEncodedFormEntity(form, Consts.UTF_8);
-        String uri = replicationConfig.getReceiverUri() + "." + contentState.name() + "." + json.name();
+        String uri = replicationConfig.getTargetUrl() + "." + contentState.name() + "." + json.name();
         HttpPost post = new HttpPost(uri);
         post.setEntity(entity);
 
@@ -212,7 +212,7 @@ public class RemotePublicationReceiverFacade {
             throws URISyntaxException, RemotePublicationFacadeException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 passwordDecryptor());
-        URI uri = new URIBuilder(replicationConfig.getReceiverUri() + "." + compareContent.name() +
+        URI uri = new URIBuilder(replicationConfig.getTargetUrl() + "." + compareContent.name() +
                 "." + json.name() + contentPath)
                 .addParameter(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId)
                 .build();
@@ -240,7 +240,7 @@ public class RemotePublicationReceiverFacade {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 passwordDecryptor());
         URI uri =
-                new URIBuilder(replicationConfig.getReceiverUri() + "." + pathUpload.name() + "." + zip.name() + resource.getPath())
+                new URIBuilder(replicationConfig.getTargetUrl() + "." + pathUpload.name() + "." + zip.name() + resource.getPath())
                         .addParameter(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId).build();
         HttpPut put = new HttpPut(uri);
         put.setEntity(new PackageHttpEntity(nodesConfig, context, resource));
@@ -293,7 +293,7 @@ public class RemotePublicationReceiverFacade {
             }
         };
 
-        String uri = replicationConfig.getReceiverUri() + "." + commitUpdate.name() + "." + json.name();
+        String uri = replicationConfig.getTargetUrl() + "." + commitUpdate.name() + "." + json.name();
         HttpPut put = new HttpPut(uri);
         put.setEntity(entity);
 
@@ -311,7 +311,7 @@ public class RemotePublicationReceiverFacade {
         List<NameValuePair> form = new ArrayList<>();
         form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId));
         UrlEncodedFormEntity entity = new UrlEncodedFormEntity(form, Consts.UTF_8);
-        String uri = replicationConfig.getReceiverUri() + "." + abortUpdate.name() + "." + json.name();
+        String uri = replicationConfig.getTargetUrl() + "." + abortUpdate.name() + "." + json.name();
         HttpPost post = new HttpPost(uri);
         post.setEntity(entity);
 
@@ -347,7 +347,7 @@ public class RemotePublicationReceiverFacade {
             }
         };
 
-        String uri = replicationConfig.getReceiverUri() + "." + compareParents.name() + "." + json.name() + releaseRoot;
+        String uri = replicationConfig.getTargetUrl() + "." + compareParents.name() + "." + json.name() + releaseRoot;
         HttpPut put = new HttpPut(uri);
         put.setEntity(entity);
 

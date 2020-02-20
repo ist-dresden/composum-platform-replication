@@ -247,7 +247,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             name = remotePublicationConfig.getName();
             description = remotePublicationConfig.getDescription();
             enabled = remotePublicationConfig.isEnabled();
-            mark = remotePublicationConfig.getReleaseMark();
+            mark = remotePublicationConfig.getStage();
             active = null;
         }
 
@@ -271,8 +271,8 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             RemotePublicationConfig publicationConfig = new BeanContext.Service(resolver).adaptTo(RemotePublicationConfig.class);
             List<String> marks = release.getMarks();
             return publicationConfig != null && publicationConfig.isEnabled() && (
-                    marks.contains(publicationConfig.getReleaseMark().toLowerCase())
-                            || marks.contains(publicationConfig.getReleaseMark().toUpperCase()));
+                    marks.contains(publicationConfig.getStage().toLowerCase())
+                            || marks.contains(publicationConfig.getStage().toUpperCase()));
         }
 
         @Override
@@ -868,7 +868,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         public String toString() {
             final StringBuilder sb = new StringBuilder("ReplicatorStrategy{");
             sb.append("id=").append(replicationConfig.getPath());
-            if (replicationConfig != null) { sb.append(", receiver=").append(replicationConfig.getReceiverUri()); }
+            if (replicationConfig != null) { sb.append(", receiver=").append(replicationConfig.getTargetUrl()); }
             if (cleanupUpdateInfo != null) { sb.append(", updateInfo=").append(cleanupUpdateInfo.updateId); }
             sb.append('}');
             return sb.toString();
