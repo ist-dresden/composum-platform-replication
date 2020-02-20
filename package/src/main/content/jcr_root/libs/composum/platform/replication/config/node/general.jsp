@@ -5,10 +5,10 @@
 <sling:defineObjects/>
 <cpn:component var="model" type="com.composum.platform.replication.model.ReplicationConfigNode" scope="request">
     <div class="composum-platform-replication-config-node_general">
-        <span class="badge">${cpn:text(model.property.releaseMark)}</span>
-        <span class="type key"> - type :</span>
-        <span class="type value">${cpn:text(model.replicationType.title)}</span>
-        <span class="path key"> - path :</span>
-        <span class="path value">${cpn:text(model.contentPath)}</span>
+        <span class="badge">${cpn:i18n(slingRequest,model.property.stage)}</span>
+        <span class="type key"> - ${cpn:i18n(slingRequest,'Type')} :</span>
+        <span class="type value">${cpn:i18n(slingRequest,model.replicationType.title)}</span>
+        <span class="path key"> - ${cpn:i18n(slingRequest,'Path')} :</span>
+        <span class="path value">${cpn:text(model.sourcePath)}</span>
     </div>
 </cpn:component>

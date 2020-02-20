@@ -23,6 +23,12 @@ public class ReplicationConfigNode extends ResourceModel implements ReplicationC
 
     @Nonnull
     @Override
+    public String getStage() {
+        return getProperty(PN_STAGE, "");
+    }
+
+    @Nonnull
+    @Override
     public String getTitle() {
         return getProperty(ResourceUtil.JCR_TITLE, getResource().getName());
     }
@@ -35,17 +41,14 @@ public class ReplicationConfigNode extends ResourceModel implements ReplicationC
 
     @Nonnull
     @Override
-    public String getContentPath() {
-        String path = getProperty(PN_CONTENT_PATH, "");
-        if (StringUtils.isBlank(path)) {
-            path = getProperty("relPath", "");
-            if (".".equals(path)) {
-                path = "";
-            }
-            path = getPath().replaceAll("/conf(/.*)/replication/[^/]+", "$1")
-                    + (StringUtils.isNotBlank(path) ? ("/" + path) : "");
-        }
-        return path;
+    public String getSourcePath() {
+        return getProperty(PN_SOURCE_PATH, "");
+    }
+
+    @Nullable
+    @Override
+    public String getTargetPath() {
+        return getProperty(PN_TARGET_PATH, String.class);
     }
 
     @Nonnull

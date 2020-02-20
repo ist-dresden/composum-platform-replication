@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jcr:root xmlns:sling="http://sling.apache.org/jcr/sling/1.0" xmlns:jcr="http://www.jcp.org/jcr/1.0"
+        xmlns:mix="http://www.jcp.org/jcr/mix/1.0"
+        jcr:language="de"
+        jcr:mixinTypes="[mix:language]"
+        jcr:primaryType="sling:Folder"
+        sling:basename="composum-assets">
+
+    <status jcr:primaryType="nt:unstructured">
+
+        <progress jcr:primaryType="sling:MessageEntry"
+                sling:key="progress" sling:message="Fortschritt"/>
+        <Progress jcr:primaryType="sling:MessageEntry"
+                sling:key="Progress" sling:message="Fortschritt"/>
+
+    </status>
+
+    <config jcr:primaryType="nt:unstructured">
+
+        <public jcr:primaryType="sling:MessageEntry"
+                sling:key="public" sling:message="öffentlich"/>
+        <Public jcr:primaryType="sling:MessageEntry"
+                sling:key="Public" sling:message="Öffentlich"/>
+        <preview jcr:primaryType="sling:MessageEntry"
+                sling:key="preview" sling:message="Vorschau"/>
+        <Preview jcr:primaryType="sling:MessageEntry"
+                sling:key="Preview" sling:message="Vorschau"/>
+
+        <Replication jcr:primaryType="sling:MessageEntry"
+                sling:key="Replication" sling:message="Vervielfältigung"/>
+        <Process jcr:primaryType="sling:MessageEntry"
+                sling:key="Process" sling:message="Prozess"/>
+        <InPlace jcr:primaryType="sling:MessageEntry"
+                sling:key="In-Place" sling:message="In-Place"/>
+        <Remote jcr:primaryType="sling:MessageEntry"
+                sling:key="Remote" sling:message="Remote"/>
+
+        <ReplicationSetup jcr:primaryType="sling:MessageEntry"
+                sling:key="Replication Setup" sling:message="Vervielfältigung Einstellen"/>
+        <ReplicationProcess jcr:primaryType="sling:MessageEntry"
+                sling:key="Replication Process" sling:message="Vervielfältigungsprozess"/>
+        <InPlaceReplication jcr:primaryType="sling:MessageEntry"
+                sling:key="In-Place Replication" sling:message="In-Place-Vervielfältigung"/>
+        <RemoteReplication jcr:primaryType="sling:MessageEntry"
+                sling:key="Remote Replication" sling:message="Remote-Vervielfältigung"/>
+
+        <active jcr:primaryType="sling:MessageEntry"
+                sling:key="active" sling:message="aktiv"/>
+        <enabled jcr:primaryType="sling:MessageEntry"
+                sling:key="enabled" sling:message="erlaubt"/>
+        <editable jcr:primaryType="sling:MessageEntry"
+                sling:key="editable" sling:message="änderbar"/>
+        <Stage jcr:primaryType="sling:MessageEntry"
+                sling:key="Stage" sling:message="Stage"/>
+        <SourcePath jcr:primaryType="sling:MessageEntry"
+                sling:key="Source Path" sling:message="Quell-Pfad"/>
+        <TargetPath jcr:primaryType="sling:MessageEntry"
+                sling:key="Target Path" sling:message="Ziel-Pfad"/>
+        <Proxy jcr:primaryType="sling:MessageEntry"
+                sling:key="Proxy" sling:message="Proxy"/>
+        <Credentials jcr:primaryType="sling:MessageEntry"
+                sling:key="Credentials" sling:message="Zugangsdaten"/>
+        <TargetURL jcr:primaryType="sling:MessageEntry"
+                sling:key="Target URL" sling:message="Ziel-URL"/>
+        <byPath jcr:primaryType="sling:MessageEntry"
+                sling:key="by Path" sling:message="nach Pfad"/>
+        <byType jcr:primaryType="sling:MessageEntry"
+                sling:key="by Type" sling:message="nach Typ"/>
+
+    </config>
+
+</jcr:root>

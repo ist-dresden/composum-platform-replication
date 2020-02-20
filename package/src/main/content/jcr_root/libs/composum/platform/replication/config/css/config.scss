@@ -5,38 +5,62 @@
 .composum-platform-replication-config {
 
     &-node {
-        display: block;
-        position: relative;
-        margin: 0;
-        padding: 10px 10px 10px 50px;
 
-        &.editable {
-            cursor: pointer;
-            color: $bootstrap-link-color;
-        }
+        &_view {
+            display: block;
+            position: relative;
+            margin: 0;
+            padding: 10px 10px 10px 50px;
 
-        .key, .value {
-            line-height: 22px;
-        }
+            &.editable {
+                cursor: pointer;
+                color: $bootstrap-link-color;
+            }
 
-        .key {
-            white-space: nowrap;
-        }
+            .key, .value {
+                line-height: 22px;
+            }
 
-        .composum-platform-replication-config-node {
+            .key {
+                white-space: nowrap;
+            }
 
-            &_title {
-                margin: 0 0 5px;
+            .tooltip {
 
-                .enabled {
-                    position: absolute;
-                    top: 10px;
-                    left: 15px;
-                    font-size: 20px;
-                    color: $bootstrap-color-success;
+                .tooltip-arrow {
+                    border-bottom-color: $bootstrap-bg-info;
+                }
 
-                    &.fa-toggle-off {
-                        color: $bootstrap-color-danger;
+                .tooltip-inner {
+                    background-color: $bootstrap-bg-info;
+                    color: $bootstrap-color-info;
+                }
+
+                &, & p {
+                    text-align: left;
+                }
+
+                p {
+                    margin: 3px 0;
+                }
+            }
+
+            .composum-platform-replication-config-node {
+
+                &_title {
+                    display: inline-block;
+                    margin: 0 0 5px;
+
+                    .enabled {
+                        position: absolute;
+                        top: 10px;
+                        left: 15px;
+                        font-size: 20px;
+                        color: $bootstrap-color-success;
+
+                        &.fa-toggle-off {
+                            color: $bootstrap-color-danger;
+                        }
                     }
                 }
             }
@@ -94,7 +118,7 @@
 
             &-path {
 
-                .composum-platform-replication-config-node {
+                .composum-platform-replication-config-node_view {
 
                     .path {
 
@@ -107,7 +131,7 @@
 
             &-type {
 
-                .composum-platform-replication-config-node {
+                .composum-platform-replication-config-node_view {
 
                     .type {
 

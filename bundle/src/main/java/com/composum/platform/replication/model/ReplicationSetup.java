@@ -132,7 +132,7 @@ public class ReplicationSetup extends AbstractSlingBean {
 
         @Override
         public String getKey(ReplicationConfig config) {
-            return config.getContentPath();
+            return config.getSourcePath();
         }
 
         @Override

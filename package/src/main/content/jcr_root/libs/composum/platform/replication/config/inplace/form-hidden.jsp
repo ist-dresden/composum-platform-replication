@@ -3,8 +3,5 @@
 <%@taglib prefix="cpn" uri="http://sling.composum.com/cpnl/1.0" %>
 <sling:defineObjects/>
 <cpn:component var="model" type="com.composum.platform.replication.model.ReplicationConfigNode" scope="request">
-    <div data-path="${model.path}" data-type="${model.type}"
-         class="composum-platform-replication-config-node_view ${model.editable?' editable':''}">
-        <sling:call script="content.jsp"/>
-    </div>
+    <input type="hidden" name="sling:resourceType" value="composum/platform/replication/config/inplace">
 </cpn:component>

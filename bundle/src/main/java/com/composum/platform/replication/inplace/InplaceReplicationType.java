@@ -18,7 +18,7 @@ public class InplaceReplicationType implements ReplicationType {
     @Nonnull
     @Override
     public String getTitle() {
-        return "In Place";
+        return "In-Place";
     }
 
     @Nullable

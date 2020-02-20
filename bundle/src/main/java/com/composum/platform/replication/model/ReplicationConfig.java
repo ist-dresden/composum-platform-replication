@@ -7,10 +7,15 @@ import javax.annotation.Nullable;
 
 public interface ReplicationConfig {
 
-    String PN_CONTENT_PATH = "contentPath";
+    String PN_STAGE = "stage";
+    String PN_SOURCE_PATH = "sourcePath";
+    String PN_TARGET_PATH = "targetPath";
     String PN_REPLICATIN_TYPE = "replicationType";
     String PN_IS_ENABLED = "enabled";
     String PN_IS_EDITABLE = "editable";
+
+    @Nonnull
+    String getStage();
 
     @Nonnull
     String getTitle();
@@ -27,8 +32,13 @@ public interface ReplicationConfig {
      * @return the path of the content affected by this configuration
      */
     @Nonnull
-    String getContentPath();
+    String getSourcePath();
 
+    /**
+     * @return the optional path at the target (for reference transformation)
+     */
+    @Nullable
+    public String getTargetPath();
     /**
      * @return the replication service type (implementation type)
      */

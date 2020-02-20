@@ -6,7 +6,7 @@
     <sling:call script="title.jsp"/>
     <sling:call script="general.jsp"/>
     <div class="composum-platform-replication-config-node_settings">
-        <span class="key">target URL :</span>
-        <span class="value">${cpn:text(model.property.receiverUrl)}</span>
+        <span class="key">${cpn:i18n(slingRequest,'Target URL')} :</span>
+        <span class="value">${cpn:text(model.property.targetUrl)}</span>
     </div>
 </cpn:component>
