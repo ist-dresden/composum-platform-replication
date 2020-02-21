@@ -27,11 +27,5 @@ public interface ReplicationType {
      * @return the resource type of the replication implementation configuration component
      */
     @Nonnull
-    String getConfigResourceType();
-
-    /**
-     * @return the resource type of the replication implementation status view component
-     */
-    @Nonnull
-    String getStatusResourceType();
+    String getResourceType();
 }

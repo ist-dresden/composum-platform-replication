@@ -5,5 +5,5 @@
             category:composum.components.widgets
         ]"
         embed="[
-            composum/platform/replication/config/js/config.js
+            composum/platform/replication/js/replication.js
         ]"/>

@@ -78,6 +78,6 @@ public class ReplicationConfigNode extends ResourceModel implements ReplicationC
     @Override
     public String getConfigResourceType() {
         String resourceType = getProperty(ResourceUtil.PROP_RESOURCE_TYPE, "");
-        return StringUtils.isBlank(resourceType) ? getReplicationType().getConfigResourceType() : resourceType;
+        return StringUtils.isBlank(resourceType) ? getReplicationType().getResourceType() : resourceType;
     }
 }

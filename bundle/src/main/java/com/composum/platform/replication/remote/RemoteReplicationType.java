@@ -29,13 +29,7 @@ public class RemoteReplicationType implements ReplicationType {
 
     @Nonnull
     @Override
-    public String getConfigResourceType() {
-        return "composum/platform/replication/config/remote";
-    }
-
-    @Nonnull
-    @Override
-    public String getStatusResourceType() {
-        return "composum/platform/replication/status/remote";
+    public String getResourceType() {
+        return "composum/platform/replication/remote";
     }
 }
