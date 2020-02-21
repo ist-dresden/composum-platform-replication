@@ -5,13 +5,13 @@
 <div class="composum-platform-replication-config-node_dialog dialog modal fade" role="dialog" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content form-panel default">
-            <cpn:form action="${slingRequest.requestPathInfo.suffix}" method="POST"
+            <cpn:form action="${slingRequest.requestPathInfo.suffix}/*" method="POST"
                       class="composum-platform-replication-config-node_dialog_form widget-form">
                 <div class="modal-header">
                     <button type="button" class="modal-dialog_close fa fa-close" data-dismiss="modal"
                             title="${cpn:i18n(slingRequest,'Close')}"
                             aria-label="${cpn:i18n(slingRequest,'Close')}"></button>
-                    <sling:call script="dialog-title.jsp"/>
+                    <h4 class="modal-title">${cpn:i18n(slingRequest,'New Replication Configuration')}</h4>
                 </div>
                 <div class="composum-platform-replication-config-node_dialog_body modal-body">
                     <div class="composum-platform-replication-config-node_dialog_messages messages">
@@ -20,17 +20,34 @@
                             <div class="panel-body hidden"></div>
                         </div>
                     </div>
-                    <input name="_charset_" type="hidden" value="UTF-8"/>
+                    <input type="hidden" name="_charset_" value="UTF-8"/>
+                    <input type="hidden" name="editable@TypeHint" value="Boolean"/>
+                    <input type="hidden" name="editable" value="true"/>
+                    <div class="row">
+                        <div class="col col-xs-6">
+                            <div class="form-group">
+                                <label>${cpn:i18n(slingRequest,'Type')}</label>
+                                <select name="replicationType" data-rules="required"
+                                        data-options="remote:${cpn:i18n(slingRequest,'Standard Remote')},inplace:${cpn:i18n(slingRequest,'In-Place')}"
+                                        class="composum-platform-replication-config-node_type widget select-widget form-control"></select>
+                            </div>
+                        </div>
+                        <div class="col col-xs-6">
+                            <div class="form-group">
+                                <label>${cpn:i18n(slingRequest,'Name')}</label>
+                                <input type="text" name=":name" data-rules="required"
+                                       data-pattern="^[a-zA-Z][a-zA-Z0-9_-]*$"
+                                       class="composum-platform-replication-config-node_name widget text-field-widget form-control"/>
+                            </div>
+                        </div>
+                    </div>
                     <div class="composum-platform-replication-config-node_dialog_content">
-                        <sling:include path="${slingRequest.requestPathInfo.suffix}" replaceSelectors="form"/>
                     </div>
                 </div>
                 <div class="composum-platform-replication-config-node_dialog_footer modal-footer buttons">
-                    <button type="button" class="delete btn btn-danger"
-                            data-dismiss="modal">${cpn:i18n(slingRequest,'Delete')}</button>
                     <button type="button" class="btn btn-default"
                             data-dismiss="modal">${cpn:i18n(slingRequest,'Cancel')}</button>
-                    <button type="submit" class="btn btn-primary">${cpn:i18n(slingRequest,'Save')}</button>
+                    <button type="submit" class="btn btn-primary">${cpn:i18n(slingRequest,'Create')}</button>
                 </div>
             </cpn:form>
         </div>

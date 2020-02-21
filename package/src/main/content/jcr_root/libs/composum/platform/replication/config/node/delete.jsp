@@ -11,26 +11,25 @@
                     <button type="button" class="modal-dialog_close fa fa-close" data-dismiss="modal"
                             title="${cpn:i18n(slingRequest,'Close')}"
                             aria-label="${cpn:i18n(slingRequest,'Close')}"></button>
-                    <sling:call script="dialog-title.jsp"/>
+                    <h4 class="modal-title">${cpn:i18n(slingRequest,'Delete Replication Configuration')}</h4>
                 </div>
                 <div class="composum-platform-replication-config-node_dialog_body modal-body">
                     <div class="composum-platform-replication-config-node_dialog_messages messages">
-                        <div class="panel panel-warning hidden">
-                            <div class="panel-heading"></div>
+                        <div class="panel panel-danger">
+                            <div class="panel-heading">${cpn:i18n(slingRequest,'Do you really want to delete this replication configuration?')}</div>
                             <div class="panel-body hidden"></div>
                         </div>
                     </div>
-                    <input name="_charset_" type="hidden" value="UTF-8"/>
+                    <input type="hidden" name="_charset_" value="UTF-8"/>
+                    <input type="hidden" name=":operation" value="delete"/>
                     <div class="composum-platform-replication-config-node_dialog_content">
-                        <sling:include path="${slingRequest.requestPathInfo.suffix}" replaceSelectors="form"/>
+                        <sling:include path="${slingRequest.requestPathInfo.suffix}" replaceSelectors=""/>
                     </div>
                 </div>
                 <div class="composum-platform-replication-config-node_dialog_footer modal-footer buttons">
-                    <button type="button" class="delete btn btn-danger"
-                            data-dismiss="modal">${cpn:i18n(slingRequest,'Delete')}</button>
                     <button type="button" class="btn btn-default"
                             data-dismiss="modal">${cpn:i18n(slingRequest,'Cancel')}</button>
-                    <button type="submit" class="btn btn-primary">${cpn:i18n(slingRequest,'Save')}</button>
+                    <button type="submit" class="btn btn-primary">${cpn:i18n(slingRequest,'Delete')}</button>
                 </div>
             </cpn:form>
         </div>

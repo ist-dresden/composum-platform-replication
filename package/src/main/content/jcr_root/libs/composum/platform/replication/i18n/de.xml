@@ -44,6 +44,14 @@
         <RemoteReplication jcr:primaryType="sling:MessageEntry"
                 sling:key="Remote Replication" sling:message="Remote-Vervielfältigung"/>
 
+        <NewReplicationConfiguration jcr:primaryType="sling:MessageEntry"
+                sling:key="New Replication Configuration" sling:message="Neue Vervielfältigungskonfiguration"/>
+        <DeleteReplicationConfiguration jcr:primaryType="sling:MessageEntry"
+                sling:key="Delete Replication Configuration" sling:message="Vervielfältigungskonfiguration Löschen"/>
+        <DeleteReplicationConfigurationQuestion jcr:primaryType="sling:MessageEntry"
+                sling:key="Do you really want to delete this replication configuration?"
+                sling:message="Wollen Sie diese Vervielfältigungskonfiguration tatsächlich löschen?"/>
+
         <active jcr:primaryType="sling:MessageEntry"
                 sling:key="active" sling:message="aktiv"/>
         <enabled jcr:primaryType="sling:MessageEntry"

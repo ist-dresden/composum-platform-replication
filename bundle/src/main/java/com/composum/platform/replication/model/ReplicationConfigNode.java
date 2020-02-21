@@ -42,7 +42,11 @@ public class ReplicationConfigNode extends ResourceModel implements ReplicationC
     @Nonnull
     @Override
     public String getSourcePath() {
-        return getProperty(PN_SOURCE_PATH, "");
+        String path = getProperty(PN_SOURCE_PATH, "");
+        if (StringUtils.isBlank(path)) {
+            path = getPath().replaceAll("/conf(/.*)/replication/[^/]+", "$1");
+        }
+        return path;
     }
 
     @Nullable

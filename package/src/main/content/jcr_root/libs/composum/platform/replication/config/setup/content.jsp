@@ -4,6 +4,11 @@
 <sling:defineObjects/>
 <cpn:component var="model" type="com.composum.platform.replication.model.ReplicationSetup" scope="request">
     <form class="composum-platform-replication-config-setup_form widget-form">
+        <div class="composum-platform-replication-config-setup_toolbar">
+            <button class="composum-platform-replication-config-setup_add btn btn-default"><i
+                    class="fa fa-plus"></i><span>${cpn:i18n(slingRequest,'New Replication Configuration')}</span>
+            </button>
+        </div>
         <ul class="composum-commons-form-tab-nav nav nav-tabs" role="tablist">
         </ul>
         <div class="composum-platform-replication-config-setup_panels tab-content composum-commons-form-tabbed">

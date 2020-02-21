@@ -22,7 +22,8 @@
                     <ul class="list-group">
                         <c:forEach items="${group.set}" var="item">
                             <li class="list-group_item">
-                                <sling:include path="${item.path}" resourceType="${item.configResourceType}"/>
+                                <sling:include path="${item.path}"
+                                               resourceType="${item.configResourceType}" replaceSelectors=""/>
                             </li>
                         </c:forEach>
                     </ul>

@@ -36,8 +36,9 @@
         <div class="col col-xs-9">
             <div class="form-group">
                 <label>${cpn:i18n(slingRequest,'Source Path')}</label>
-                <div class="composum-platform-replication-config-node_source-path input-group widget path-widget">
-                    <input name="sourcePath" class="form-control" type="text" value="${model.sourcePath}"/>
+                <div data-rules="required"
+                     class="composum-platform-replication-config-node_source-path input-group widget path-widget">
+                    <input name="sourcePath" class="form-control" type="text" value="${model.property.sourcePath}"/>
                     <span class="input-group-btn"><button
                             class="select btn btn-default" type="button"
                             title="${cpn:i18n(slingRequest,'Select Repository Path')}">...</button></span>
