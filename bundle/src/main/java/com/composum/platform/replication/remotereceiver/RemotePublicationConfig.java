@@ -1,5 +1,8 @@
 package com.composum.platform.replication.remotereceiver;
 
+import com.composum.platform.replication.ReplicationType;
+import com.composum.platform.replication.model.ReplicationConfig;
+import com.composum.platform.replication.remote.RemoteReplicationType;
 import com.composum.sling.core.AbstractSlingBean;
 import com.composum.sling.core.util.ResourceUtil;
 import com.composum.sling.platform.security.AccessMode;
@@ -12,6 +15,7 @@ import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.sling.jcr.resource.api.JcrResourceConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,7 +28,7 @@ import java.util.function.Function;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
 
 /** Bean modeling a remote publication configuration - subnode below /conf/{sitepath}/{site}/replication/ . */
-public class RemotePublicationConfig extends AbstractSlingBean {
+public class RemotePublicationConfig extends AbstractSlingBean implements ReplicationConfig {
     private static final Logger LOG = LoggerFactory.getLogger(RemotePublicationConfig.class);
 
     /** Property name for {@link #isEnabled()}. */
@@ -51,6 +55,8 @@ public class RemotePublicationConfig extends AbstractSlingBean {
     public static final String PROP_TARGET_PATH = "targetPath";
     /** Property name for {@link #getProxyKey()}. */
     public static final String PROP_PROXY_KEY = "proxyKey";
+
+    protected static final ReplicationType REMOTE_REPLICATION_TYPE = new RemoteReplicationType();
 
     /** @see #isEnabled() */
     private transient Boolean enabled;
@@ -80,6 +86,7 @@ public class RemotePublicationConfig extends AbstractSlingBean {
     private transient String description;
 
     /** Optional human-readable description. */
+    @Override
     public String getDescription() {
         if (description == null) {
             description = getProperty(ResourceUtil.PROP_DESCRIPTION, String.class);
@@ -92,6 +99,7 @@ public class RemotePublicationConfig extends AbstractSlingBean {
      * {@value com.composum.sling.platform.security.AccessMode#PREVIEW}) for which the release is replicated.
      * If empty, there is no replication.
      */
+    @Override
     public String getStage() {
         if (stage == null) {
             stage = getProperty(PROP_ACCESS_MODE, AccessMode.PUBLIC.name());
@@ -100,11 +108,17 @@ public class RemotePublicationConfig extends AbstractSlingBean {
     }
 
     /** Whether this replication is enabled - default true. */
+    @Override
     public boolean isEnabled() {
         if (enabled == null) {
             enabled = getProperty(PROP_ENABLED, Boolean.TRUE);
         }
         return enabled;
+    }
+
+    @Override
+    public boolean isEditable() {
+        return true;
     }
 
     /** URL of the {@link RemotePublicationReceiverServlet} on the remote system. */
@@ -181,6 +195,7 @@ public class RemotePublicationConfig extends AbstractSlingBean {
     }
 
     /** Optional, the path we replicate - must be the site or a subpath of the site. */
+    @Override
     public String getSourcePath() {
         if (sourcePath == null) {
             sourcePath = getProperty(PROP_SOURCE_PATH, String.class);
@@ -189,11 +204,24 @@ public class RemotePublicationConfig extends AbstractSlingBean {
     }
 
     /** Optional, the path we replicate to. If not given, this is equivalent to the source Path. */
+    @Override
     public String getTargetPath() {
         if (targetPath == null) {
             targetPath = getProperty(PROP_TARGET_PATH, String.class);
         }
         return targetPath;
+    }
+
+    @Nonnull
+    @Override
+    public ReplicationType getReplicationType() {
+        return REMOTE_REPLICATION_TYPE;
+    }
+
+    @Nonnull
+    @Override
+    public String getConfigResourceType() {
+        return getProperty(JcrResourceConstants.SLING_RESOURCE_TYPE_PROPERTY, String.class);
     }
 
     /** Optionally, the key of the proxy we need to use to reach the remote system. */
