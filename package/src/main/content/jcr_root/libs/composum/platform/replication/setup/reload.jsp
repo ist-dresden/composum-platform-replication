@@ -3,6 +3,6 @@
 <%@taglib prefix="cpn" uri="http://sling.composum.com/cpnl/1.0" %>
 <sling:defineObjects/>
 <cpn:component var="model" type="com.composum.platform.replication.model.ReplicationSetup" scope="request"
-               path="${slingRequest.requestPathInfo.suffix}">
+               path="${cpn:filter(slingRequest.requestPathInfo.suffix)}">
     <sling:call script="content.jsp"/>
 </cpn:component>

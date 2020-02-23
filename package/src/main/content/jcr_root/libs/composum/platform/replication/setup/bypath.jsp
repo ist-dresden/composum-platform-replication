@@ -13,7 +13,7 @@
                     <h4 class="panel-title">
                         <a href="#${model.domId}_path-body_${group.id}"
                            role="button" data-toggle="collapse" aria-expanded="true"
-                           aria-controls="${model.domId}_path-body_${group.id}">${group.title}</a>
+                           aria-controls="${model.domId}_path-body_${group.id}">${cpn:text(group.title)}</a>
                     </h4>
                 </div>
                 <div id="${model.domId}_path-body_${group.id}" role="tabpanel"

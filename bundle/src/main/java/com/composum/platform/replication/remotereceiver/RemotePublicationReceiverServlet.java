@@ -10,6 +10,7 @@ import com.composum.sling.core.servlet.ServletOperation;
 import com.composum.sling.core.servlet.ServletOperationSet;
 import com.composum.sling.core.servlet.Status;
 import com.composum.sling.core.util.SlingResourceUtil;
+import com.composum.sling.core.util.XSS;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonParseException;
@@ -154,8 +155,8 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
             GsonBuilder gsonBuilder = new GsonBuilder().registerTypeAdapterFactory(factory);
             ContentStateStatus status = new ContentStateStatus(gsonBuilder, request, response, LOG);
 
-            String contentPath = request.getRequestPathInfo().getSuffix();
-            String[] additionalPaths = request.getParameterValues(RemoteReceiverConstants.PARAM_PATH);
+            String contentPath = XSS.filter(request.getRequestPathInfo().getSuffix());
+            String[] additionalPaths = XSS.filter(request.getParameterValues(RemoteReceiverConstants.PARAM_PATH));
             List<String> paths = new ArrayList<>();
             if (StringUtils.isNotBlank(contentPath)) { paths.add(contentPath); }
             if (additionalPaths != null) { paths.addAll(Arrays.asList(additionalPaths)); }
@@ -219,8 +220,8 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource)
                 throws IOException, ServletException {
             Status status = new Status(request, response, LOG);
-            String updateId = request.getParameter(PARAM_UPDATEID);
-            String contentPath = request.getRequestPathInfo().getSuffix();
+            String updateId = XSS.filter(request.getParameter(PARAM_UPDATEID));
+            String contentPath = XSS.filter(request.getRequestPathInfo().getSuffix());
             try {
                 List<String> diffpaths = service.compareContent(contentPath, updateId, request.getReader());
                 status.data(Status.DATA).put(RemoteReceiverConstants.PARAM_PATH, diffpaths);
@@ -241,8 +242,8 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle ignored)
                 throws IOException, ServletException {
             StatusWithReleaseData status = new StatusWithReleaseData(request, response, LOG);
-            String contentPath = request.getRequestPathInfo().getSuffix();
-            String releaseRootPath = request.getParameter(RemoteReceiverConstants.PARAM_RELEASEROOT);
+            String contentPath = XSS.filter(request.getRequestPathInfo().getSuffix());
+            String releaseRootPath = XSS.filter(request.getParameter(RemoteReceiverConstants.PARAM_RELEASEROOT));
             if (isNotBlank(releaseRootPath) && isNotBlank(contentPath) &&
                     SlingResourceUtil.isSameOrDescendant(releaseRootPath, contentPath)) {
                 try {
@@ -286,7 +287,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource)
                 throws IOException, ServletException {
             Status status = new Status(request, response, LOG);
-            String packageRootPath = request.getRequestPathInfo().getSuffix();
+            String packageRootPath = XSS.filter(request.getRequestPathInfo().getSuffix());
             String updateId = status.getRequiredParameter(PARAM_UPDATEID, PATTERN_UPDATEID, "UpdateId required");
             if (isNotBlank(packageRootPath) && status.isValid()) {
 
@@ -391,7 +392,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         @Override
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource)
                 throws IOException, ServletException {
-            String suffix = request.getRequestPathInfo().getSuffix();
+            String suffix = XSS.filter(request.getRequestPathInfo().getSuffix());
             StatusWithReleaseData status = new StatusWithReleaseData(request, response, LOG);
             try {
                 status.updateInfo = service.releaseInfo(suffix);
@@ -411,7 +412,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 throws IOException, ServletException {
             Status status = new Status(request, response, LOG);
             Gson gson = new GsonBuilder().create();
-            String releaseRoot = request.getRequestPathInfo().getSuffix();
+            String releaseRoot = XSS.filter(request.getRequestPathInfo().getSuffix());
 
             try (JsonReader jsonReader = new JsonReader(request.getReader())) {
                 jsonReader.beginObject();

@@ -5,7 +5,7 @@
 <div class="composum-platform-replication-node_dialog dialog modal fade" role="dialog" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content form-panel default">
-            <cpn:form action="${slingRequest.requestPathInfo.suffix}" method="POST"
+            <cpn:form action="${cpn:filter(slingRequest.requestPathInfo.suffix)}" method="POST"
                       class="composum-platform-replication-node_dialog_form widget-form">
                 <div class="modal-header">
                     <button type="button" class="modal-dialog_close fa fa-close" data-dismiss="modal"
@@ -22,7 +22,7 @@
                     </div>
                     <input name="_charset_" type="hidden" value="UTF-8"/>
                     <div class="composum-platform-replication-node_dialog_content">
-                        <sling:include path="${slingRequest.requestPathInfo.suffix}" replaceSelectors="form"/>
+                        <sling:include path="${cpn:filter(slingRequest.requestPathInfo.suffix)}" replaceSelectors="form"/>
                     </div>
                 </div>
                 <div class="composum-platform-replication-node_dialog_footer modal-footer buttons">
