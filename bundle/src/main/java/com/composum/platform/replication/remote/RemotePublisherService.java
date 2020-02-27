@@ -126,7 +126,9 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
     @Nonnull
     @Override
     public Collection<RemoteReleasePublishingProcess> processesFor(@Nullable Resource resource) {
-        if (resource == null || !isEnabled()) { return Collections.emptyList(); }
+        if (resource == null || !isEnabled()) {
+            return Collections.emptyList();
+        }
 
         ResourceResolver resolver = resource.getResourceResolver();
         Resource releaseRoot;
@@ -149,7 +151,9 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         return processes;
     }
 
-    /** Creates the service resolver used to update the content. */
+    /**
+     * Creates the service resolver used to update the content.
+     */
     @Nonnull
     protected ResourceResolver makeResolver() throws LoginException {
         return resolverFactory.getServiceResourceResolver(null);
@@ -167,7 +171,9 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             for (Resource child : configroot.getChildren()) {
                 RemotePublicationConfig replicationConfig =
                         context.withResource(child).adaptTo(RemotePublicationConfig.class);
-                if (replicationConfig != null) { configs.add(replicationConfig); }
+                if (replicationConfig != null) {
+                    configs.add(replicationConfig);
+                }
             }
         }
         return configs;
@@ -198,7 +204,9 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 } catch (InterruptedException e) {
                     // shouldn't happen
                 }
-                for (RemoteReleasePublishingProcess process : processes) { process.abort(true); }
+                for (RemoteReleasePublishingProcess process : processes) {
+                    process.abort(true);
+                }
             }
             this.httpClient = null;
         }
@@ -207,7 +215,9 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
     protected boolean isEnabled() {
         RemotePublisherService.Configuration theconfig = this.config;
         boolean enabled = theconfig != null && theconfig.enabled();
-        if (!enabled) { processesCache.clear(); }
+        if (!enabled) {
+            processesCache.clear();
+        }
         return enabled;
     }
 
@@ -241,7 +251,9 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             remoteReleaseInfo = new CachedCalculation<>(this::remoteReleaseInfo, 60000);
         }
 
-        /** Called as often as possible to adapt to config changes. */
+        /**
+         * Called as often as possible to adapt to config changes.
+         */
         public void readConfig(@Nonnull RemotePublicationConfig remotePublicationConfig) {
             configPath = requireNonNull(remotePublicationConfig.getPath());
             name = remotePublicationConfig.getName();
@@ -277,7 +289,9 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
 
         @Override
         public void triggerProcessing(@Nonnull ReleaseChangeEvent event) {
-            if (!isEnabled()) { return; }
+            if (!isEnabled()) {
+                return;
+            }
             if (!appliesTo(event.release())) { // shouldn't even be called.
                 LOG.warn("Received event for irrelevant release {}", event);
                 return;
@@ -300,7 +314,9 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             }
 
             if (restart) {
-                if (runningStrategy != null) { runningStrategy.setAbortAtNextPossibility(); }
+                if (runningStrategy != null) {
+                    runningStrategy.setAbortAtNextPossibility();
+                }
                 state = ReleaseChangeProcessorState.awaiting;
                 startedAt = null;
                 finished = null;
@@ -308,12 +324,16 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             }
         }
 
-        /** Removes paths that are contained in other paths. */
+        /**
+         * Removes paths that are contained in other paths.
+         */
         @Nonnull
         protected Set<String> cleanupPaths(@Nonnull Iterable<String> paths) {
             Set<String> cleanedPaths = new LinkedHashSet<>();
             for (String path : paths) {
-                if (cleanedPaths.stream().anyMatch((p) -> isSameOrDescendant(p, path))) { continue; }
+                if (cleanedPaths.stream().anyMatch((p) -> isSameOrDescendant(p, path))) {
+                    continue;
+                }
                 cleanedPaths.removeIf((p) -> isSameOrDescendant(path, p));
                 cleanedPaths.add(path);
             }
@@ -366,7 +386,9 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 messages.add(Message.error("Other error: ", e.toString()), e);
             } finally {
                 //noinspection ObjectEquality : reset if there wasn't a new strategy created in the meantime
-                if (runningStrategy == strategy) { runningStrategy = null; }
+                if (runningStrategy == strategy) {
+                    runningStrategy = null;
+                }
                 if (state != success && state != awaiting) {
                     state = error;
                 }
@@ -379,9 +401,13 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         @Nullable
         public ReleaseChangeEventPublisher.CompareResult compareTree(@Nonnull ResourceHandle resource,
                                                                      int details) throws ReplicationFailedException {
-            if (!isEnabled()) { return null; }
+            if (!isEnabled()) {
+                return null;
+            }
             ReplicatorStrategy strategy = makeReplicatorStrategy(resource.getResourceResolver(), Collections.singleton(resource.getPath()));
-            if (strategy == null) { return null; }
+            if (strategy == null) {
+                return null;
+            }
             try {
                 return strategy.compareTree(details);
             } catch (RemotePublicationFacadeException e) {
@@ -433,7 +459,9 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             synchronized (changedPathsChangeLock) {
                 ReplicatorStrategy runningStrategyCopy = runningStrategy;
                 if (runningStrategyCopy != null) {
-                    if (hard) { runningStrategy = null; }
+                    if (hard) {
+                        runningStrategy = null;
+                    }
                     runningStrategyCopy.setAbortAtNextPossibility();
                     hasRunningStuff = true;
                 }
@@ -449,7 +477,9 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             return hasRunningStuff;
         }
 
-        /** Returns the current paths in {@link #changedPaths} resetting {@link #changedPaths}. */
+        /**
+         * Returns the current paths in {@link #changedPaths} resetting {@link #changedPaths}.
+         */
         @Nonnull
         protected Set<String> swapOutChangedPaths() {
             Set<String> processedChangedPaths;
@@ -472,7 +502,9 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                     } else { // some events arrived in the meantime
                         unProcessedChangedPaths.addAll(changedPaths);
                         changedPaths = cleanupPaths(unProcessedChangedPaths);
-                        if (!changedPaths.isEmpty()) { state = awaiting; }
+                        if (!changedPaths.isEmpty()) {
+                            state = awaiting;
+                        }
                     }
                 }
             }
@@ -507,7 +539,9 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
 
         @Override
         public boolean isActive() {
-            if (!enabled || StringUtils.isBlank(mark) || StringUtils.isBlank(releaseRootPath)) { return false; }
+            if (!enabled || StringUtils.isBlank(mark) || StringUtils.isBlank(releaseRootPath)) {
+                return false;
+            }
             if (active == null) {
                 try (ResourceResolver serviceResolver = makeResolver()) {
                     Resource releaseRoot = serviceResolver.getResource(releaseRootPath);
@@ -528,6 +562,11 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         @Override
         public String getName() {
             return name;
+        }
+
+        @Override
+        public String getStage() {
+            return mark.toLowerCase();
         }
 
         @Override
@@ -611,7 +650,9 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         }
     }
 
-    /** Responsible for one replication. */
+    /**
+     * Responsible for one replication.
+     */
     protected class ReplicatorStrategy {
         @Nonnull
         protected final Set<String> changedPaths;
@@ -632,7 +673,9 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
 
         protected volatile int progress;
 
-        /** If set, the replication process is aborted at the next step when this is checked. */
+        /**
+         * If set, the replication process is aborted at the next step when this is checked.
+         */
         protected volatile boolean abortAtNextPossibility = false;
         protected volatile UpdateInfo cleanupUpdateInfo;
 
@@ -775,7 +818,9 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                     .filter(Objects::nonNull);
         }
 
-        /** The attribute infos for all parent nodes of versionables within pathsToTransmit within the release root. */
+        /**
+         * The attribute infos for all parent nodes of versionables within pathsToTransmit within the release root.
+         */
         @Nonnull
         protected Stream<NodeAttributeComparisonInfo> parentAttributeInfos(@Nonnull Collection<String> pathsToTransmit) {
             return relevantParentNodesOfVersionables(pathsToTransmit)
@@ -854,7 +899,9 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
 
         @Nullable
         public UpdateInfo remoteReleaseInfo() throws RemotePublicationFacadeException {
-            if (!isEnabled()) { return null; }
+            if (!isEnabled()) {
+                return null;
+            }
             RemotePublicationReceiverServlet.StatusWithReleaseData status = publisher.releaseInfo(release.getReleaseRoot().getPath());
             if (status == null || !status.isValid()) {
                 LOG.error("Retrieve remote releaseinfo failed for {}", this.replicationConfig);
@@ -868,15 +915,21 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         public String toString() {
             final StringBuilder sb = new StringBuilder("ReplicatorStrategy{");
             sb.append("id=").append(replicationConfig.getPath());
-            if (replicationConfig != null) { sb.append(", receiver=").append(replicationConfig.getTargetUrl()); }
-            if (cleanupUpdateInfo != null) { sb.append(", updateInfo=").append(cleanupUpdateInfo.updateId); }
+            if (replicationConfig != null) {
+                sb.append(", receiver=").append(replicationConfig.getTargetUrl());
+            }
+            if (cleanupUpdateInfo != null) {
+                sb.append(", updateInfo=").append(cleanupUpdateInfo.updateId);
+            }
             sb.append('}');
             return sb.toString();
         }
 
         @Nullable
         public ReleaseChangeEventPublisher.CompareResult compareTree(int details) throws RemotePublicationFacadeException, ReplicationFailedException {
-            if (!isEnabled()) { return null; }
+            if (!isEnabled()) {
+                return null;
+            }
             try {
                 ReleaseChangeEventPublisher.CompareResult result = new ReleaseChangeEventPublisher.CompareResult();
                 RemotePublicationReceiverServlet.StatusWithReleaseData releaseInfoStatus = publisher.releaseInfo(release.getReleaseRoot().getPath());
