@@ -55,6 +55,7 @@ public class ReplicationSetup extends AbstractSlingBean {
         }
     }
 
+    private transient Map<String, ConfigSet> setupByStage;
     private transient Map<String, ConfigSet> setupByPath;
     private transient Map<String, ConfigSet> setupByType;
 
@@ -69,6 +70,13 @@ public class ReplicationSetup extends AbstractSlingBean {
             }};
         }
         return replicationTypes;
+    }
+
+    public Collection<ConfigSet> getSetupByStage() {
+        if (setupByStage == null) {
+            setupByStage = getGrouped(new StageComparator());
+        }
+        return setupByStage.values();
     }
 
     public Collection<ConfigSet> getSetupByPath() {
@@ -125,6 +133,19 @@ public class ReplicationSetup extends AbstractSlingBean {
         @Override
         public int compare(ReplicationConfig o1, ReplicationConfig o2) {
             return getSortValue(o1).compareTo(getSortValue(o2));
+        }
+    }
+
+    class StageComparator extends Comparator {
+
+        @Override
+        public String getKey(ReplicationConfig config) {
+            return config.getStage();
+        }
+
+        @Override
+        public String getSortValue(ReplicationConfig config) {
+            return getKey(config) + "\r" + config.getTitle();
         }
     }
 

@@ -18,16 +18,16 @@
     <config jcr:primaryType="nt:unstructured">
 
         <public jcr:primaryType="sling:MessageEntry"
-                sling:key="public" sling:message="öffentlich"/>
+                sling:key="public" sling:message="publiziert"/>
         <Public jcr:primaryType="sling:MessageEntry"
-                sling:key="Public" sling:message="Öffentlich"/>
+                sling:key="Public" sling:message="Publiziert"/>
         <preview jcr:primaryType="sling:MessageEntry"
                 sling:key="preview" sling:message="Vorschau"/>
         <Preview jcr:primaryType="sling:MessageEntry"
                 sling:key="Preview" sling:message="Vorschau"/>
 
         <Replication jcr:primaryType="sling:MessageEntry"
-                sling:key="Replication" sling:message="Vervielfältigung"/>
+                sling:key="Replication" sling:message="Replikation"/>
         <Process jcr:primaryType="sling:MessageEntry"
                 sling:key="Process" sling:message="Prozess"/>
         <InPlace jcr:primaryType="sling:MessageEntry"
@@ -36,21 +36,21 @@
                 sling:key="Remote" sling:message="Remote"/>
 
         <ReplicationSetup jcr:primaryType="sling:MessageEntry"
-                sling:key="Replication Setup" sling:message="Vervielfältigung Einstellen"/>
+                sling:key="Replication Setup" sling:message="Replikation Einstellen"/>
         <ReplicationProcess jcr:primaryType="sling:MessageEntry"
-                sling:key="Replication Process" sling:message="Vervielfältigungsprozess"/>
+                sling:key="Replication Process" sling:message="Replikationsprozess"/>
         <InPlaceReplication jcr:primaryType="sling:MessageEntry"
-                sling:key="In-Place Replication" sling:message="In-Place-Vervielfältigung"/>
+                sling:key="In-Place Replication" sling:message="In-Place-Replikation"/>
         <RemoteReplication jcr:primaryType="sling:MessageEntry"
-                sling:key="Remote Replication" sling:message="Remote-Vervielfältigung"/>
+                sling:key="Remote Replication" sling:message="Remote-Replikation"/>
 
         <NewReplicationConfiguration jcr:primaryType="sling:MessageEntry"
-                sling:key="New Replication Configuration" sling:message="Neue Vervielfältigungskonfiguration"/>
+                sling:key="New Replication Configuration" sling:message="Neue Replikationskonfiguration"/>
         <DeleteReplicationConfiguration jcr:primaryType="sling:MessageEntry"
-                sling:key="Delete Replication Configuration" sling:message="Vervielfältigungskonfiguration Löschen"/>
+                sling:key="Delete Replication Configuration" sling:message="Replikationskonfiguration Löschen"/>
         <DeleteReplicationConfigurationQuestion jcr:primaryType="sling:MessageEntry"
                 sling:key="Do you really want to delete this replication configuration?"
-                sling:message="Wollen Sie diese Vervielfältigungskonfiguration tatsächlich löschen?"/>
+                sling:message="Wollen Sie diese Replikationskonfiguration tatsächlich löschen?"/>
 
         <active jcr:primaryType="sling:MessageEntry"
                 sling:key="active" sling:message="aktiv"/>
@@ -70,6 +70,8 @@
                 sling:key="Credentials" sling:message="Zugangsdaten"/>
         <TargetURL jcr:primaryType="sling:MessageEntry"
                 sling:key="Target URL" sling:message="Ziel-URL"/>
+        <byStage jcr:primaryType="sling:MessageEntry"
+                sling:key="by Stage" sling:message="nach 'Stage'"/>
         <byPath jcr:primaryType="sling:MessageEntry"
                 sling:key="by Path" sling:message="nach Pfad"/>
         <byType jcr:primaryType="sling:MessageEntry"
