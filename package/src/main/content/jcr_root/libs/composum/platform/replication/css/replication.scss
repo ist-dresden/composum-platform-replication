@@ -72,6 +72,10 @@ $replication-horizontal-padding: 15px;
 
     &-setup {
 
+        .list-group {
+            list-style: none;
+        }
+
         .list-group_item {
             padding: 0;
             border-bottom: 1px solid #ddd;
@@ -86,12 +90,17 @@ $replication-horizontal-padding: 15px;
             margin: 0;
         }
 
+        &_form-content {
+            overflow: auto;
+        }
+
         .composum-platform-replication-setup {
 
             &_toolbar {
                 position: absolute;
                 top: 0;
                 right: $replication-panel-padding;
+                z-index: 1;
 
                 i.fa {
                     margin-right: $replication-panel-padding;

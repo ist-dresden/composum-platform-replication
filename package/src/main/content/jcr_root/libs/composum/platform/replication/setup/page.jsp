@@ -7,7 +7,8 @@
     <cpn:clientlib type="css" category="composum.platform.replication"/>
 </head>
 <body class="composum-platform-replication-setup_page-body">
-<sling:include replaceSelectors=""/>
+<sling:include path="${not empty slingRequest.requestPathInfo.suffix?cpn:filter(slingRequest.requestPathInfo.suffix):'.'}"
+               resourceType="composum/platform/replication/setup" replaceSelectors=""/>
 <cpn:clientlib type="js" category="composum.platform.replication"/>
 <script>
     $(document).ready(function () {

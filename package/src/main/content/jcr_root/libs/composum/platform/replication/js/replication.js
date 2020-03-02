@@ -135,7 +135,9 @@
                         setupForm: this,
                         path: this.configSetup.$el.data('path')
                     }, undefined, _.bind(function () {
-                        this.configSetup.reload();
+                        var configPath = this.configSetup.$el.data('path');
+                        var sitePath = /\/conf(.*)\/replication(\/.*)?$/.exec(configPath)[0];
+                        $(document).trigger('site:changed', [sitePath, configPath]);
                     }, this));
                 return false;
             }
@@ -145,6 +147,7 @@
 
             initialize: function (options) {
                 this.initContent();
+                $(document).on('site:changed.ConfigSetup', _.bind(this.reload, this));
             },
 
             initContent: function () {
@@ -161,5 +164,4 @@
         });
 
     })(CPM.platform.replication, CPM.core.components, CPM.core);
-
 })();

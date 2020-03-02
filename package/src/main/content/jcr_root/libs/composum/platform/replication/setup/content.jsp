@@ -11,21 +11,23 @@
         </div>
         <ul class="composum-commons-form-tab-nav nav nav-tabs" role="tablist">
         </ul>
-        <div class="composum-platform-replication-setup_panels tab-content composum-commons-form-tabbed">
-            <div id="${model.domId}_stage" data-key="stage"
-                 data-label="${cpn:i18n(slingRequest,'by Stage')}"
-                 class="composum-commons-form-tab-panel tab-pane" role="tabpanel">
-                <sling:call script="bystage.jsp"/>
-            </div>
-            <div id="${model.domId}_path" data-key="path"
-                 data-label="${cpn:i18n(slingRequest,'by Path')}"
-                 class="composum-commons-form-tab-panel tab-pane" role="tabpanel">
-                <sling:call script="bypath.jsp"/>
-            </div>
-            <div id="${model.domId}_type" data-key="type"
-                 data-label="${cpn:i18n(slingRequest,'by Type')}"
-                 class="composum-commons-form-tab-panel tab-pane" role="tabpanel">
-                <sling:call script="bytype.jsp"/>
+        <div class="composum-platform-replication-setup_form-content">
+            <div class="composum-platform-replication-setup_panels tab-content composum-commons-form-tabbed">
+                <div id="${model.domId}_stage" data-key="stage"
+                     data-label="${cpn:i18n(slingRequest,'by Stage')}"
+                     class="composum-commons-form-tab-panel tab-pane" role="tabpanel">
+                    <sling:call script="bystage.jsp"/>
+                </div>
+                <div id="${model.domId}_path" data-key="path"
+                     data-label="${cpn:i18n(slingRequest,'by Path')}"
+                     class="composum-commons-form-tab-panel tab-pane" role="tabpanel">
+                    <sling:call script="bypath.jsp"/>
+                </div>
+                <div id="${model.domId}_type" data-key="type"
+                     data-label="${cpn:i18n(slingRequest,'by Type')}"
+                     class="composum-commons-form-tab-panel tab-pane" role="tabpanel">
+                    <sling:call script="bytype.jsp"/>
+                </div>
             </div>
         </div>
     </form>
