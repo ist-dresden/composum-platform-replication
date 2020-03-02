@@ -83,6 +83,10 @@
             <groupId>org.apache.sling</groupId>
             <artifactId>org.apache.sling.commons.threads</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.apache.sling</groupId>
+            <artifactId>org.apache.sling.xss</artifactId>
+        </dependency>
 
         <!-- JCR API, Jackrabbit, VLT -->
         <dependency>

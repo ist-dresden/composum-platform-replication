@@ -3,11 +3,13 @@ package com.composum.platform.replication.remotereceiver;
 import com.composum.sling.core.ResourceHandle;
 import com.composum.sling.core.servlet.Status;
 import com.composum.sling.core.util.ResourceUtil;
+import com.composum.sling.core.util.ServiceHandle;
 import com.composum.sling.platform.staging.StagingConstants;
 import com.composum.sling.platform.testing.testutil.AnnotationWithDefaults;
 import com.composum.sling.platform.testing.testutil.ErrorCollectorAlwaysPrintingFailures;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import org.apache.commons.lang3.reflect.FieldUtils;
 import org.apache.jackrabbit.commons.cnd.CndImporter;
 import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.SlingHttpServletResponse;
@@ -20,6 +22,9 @@ import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit.SlingContext;
 import org.apache.sling.testing.mock.sling.servlet.MockSlingHttpServletRequest;
 import org.apache.sling.testing.mock.sling.servlet.MockSlingHttpServletResponse;
+import org.apache.sling.xss.XSSFilter;
+import org.apache.sling.xss.impl.XSSAPIImpl;
+import org.apache.sling.xss.impl.XSSFilterImpl;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -77,6 +82,11 @@ public class ContentStateOperationTest {
         service.resolverFactory = resolverFactory;
         servlet.resolverFactory = resolverFactory;
         servlet.service = service;
+
+        context.registerService(XSSFilter.class, mock(XSSFilter.class));
+        ServiceHandle xssfilterhandle =
+                (ServiceHandle) FieldUtils.readStaticField(com.composum.sling.core.util.XSS.class, "XSSFilter_HANDLE", true);
+        FieldUtils.writeField(xssfilterhandle, "service", context.registerInjectActivateService(new XSSFilterImpl()), true);
     }
 
     @Test
