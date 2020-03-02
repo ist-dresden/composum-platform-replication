@@ -1,29 +1,23 @@
 package com.composum.platform.replication.remotereceiver;
 
+import com.composum.platform.commons.credentials.CredentialService;
+import com.composum.platform.commons.proxy.ProxyManagerService;
 import com.composum.platform.replication.ReplicationType;
 import com.composum.platform.replication.model.ReplicationConfig;
 import com.composum.platform.replication.remote.RemoteReplicationType;
 import com.composum.sling.core.AbstractSlingBean;
 import com.composum.sling.core.util.ResourceUtil;
 import com.composum.sling.platform.security.AccessMode;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.builder.ToStringBuilder;
-import org.apache.http.HttpHost;
 import org.apache.http.auth.AuthScope;
-import org.apache.http.auth.UsernamePasswordCredentials;
-import org.apache.http.client.CredentialsProvider;
-import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.protocol.HttpClientContext;
-import org.apache.http.impl.client.BasicCredentialsProvider;
-import org.apache.sling.jcr.resource.api.JcrResourceConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import javax.jcr.RepositoryException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.function.Function;
 
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
 
@@ -31,28 +25,8 @@ import static org.apache.commons.lang3.StringUtils.isNotBlank;
 public class RemotePublicationConfig extends AbstractSlingBean implements ReplicationConfig {
     private static final Logger LOG = LoggerFactory.getLogger(RemotePublicationConfig.class);
 
-    /** Property name for {@link #isEnabled()}. */
-    public static final String PROP_ENABLED = "enabled";
     /** Property name for {@link #getUrl()}. */
     public static final String PROP_URL = "targetUrl";
-    /** Property name for {@link #getUser()}. */
-    public static final String PROP_USER = "user";
-    /** Property name for {@link #getPasswd()}. */
-    public static final String PROP_PASSWD = "passwd";
-    /** Property name for {@link #getProxyUser()}. */
-    public static final String PROP_PROXY_USER = "proxyUser";
-    /** Property name for {@link #getProxyPassword()}. */
-    public static final String PROP_PROXY_PASSWORD = "proxyPassword";
-    /** Property name for {@link #getProxyHost()}. */
-    public static final String PROP_PROXY_HOST = "proxyHost";
-    /** Property name for {@link #getProxyPort()}. */
-    public static final String PROP_PROXY_PORT = "proxyPort";
-    /** Property name for {@link #getStage()}. */
-    public static final String PROP_ACCESS_MODE = "stage";
-    /** Property name for {@link #getSourcePath()}. */
-    public static final String PROP_SOURCE_PATH = "sourcePath";
-    /** Property name for {@link #getTargetPath()}. */
-    public static final String PROP_TARGET_PATH = "targetPath";
     /** Property name for {@link #getProxyKey()}. */
     public static final String PROP_PROXY_KEY = "proxyKey";
 
@@ -62,18 +36,6 @@ public class RemotePublicationConfig extends AbstractSlingBean implements Replic
     private transient Boolean enabled;
     /** @see #getUrl() */
     private transient String targetUrl;
-    /** @see #getUser() */
-    private transient String user;
-    /** @see #getPasswd() */
-    private transient String passwd;
-    /** @see #getProxyUser() */
-    private transient String proxyUser;
-    /** @see #getProxyHost() */
-    private transient String proxyHost;
-    /** @see #getProxyPort() */
-    private transient Integer proxyPort;
-    /** @see #getProxyPassword() */
-    private transient String proxyPassword;
     /** @see #getStage() */
     private transient String stage;
     /** @see #getSourcePath() */
@@ -95,14 +57,15 @@ public class RemotePublicationConfig extends AbstractSlingBean implements Replic
     }
 
     /**
-     * The release mark (mostly {@value com.composum.sling.platform.security.AccessMode#PUBLIC} /
-     * {@value com.composum.sling.platform.security.AccessMode#PREVIEW}) for which the release is replicated.
+     * The release mark (mostly {@link com.composum.sling.platform.security.AccessMode#PUBLIC} /
+     * {@link com.composum.sling.platform.security.AccessMode#PREVIEW}) for which the release is replicated.
      * If empty, there is no replication.
      */
+    @Nonnull
     @Override
     public String getStage() {
         if (stage == null) {
-            stage = getProperty(PROP_ACCESS_MODE, AccessMode.PUBLIC.name());
+            stage = getProperty(PN_STAGE, AccessMode.PUBLIC.name());
         }
         return stage;
     }
@@ -111,14 +74,14 @@ public class RemotePublicationConfig extends AbstractSlingBean implements Replic
     @Override
     public boolean isEnabled() {
         if (enabled == null) {
-            enabled = getProperty(PROP_ENABLED, Boolean.TRUE);
+            enabled = getProperty(PN_IS_ENABLED, Boolean.TRUE);
         }
         return enabled;
     }
 
     @Override
     public boolean isEditable() {
-        return true;
+        return getProperty(PN_IS_EDITABLE, true);
     }
 
     /** URL of the {@link RemotePublicationReceiverServlet} on the remote system. */
@@ -146,59 +109,13 @@ public class RemotePublicationConfig extends AbstractSlingBean implements Replic
         return builder.toString();
     }
 
-    /** Optional username for authentication with the receiver. */
-    public String getUser() {
-        if (user == null) {
-            user = getProperty(PROP_USER, "");
-        }
-        return user;
-    }
-
-    /** Optional password for authentication with the receiver. */
-    public String getPasswd() {
-        if (passwd == null) {
-            passwd = getProperty(PROP_PASSWD, "");
-        }
-        return passwd;
-    }
-
-    /** Optional user for authentication with the proxy. */
-    public String getProxyUser() {
-        if (proxyUser == null) {
-            proxyUser = getProperty(PROP_PROXY_USER, "");
-        }
-        return proxyUser;
-    }
-
-    /** Optional password for the authentication with the proxy. */
-    public String getProxyPassword() {
-        if (proxyPassword == null) {
-            proxyPassword = getProperty(PROP_PROXY_PASSWORD, "");
-        }
-        return proxyPassword;
-    }
-
-    /** Optionally, the host of a proxy. */
-    public String getProxyHost() {
-        if (proxyHost == null) {
-            proxyHost = getProperty(PROP_PROXY_HOST, "");
-        }
-        return proxyHost;
-    }
-
-    /** Optionally, the port of a proxy. */
-    public Integer getProxyPort() {
-        if (proxyPort == null) {
-            proxyPort = getProperty(PROP_PROXY_PORT, Integer.class);
-        }
-        return proxyPort;
-    }
 
     /** Optional, the path we replicate - must be the site or a subpath of the site. */
+    @Nonnull
     @Override
     public String getSourcePath() {
         if (sourcePath == null) {
-            sourcePath = getProperty(PROP_SOURCE_PATH, String.class);
+            sourcePath = getProperty(PN_SOURCE_PATH, String.class);
         }
         return sourcePath;
     }
@@ -207,7 +124,7 @@ public class RemotePublicationConfig extends AbstractSlingBean implements Replic
     @Override
     public String getTargetPath() {
         if (targetPath == null) {
-            targetPath = getProperty(PROP_TARGET_PATH, String.class);
+            targetPath = getProperty(PN_TARGET_PATH, String.class);
         }
         return targetPath;
     }
@@ -221,7 +138,7 @@ public class RemotePublicationConfig extends AbstractSlingBean implements Replic
     @Nonnull
     @Override
     public String getConfigResourceType() {
-        return getProperty(JcrResourceConstants.SLING_RESOURCE_TYPE_PROPERTY, String.class);
+        return getProperty(ResourceUtil.PROP_RESOURCE_TYPE, String.class);
     }
 
     /** Optionally, the key of the proxy we need to use to reach the remote system. */
@@ -232,51 +149,42 @@ public class RemotePublicationConfig extends AbstractSlingBean implements Replic
         return proxyKey;
     }
 
+    /** Property name for {@link #getCredentialId()}. */
+    public static final String PROP_CREDENTIAL_ID = "credentialId";
+
+    /** @see #getCredentialId() */
+    private transient String credentialId;
+
+    /** Optional ID to retrieve the credentials from the {@link com.composum.platform.commons.credentials.CredentialService}. */
+    public String getCredentialId() {
+        if (credentialId == null) {
+            credentialId = getProperty(PROP_CREDENTIAL_ID, "");
+        }
+        return credentialId;
+    }
+
     /**
      * Initializes a HttpClientContext for httpclient with the saved data (auth, proxy).
      *
-     * @param context           the context to initialize
-     * @param passwordDecryptor if given, the password is piped through that to deobfuscate it
+     * @param context the context to initialize
      * @return context
      */
     @Nonnull
     public HttpClientContext initHttpContext(@Nonnull HttpClientContext context,
-                                             @Nullable Function<String, String> passwordDecryptor) {
-        CredentialsProvider credsProvider = context.getCredentialsProvider() != null ?
-                context.getCredentialsProvider() : new BasicCredentialsProvider();
-        boolean needCredsProvider = false;
+                                             @Nonnull ProxyManagerService proxyManagerService,
+                                             @Nonnull CredentialService credentialService) throws RepositoryException {
 
-        URI targetHost = getTargetUrl();
-        if (isNotBlank(getUser())) {
-            credsProvider.setCredentials(
-                    new AuthScope(targetHost.getHost(), targetHost.getPort()),
-                    new UsernamePasswordCredentials(getUser(), decodePassword(getPasswd(), passwordDecryptor)));
-            needCredsProvider = true;
+        if (isNotBlank(getCredentialId())) {
+            URI targetHost = getTargetUrl();
+            AuthScope authScope = new AuthScope(targetHost.getHost(), targetHost.getPort());
+            credentialService.initHttpContextCredentials(context, authScope, getCredentialId(), resolver);
         }
 
-
-        if (isNotBlank(getProxyHost()) && isNotBlank(getProxyUser())) {
-            needCredsProvider = true;
-            credsProvider.setCredentials(
-                    new AuthScope(getProxyHost(), getProxyPort()),
-                    new UsernamePasswordCredentials(getProxyUser(), decodePassword(getProxyPassword(), passwordDecryptor)));
+        if (isNotBlank(getProxyKey())) {
+            proxyManagerService.initHttpContext(getProxyKey(), context, resolver);
         }
-        if (needCredsProvider) { context.setCredentialsProvider(credsProvider);}
 
-        if (isNotBlank(getProxyHost())) {
-            RequestConfig.Builder requestConfigBuilder = context.getRequestConfig() != null ?
-                    RequestConfig.copy(context.getRequestConfig()) : RequestConfig.custom();
-            HttpHost proxy = new HttpHost(getProxyHost(), getProxyPort());
-            requestConfigBuilder.setProxy(proxy);
-        }
         return context;
     }
 
-    protected String decodePassword(String password, Function<String, String> passwordDecryptor) {
-        String result = password;
-        if (StringUtils.isNotBlank(password) && passwordDecryptor != null) {
-            result = passwordDecryptor.apply(password);
-        }
-        return result;
-    }
 }

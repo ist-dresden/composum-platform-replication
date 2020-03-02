@@ -1,6 +1,7 @@
 package com.composum.platform.replication.remote;
 
-import com.composum.platform.commons.crypt.CryptoService;
+import com.composum.platform.commons.credentials.CredentialService;
+import com.composum.platform.commons.proxy.ProxyManagerService;
 import com.composum.platform.commons.util.CachedCalculation;
 import com.composum.platform.replication.json.ChildrenOrderInfo;
 import com.composum.platform.replication.json.NodeAttributeComparisonInfo;
@@ -47,6 +48,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.jcr.RepositoryException;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -81,7 +83,9 @@ import static org.apache.commons.lang3.StringUtils.isNotBlank;
 @Component(
         service = ReleaseChangeEventListener.class,
         property = {Constants.SERVICE_DESCRIPTION + "=Composum Platform Remote Publisher Service"},
-        configurationPolicy = ConfigurationPolicy.REQUIRE)
+        configurationPolicy = ConfigurationPolicy.REQUIRE,
+        immediate = true
+)
 @Designate(ocd = RemotePublisherService.Configuration.class)
 public class RemotePublisherService implements ReleaseChangeEventListener {
 
@@ -104,7 +108,10 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
     protected StagingReleaseManager releaseManager;
 
     @Reference
-    protected CryptoService cryptoService;
+    protected ProxyManagerService proxyManagerService;
+
+    @Reference
+    protected CredentialService credentialService;
 
     @Reference
     protected ResourceResolverFactory resolverFactory;
@@ -691,7 +698,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             this.messages = messages;
 
             publisher = new RemotePublicationReceiverFacade(replicationConfig,
-                    context, httpClient, () -> config, cryptoService, nodesConfig);
+                    context, httpClient, () -> config, nodesConfig, proxyManagerService, credentialService);
         }
 
         /**
@@ -785,7 +792,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 cleanupUpdateInfo = null;
 
                 messages.add(Message.info("Replication done for {}", updateInfo.updateId));
-            } catch (RuntimeException | RemotePublicationFacadeException | URISyntaxException e) {
+            } catch (RuntimeException | RemotePublicationFacadeException | URISyntaxException | RepositoryException e) {
                 messages.add(Message.error("Remote publishing failed for {} because of {}",
                         cleanupUpdateInfo != null ? cleanupUpdateInfo.updateId : "",
                         String.valueOf(e)), e);
@@ -888,13 +895,19 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         }
 
         protected void abort(@Nonnull UpdateInfo updateInfo) throws RemotePublicationFacadeException {
-            Status status = publisher.abortUpdate(updateInfo);
-            if (status == null || !status.isValid()) {
-                messages.add(Message.error("Aborting replication failed for {} - " +
-                        "please manually clean up resources used there.", updateInfo.updateId));
-            } else if (cleanupUpdateInfo == updateInfo) {
-                cleanupUpdateInfo = null;
+            Status status = null;
+            try {
+                status = publisher.abortUpdate(updateInfo);
+                if (status == null || !status.isValid()) {
+                    messages.add(Message.error("Aborting replication failed for {} - " +
+                            "please manually clean up resources used there.", updateInfo.updateId));
+                } else if (cleanupUpdateInfo == updateInfo) {
+                    cleanupUpdateInfo = null;
+                }
+            } catch (RepositoryException e) {
+                throw new RemotePublicationReceiverFacade.RemotePublicationFacadeException("Error calling abort", e, status, null);
             }
+
         }
 
         @Nullable
@@ -902,7 +915,13 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             if (!isEnabled()) {
                 return null;
             }
-            RemotePublicationReceiverServlet.StatusWithReleaseData status = publisher.releaseInfo(release.getReleaseRoot().getPath());
+            RemotePublicationReceiverServlet.StatusWithReleaseData status = null;
+            try {
+                status = publisher.releaseInfo(release.getReleaseRoot().getPath());
+            } catch (RepositoryException e) {
+                throw new RemotePublicationReceiverFacade.RemotePublicationFacadeException("Error calling " +
+                        "releaseInfo", e, status, null);
+            }
             if (status == null || !status.isValid()) {
                 LOG.error("Retrieve remote releaseinfo failed for {}", this.replicationConfig);
                 messages.add(Message.error("Retrieve remote releaseinfo failed."));
@@ -998,7 +1017,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
 
                 result.equal = result.calculateEqual();
                 return result;
-            } catch (URISyntaxException e) {
+            } catch (URISyntaxException | RepositoryException e) {
                 LOG.error("" + e, e);
                 throw new ReplicationFailedException("Internal error", e, null);
             }
@@ -1016,12 +1035,6 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 description = "the general on/off switch for this service"
         )
         boolean enabled() default false;
-
-        @AttributeDefinition(
-                description = "Password to decrypt the passwords in the configurations of remote receivers."
-        )
-        @Nonnull
-        String configurationPassword() default "";
 
     }
 

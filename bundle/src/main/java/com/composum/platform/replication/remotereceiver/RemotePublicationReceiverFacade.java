@@ -1,6 +1,7 @@
 package com.composum.platform.replication.remotereceiver;
 
-import com.composum.platform.commons.crypt.CryptoService;
+import com.composum.platform.commons.credentials.CredentialService;
+import com.composum.platform.commons.proxy.ProxyManagerService;
 import com.composum.platform.commons.util.ExceptionThrowingRunnable;
 import com.composum.platform.commons.util.ExceptionUtil;
 import com.composum.platform.replication.json.ChildrenOrderInfo;
@@ -37,6 +38,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.jcr.RepositoryException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -50,7 +52,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -78,10 +79,13 @@ public class RemotePublicationReceiverFacade {
     protected final RemotePublicationConfig replicationConfig;
 
     @Nonnull
-    protected final CryptoService cryptoService;
+    protected final NodesConfiguration nodesConfig;
 
     @Nonnull
-    protected final NodesConfiguration nodesConfig;
+    protected final ProxyManagerService proxyManagerService;
+
+    @Nonnull
+    protected final CredentialService credentialService;
 
     @Nonnull
     protected final Supplier<RemotePublisherService.Configuration> generalConfig;
@@ -93,24 +97,17 @@ public class RemotePublicationReceiverFacade {
                                            @Nonnull BeanContext context,
                                            @Nonnull CloseableHttpClient httpClient,
                                            @Nonnull Supplier<RemotePublisherService.Configuration> generalConfig,
-                                           @Nonnull CryptoService cryptoService,
-                                           @Nonnull NodesConfiguration nodesConfiguration
+                                           @Nonnull NodesConfiguration nodesConfiguration,
+                                           @Nonnull ProxyManagerService proxyManagerService,
+                                           @Nonnull CredentialService credentialService
     ) {
         this.context = context;
         this.replicationConfig = replicationConfig;
-        this.cryptoService = cryptoService;
         this.nodesConfig = nodesConfiguration;
         this.generalConfig = generalConfig;
         this.httpClient = httpClient;
-    }
-
-    public Function<String, String> passwordDecryptor() {
-        Function<String, String> decryptor = null;
-        String key = generalConfig.get().configurationPassword();
-        if (StringUtils.isNotBlank(key)) {
-            decryptor = (password) -> cryptoService.decrypt(password, key);
-        }
-        return decryptor;
+        this.proxyManagerService = proxyManagerService;
+        this.credentialService = credentialService;
     }
 
     /**
@@ -124,9 +121,9 @@ public class RemotePublicationReceiverFacade {
      * @return the basic information about the update which must be used for all related calls on this update.
      */
     @Nonnull
-    public UpdateInfo startUpdate(@NotNull String releaseRoot, @Nonnull String path) throws RemotePublicationFacadeException {
+    public UpdateInfo startUpdate(@NotNull String releaseRoot, @Nonnull String path) throws RemotePublicationFacadeException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
-                passwordDecryptor());
+                proxyManagerService, credentialService);
         List<NameValuePair> form = new ArrayList<>();
         form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_RELEASEROOT, releaseRoot));
         UrlEncodedFormEntity entity = new UrlEncodedFormEntity(form, Consts.UTF_8);
@@ -156,9 +153,9 @@ public class RemotePublicationReceiverFacade {
      * @return the basic information about the update which must be used for all related calls on this update.
      */
     @Nonnull
-    public RemotePublicationReceiverServlet.StatusWithReleaseData releaseInfo(@NotNull String releaseRootPath) throws RemotePublicationFacadeException {
+    public RemotePublicationReceiverServlet.StatusWithReleaseData releaseInfo(@NotNull String releaseRootPath) throws RemotePublicationFacadeException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
-                passwordDecryptor());
+                proxyManagerService, credentialService);
         String uri = replicationConfig.getTargetUrl() + "." + releaseInfo.name() + "." + json.name() + releaseRootPath;
         HttpGet method = new HttpGet(uri);
 
@@ -180,9 +177,9 @@ public class RemotePublicationReceiverFacade {
     @Nonnull
     public RemotePublicationReceiverServlet.ContentStateStatus contentState(
             @Nonnull UpdateInfo updateInfo, @Nonnull Collection<String> paths, ResourceResolver resolver, String contentPath)
-            throws RemotePublicationFacadeException {
+            throws RemotePublicationFacadeException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
-                passwordDecryptor());
+                proxyManagerService, credentialService);
         List<NameValuePair> form = new ArrayList<>();
         form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId));
         for (String path : paths) { form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_PATH, path)); }
@@ -209,9 +206,9 @@ public class RemotePublicationReceiverFacade {
     @Nonnull
     public Status compareContent(@Nonnull UpdateInfo updateInfo, @Nonnull Collection<String> paths,
                                  ResourceResolver resolver, String contentPath)
-            throws URISyntaxException, RemotePublicationFacadeException {
+            throws URISyntaxException, RemotePublicationFacadeException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
-                passwordDecryptor());
+                proxyManagerService, credentialService);
         URI uri = new URIBuilder(replicationConfig.getTargetUrl() + "." + compareContent.name() +
                 "." + json.name() + contentPath)
                 .addParameter(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId)
@@ -236,9 +233,9 @@ public class RemotePublicationReceiverFacade {
 
     /** Uploads the resource tree to the remote machine. */
     @Nonnull
-    public Status pathupload(@Nonnull UpdateInfo updateInfo, @Nonnull Resource resource) throws RemotePublicationFacadeException, URISyntaxException {
+    public Status pathupload(@Nonnull UpdateInfo updateInfo, @Nonnull Resource resource) throws RemotePublicationFacadeException, URISyntaxException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
-                passwordDecryptor());
+                proxyManagerService, credentialService);
         URI uri =
                 new URIBuilder(replicationConfig.getTargetUrl() + "." + pathUpload.name() + "." + zip.name() + resource.getPath())
                         .addParameter(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId).build();
@@ -262,8 +259,9 @@ public class RemotePublicationReceiverFacade {
                                @Nonnull Set<String> deletedPaths,
                                @Nonnull Stream<ChildrenOrderInfo> relevantOrderings,
                                @Nonnull ExceptionThrowingRunnable<? extends Exception> checkForParallelModifications)
-            throws RemotePublicationFacadeException {
-        HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(), passwordDecryptor());
+            throws RemotePublicationFacadeException, RepositoryException {
+        HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
+                proxyManagerService, credentialService);
         Gson gson = new GsonBuilder().create();
 
         HttpEntity entity = new JsonHttpEntity(null, null) {
@@ -305,9 +303,9 @@ public class RemotePublicationReceiverFacade {
 
     /** Aborts the update, deleting the temporary directory on the remote side. */
     @Nonnull
-    public Status abortUpdate(@Nonnull UpdateInfo updateInfo) throws RemotePublicationFacadeException {
+    public Status abortUpdate(@Nonnull UpdateInfo updateInfo) throws RemotePublicationFacadeException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
-                passwordDecryptor());
+                proxyManagerService, credentialService);
         List<NameValuePair> form = new ArrayList<>();
         form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId));
         UrlEncodedFormEntity entity = new UrlEncodedFormEntity(form, Consts.UTF_8);
@@ -324,8 +322,9 @@ public class RemotePublicationReceiverFacade {
 
     /** Compares children order and attributes of the parents. */
     public Status compareParents(String releaseRoot, ResourceResolver resolver, Stream<ChildrenOrderInfo> relevantOrderings,
-                                 Stream<NodeAttributeComparisonInfo> attributeInfos) throws RemotePublicationFacadeException {
-        HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(), passwordDecryptor());
+                                 Stream<NodeAttributeComparisonInfo> attributeInfos) throws RemotePublicationFacadeException, RepositoryException {
+        HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
+                proxyManagerService, credentialService);
         Gson gson = new GsonBuilder().create();
 
         HttpEntity entity = new JsonHttpEntity(null, null) {
