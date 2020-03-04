@@ -8,8 +8,11 @@ import com.composum.platform.replication.json.ChildrenOrderInfo;
 import com.composum.platform.replication.json.NodeAttributeComparisonInfo;
 import com.composum.platform.replication.json.VersionableTree;
 import com.composum.platform.replication.remote.RemotePublisherService;
+import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Extension;
+import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation;
 import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.servlet.Status;
+import com.composum.sling.core.util.LinkUtil;
 import com.composum.sling.core.util.SlingResourceUtil;
 import com.composum.sling.nodes.NodesConfiguration;
 import com.google.gson.Gson;
@@ -67,7 +70,9 @@ import static com.composum.platform.replication.remotereceiver.RemotePublication
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.releaseInfo;
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.startUpdate;
 
-/** Provides a Java interface for accessing the remote publication receiver. */
+/**
+ * Provides a Java interface for accessing the remote publication receiver.
+ */
 public class RemotePublicationReceiverFacade {
 
     private static final Logger LOG = LoggerFactory.getLogger(RemotePublicationReceiverFacade.class);
@@ -110,6 +115,18 @@ public class RemotePublicationReceiverFacade {
         this.credentialService = credentialService;
     }
 
+    protected URIBuilder uriBuilder(Operation operation, Extension ext, String path) throws URISyntaxException {
+        return new URIBuilder(uriString(operation, ext, path));
+    }
+
+    protected String uriString(Operation operation, Extension ext, String path) {
+        return uriString(operation, ext) + LinkUtil.encodePath(path);
+    }
+
+    protected String uriString(Operation operation, Extension ext) {
+        return replicationConfig.getTargetUrl() + "." + operation.name() + "." + ext.name();
+    }
+
     /**
      * Starts an update process on the remote side. To clean up resources, either
      * {@link #commitUpdate(UpdateInfo, Set, Stream, ExceptionThrowingRunnable)} or
@@ -127,7 +144,7 @@ public class RemotePublicationReceiverFacade {
         List<NameValuePair> form = new ArrayList<>();
         form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_RELEASEROOT, releaseRoot));
         UrlEncodedFormEntity entity = new UrlEncodedFormEntity(form, Consts.UTF_8);
-        String uri = replicationConfig.getTargetUrl() + "." + startUpdate.name() + "." + json.name() + path;
+        String uri = uriString(startUpdate, json, path);
         HttpPost post = new HttpPost(uri);
         post.setEntity(entity);
 
@@ -156,7 +173,7 @@ public class RemotePublicationReceiverFacade {
     public RemotePublicationReceiverServlet.StatusWithReleaseData releaseInfo(@NotNull String releaseRootPath) throws RemotePublicationFacadeException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 proxyManagerService, credentialService);
-        String uri = replicationConfig.getTargetUrl() + "." + releaseInfo.name() + "." + json.name() + releaseRootPath;
+        String uri = uriString(releaseInfo, json, releaseRootPath);
         HttpGet method = new HttpGet(uri);
 
         LOG.info("Get releaseinfo for path {}", releaseRootPath);
@@ -182,9 +199,11 @@ public class RemotePublicationReceiverFacade {
                 proxyManagerService, credentialService);
         List<NameValuePair> form = new ArrayList<>();
         form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId));
-        for (String path : paths) { form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_PATH, path)); }
+        for (String path : paths) {
+            form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_PATH, path));
+        }
         UrlEncodedFormEntity entity = new UrlEncodedFormEntity(form, Consts.UTF_8);
-        String uri = replicationConfig.getTargetUrl() + "." + contentState.name() + "." + json.name();
+        String uri = uriString(contentState, json);
         HttpPost post = new HttpPost(uri);
         post.setEntity(entity);
 
@@ -209,8 +228,7 @@ public class RemotePublicationReceiverFacade {
             throws URISyntaxException, RemotePublicationFacadeException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 proxyManagerService, credentialService);
-        URI uri = new URIBuilder(replicationConfig.getTargetUrl() + "." + compareContent.name() +
-                "." + json.name() + contentPath)
+        URI uri = uriBuilder(compareContent, json, contentPath)
                 .addParameter(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId)
                 .build();
         HttpPut put = new HttpPut(uri);
@@ -231,14 +249,15 @@ public class RemotePublicationReceiverFacade {
         return status;
     }
 
-    /** Uploads the resource tree to the remote machine. */
+    /**
+     * Uploads the resource tree to the remote machine.
+     */
     @Nonnull
     public Status pathupload(@Nonnull UpdateInfo updateInfo, @Nonnull Resource resource) throws RemotePublicationFacadeException, URISyntaxException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 proxyManagerService, credentialService);
-        URI uri =
-                new URIBuilder(replicationConfig.getTargetUrl() + "." + pathUpload.name() + "." + zip.name() + resource.getPath())
-                        .addParameter(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId).build();
+        URI uri = uriBuilder(pathUpload, zip, resource.getPath())
+                .addParameter(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId).build();
         HttpPut put = new HttpPut(uri);
         put.setEntity(new PackageHttpEntity(nodesConfig, context, resource));
 
@@ -271,7 +290,9 @@ public class RemotePublicationReceiverFacade {
                 jsonWriter.name(RemoteReceiverConstants.PARAM_UPDATEID).value(updateInfo.updateId);
                 jsonWriter.name(RemoteReceiverConstants.PARAM_RELEASE_CHANGENUMBER).value(newReleaseChangeNumber);
                 jsonWriter.name(RemoteReceiverConstants.PARAM_DELETED_PATH).beginArray();
-                for (String deletedPath : deletedPaths) { jsonWriter.value(deletedPath); }
+                for (String deletedPath : deletedPaths) {
+                    jsonWriter.value(deletedPath);
+                }
                 jsonWriter.endArray();
                 jsonWriter.name(RemoteReceiverConstants.PARAM_CHILDORDERINGS).beginArray();
                 relevantOrderings.forEachOrdered(childrenOrderInfo ->
@@ -291,7 +312,7 @@ public class RemotePublicationReceiverFacade {
             }
         };
 
-        String uri = replicationConfig.getTargetUrl() + "." + commitUpdate.name() + "." + json.name();
+        String uri = uriString(commitUpdate, json);
         HttpPut put = new HttpPut(uri);
         put.setEntity(entity);
 
@@ -301,7 +322,9 @@ public class RemotePublicationReceiverFacade {
         return status;
     }
 
-    /** Aborts the update, deleting the temporary directory on the remote side. */
+    /**
+     * Aborts the update, deleting the temporary directory on the remote side.
+     */
     @Nonnull
     public Status abortUpdate(@Nonnull UpdateInfo updateInfo) throws RemotePublicationFacadeException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
@@ -309,7 +332,7 @@ public class RemotePublicationReceiverFacade {
         List<NameValuePair> form = new ArrayList<>();
         form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId));
         UrlEncodedFormEntity entity = new UrlEncodedFormEntity(form, Consts.UTF_8);
-        String uri = replicationConfig.getTargetUrl() + "." + abortUpdate.name() + "." + json.name();
+        String uri = uriString(abortUpdate, json);
         HttpPost post = new HttpPost(uri);
         post.setEntity(entity);
 
@@ -320,7 +343,9 @@ public class RemotePublicationReceiverFacade {
         return status;
     }
 
-    /** Compares children order and attributes of the parents. */
+    /**
+     * Compares children order and attributes of the parents.
+     */
     public Status compareParents(String releaseRoot, ResourceResolver resolver, Stream<ChildrenOrderInfo> relevantOrderings,
                                  Stream<NodeAttributeComparisonInfo> attributeInfos) throws RemotePublicationFacadeException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
@@ -346,7 +371,7 @@ public class RemotePublicationReceiverFacade {
             }
         };
 
-        String uri = replicationConfig.getTargetUrl() + "." + compareParents.name() + "." + json.name() + releaseRoot;
+        String uri = uriString(compareParents, json, releaseRoot);
         HttpPut put = new HttpPut(uri);
         put.setEntity(entity);
 
@@ -388,7 +413,9 @@ public class RemotePublicationReceiverFacade {
         return status;
     }
 
-    /** Exception that signifies a problem with the replication. */
+    /**
+     * Exception that signifies a problem with the replication.
+     */
     public static class RemotePublicationFacadeException extends Exception {
         protected final Status status;
         protected final Integer statusCode;
@@ -409,8 +436,12 @@ public class RemotePublicationReceiverFacade {
         @Override
         public String toString() {
             final StringBuilder sb = new StringBuilder(super.toString()).append("{");
-            if (statusCode != null) { sb.append(", statusCode=").append(statusCode); }
-            if (reasonPhrase != null) { sb.append(", reasonPhrase='").append(reasonPhrase).append('\''); }
+            if (statusCode != null) {
+                sb.append(", statusCode=").append(statusCode);
+            }
+            if (reasonPhrase != null) {
+                sb.append(", reasonPhrase='").append(reasonPhrase).append('\'');
+            }
             if (status != null) {
                 try (StringWriter statusString = new StringWriter()) {
                     status.toJson(new JsonWriter(statusString));
