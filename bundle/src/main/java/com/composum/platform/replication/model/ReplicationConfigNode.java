@@ -1,10 +1,13 @@
 package com.composum.platform.replication.model;
 
+import com.composum.platform.commons.proxy.ProxyManagerService;
+import com.composum.platform.commons.proxy.ProxyService;
 import com.composum.platform.replication.ReplicationType;
 import com.composum.platform.replication.inplace.InplaceReplicationType;
 import com.composum.platform.replication.remote.RemoteReplicationType;
 import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.ResourceModel;
+import com.composum.sling.core.util.I18N;
 import com.composum.sling.core.util.ResourceUtil;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.resource.Resource;
@@ -13,6 +16,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 public class ReplicationConfigNode extends ResourceModel implements ReplicationConfig {
+
+    private transient String proxyOptions;
 
     public ReplicationConfigNode() {
     }
@@ -44,9 +49,14 @@ public class ReplicationConfigNode extends ResourceModel implements ReplicationC
     public String getSourcePath() {
         String path = getProperty(PN_SOURCE_PATH, "");
         if (StringUtils.isBlank(path)) {
-            path = getPath().replaceAll("/conf(/.*)/replication/[^/]+", "$1");
+            path = getSitePath();
         }
         return path;
+    }
+
+    @Nonnull
+    public String getSitePath() {
+        return getPath().replaceAll("/conf(/.*)/replication/[^/]+", "$1");
     }
 
     @Nullable
@@ -79,5 +89,24 @@ public class ReplicationConfigNode extends ResourceModel implements ReplicationC
     public String getConfigResourceType() {
         String resourceType = getProperty(ResourceUtil.PROP_RESOURCE_TYPE, "");
         return StringUtils.isBlank(resourceType) ? getReplicationType().getResourceType() : resourceType;
+    }
+
+    public String getProxyOptions() {
+        if (proxyOptions == null) {
+            StringBuilder result = new StringBuilder(":" + I18N.get(context.getRequest(), "no proxy"));
+            ProxyManagerService proxyManager = context.getService(ProxyManagerService.class);
+            for (String key : proxyManager.getProxyKeys()) {
+                ProxyService proxy = proxyManager.findProxyService(key);
+                if (proxy != null) {
+                    String title = proxy.getTitle();
+                    result.append(',').append(key);
+                    if (StringUtils.isNotBlank(title)) {
+                        result.append(':').append(title);
+                    }
+                }
+            }
+            proxyOptions = result.toString();
+        }
+        return proxyOptions;
     }
 }

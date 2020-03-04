@@ -6,10 +6,10 @@
     <div class="row">
         <div class="col col-xs-3">
             <div class="form-group">
-                <input type="hidden" name="proxy@Delete" value="false" class="sling-post-delete-hint"/>
+                <input type="hidden" name="proxyKey@Delete" value="true" class="sling-post-delete-hint"/>
                 <label>${cpn:i18n(slingRequest,'Proxy')}</label>
                 <select name="proxyKey" data-value="${model.property.proxyKey}"
-                        data-options=":${cpn:i18n(slingRequest,'no proxy')},proxy1,proxy2"
+                        data-options="${model.proxyOptions}" data-default=""
                         class="composum-platform-replication-node_proxy widget select-widget form-control"></select>
             </div>
         </div>

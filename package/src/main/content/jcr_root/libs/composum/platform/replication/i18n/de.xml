@@ -66,6 +66,8 @@
                 sling:key="Target Path" sling:message="Ziel-Pfad"/>
         <Proxy jcr:primaryType="sling:MessageEntry"
                 sling:key="Proxy" sling:message="Proxy"/>
+        <no_proxy jcr:primaryType="sling:MessageEntry"
+                sling:key="no proxy" sling:message="kein Proxy"/>
         <Credentials jcr:primaryType="sling:MessageEntry"
                 sling:key="Credentials" sling:message="Zugangsdaten"/>
         <TargetURL jcr:primaryType="sling:MessageEntry"
