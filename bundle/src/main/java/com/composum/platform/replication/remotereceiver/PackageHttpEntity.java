@@ -30,7 +30,6 @@ public class PackageHttpEntity extends AbstractHttpEntity implements HttpEntity 
     /** @param resource that is the top-level of the package. */
     public PackageHttpEntity(@Nonnull NodesConfiguration nodesConfig,
                              @Nonnull BeanContext context, @Nonnull Resource resource) {
-        setContentEncoding(StandardCharsets.UTF_8.name());
         setContentType("application/zip");
         this.resource = resource;
         this.nodesConfig = nodesConfig;
