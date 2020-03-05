@@ -591,6 +591,11 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             return TYPE_REMOTE;
         }
 
+        @Override
+        public void abort() {
+            abort(false);
+        }
+
         @Nullable
         @Override
         public Long getRunStartedAt() {
