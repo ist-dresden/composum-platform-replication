@@ -71,7 +71,9 @@ import static com.composum.sling.platform.staging.StagingConstants.PROP_LAST_REP
 import static java.util.Arrays.asList;
 import static java.util.Objects.requireNonNull;
 
-/** Interface for service that implements the functions behind the {@link RemotePublicationReceiverServlet}. */
+/**
+ * Interface for service that implements the functions behind the {@link RemotePublicationReceiverServlet}.
+ */
 @Component(
         service = RemotePublicationReceiver.class,
         property = {Constants.SERVICE_DESCRIPTION + "=Composum Platform Remote Receiver Service"},
@@ -87,10 +89,14 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     @Reference
     protected ResourceResolverFactory resolverFactory;
 
-    /** Random number generator for creating unique ids etc. */
+    /**
+     * Random number generator for creating unique ids etc.
+     */
     protected final Random random;
 
-    /** Debugging aid - if set to true, the temporary directory will not be deleted. */
+    /**
+     * Debugging aid - if set to true, the temporary directory will not be deleted.
+     */
     protected boolean nodelete = false;
 
     public RemotePublicationReceiverService() {
@@ -173,7 +179,9 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     @Override
     public UpdateInfo releaseInfo(@Nullable String releaseRootPath) throws LoginException {
         UpdateInfo result = null;
-        LOG.info("ReleaseInfo called for {}", releaseRootPath);
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("ReleaseInfo called for {}", releaseRootPath);
+        }
         if (StringUtils.isNotBlank(releaseRootPath)) {
             try (ResourceResolver resolver = makeResolver()) {
                 Resource releaseRoot = getReleaseRoot(resolver, releaseRootPath);
@@ -312,7 +320,9 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
             ModifiableValueMap releaseRootVm = targetReleaseRoot.adaptTo(ModifiableValueMap.class);
             releaseRootVm.put(StagingConstants.PROP_LAST_REPLICATION_DATE, Calendar.getInstance());
             releaseRootVm.put(StagingConstants.PROP_CHANGE_NUMBER, newReleaseChangeId);
-            if (!nodelete) { resolver.delete(tmpLocation); }
+            if (!nodelete) {
+                resolver.delete(tmpLocation);
+            }
             resolver.commit();
         }
     }
@@ -353,7 +363,9 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     public void abort(@Nullable String updateId) throws LoginException, RemotePublicationReceiverException,
             RepositoryException, PersistenceException {
         LOG.info("Abort called for {}", updateId);
-        if (nodelete) { return; }
+        if (nodelete) {
+            return;
+        }
         try (ResourceResolver resolver = makeResolver()) {
             Resource tmpLocation = getTmpLocation(resolver, updateId, false);
             resolver.delete(tmpLocation);
@@ -413,7 +425,9 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
         for (String pathsegment : StringUtils.removeStart(ResourceUtil.getParent(deletedPath), "/").split("/")) {
             source = source.getChild(pathsegment);
             destination = destination.getChild(pathsegment);
-            if (source == null || destination == null) { break; }
+            if (source == null || destination == null) {
+                break;
+            }
             synchronizer.updateAttributes(ResourceHandle.use(source), ResourceHandle.use(destination), ImmutableBiMap.of());
         }
 
@@ -426,7 +440,9 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
         }
     }
 
-    /** Removes parent nodes of the deleted nodes that do not have any (versionable) children now. */
+    /**
+     * Removes parent nodes of the deleted nodes that do not have any (versionable) children now.
+     */
     protected void removeOrphans(@Nonnull ResourceResolver resolver, @Nonnull String targetRoot,
                                  @Nonnull String deletedPath, @Nonnull String targetReleaseRootPath) throws PersistenceException {
         String originalPath = appendPaths(targetRoot, deletedPath);
@@ -484,7 +500,9 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
      */
     protected void cleanup(ResourceResolver resolver) {
         int cleanupDays = config.cleanupTmpdirDays();
-        if (cleanupDays < 1 || StringUtils.length(config.tmpDir()) < 4) { return; }
+        if (cleanupDays < 1 || StringUtils.length(config.tmpDir()) < 4) {
+            return;
+        }
         Resource tmpDir = resolver.getResource(config.tmpDir());
         if (tmpDir == null) { // impossible
             LOG.warn("Can't find temporary directory for cleanup: {}", config.tmpDir());
@@ -551,7 +569,9 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                 .map(Resource::getName)
                 .collect(Collectors.toList());
         boolean result = currentChildNames.equals(childNames);
-        if (!result) { LOG.debug("different children order at {}", resource.getPath()); }
+        if (!result) {
+            LOG.debug("different children order at {}", resource.getPath());
+        }
         return result;
     }
 
@@ -599,7 +619,9 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     }
 
 
-    /** Creates the service resolver used to update the content. */
+    /**
+     * Creates the service resolver used to update the content.
+     */
     @Nonnull
     protected ResourceResolver makeResolver() throws LoginException {
         return resolverFactory.getServiceResourceResolver(null);

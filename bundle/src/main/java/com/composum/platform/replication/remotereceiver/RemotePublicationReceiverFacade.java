@@ -176,7 +176,9 @@ public class RemotePublicationReceiverFacade {
         String uri = uriString(releaseInfo, json, releaseRootPath);
         HttpGet method = new HttpGet(uri);
 
-        LOG.info("Get releaseinfo for path {}", releaseRootPath);
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("Get releaseinfo for path {}", releaseRootPath);
+        }
         RemotePublicationReceiverServlet.StatusWithReleaseData status =
                 callRemotePublicationReceiver("Get releaseinfo for " + releaseRootPath,
                         httpClientContext, method, RemotePublicationReceiverServlet.StatusWithReleaseData.class, null);
@@ -398,8 +400,10 @@ public class RemotePublicationReceiverFacade {
                 }
             }
             if (status != null && status.isValid() && status.isSuccess()) {
-                LOG.info("Remote call successful about {} with {}, {}", logmessage,
-                        statusLine.getStatusCode(), statusLine.getReasonPhrase());
+                if (LOG.isDebugEnabled()) {
+                    LOG.debug("Remote call successful about {} with {}, {}", logmessage,
+                            statusLine.getStatusCode(), statusLine.getReasonPhrase());
+                }
             } else {
                 throw ExceptionUtil.logAndThrow(LOG,
                         new RemotePublicationFacadeException("Received invalid status from remote system for " + logmessage,
@@ -455,5 +459,4 @@ public class RemotePublicationReceiverFacade {
             return sb.toString();
         }
     }
-
 }
