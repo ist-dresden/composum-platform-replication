@@ -51,12 +51,7 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.List;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -393,6 +388,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
         source = requireNonNull(source.getChild(nodename), updatedPath);
         Resource destinationParent = destination;
         destination = destination.getChild(nodename);
+        Session session = Objects.requireNonNull(destinationParent.getResourceResolver().adaptTo(Session.class));
 
         if (destination != null) {
             // can't replace the node since OAK wrongly thinks we changed protected attributes
@@ -403,13 +399,13 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                 resolver.delete(previousChild);
             }
             for (Resource child : source.getChildren()) {
-                resolver.move(child.getPath(), destination.getPath());
+                session.move(child.getPath(), destination.getPath() + "/" + child.getName());
+                // avoid resolver.move(child.getPath(), destination.getPath()); because brittle
             }
         } else {
             Resource sourceParent = source.getParent();
             // use JCR move because of OAK-bugs: this is sometimes treated as copy and delete, which even fails
             // should be resolver.move(source.getPath(), destinationParent.getPath());
-            Session session = destinationParent.getResourceResolver().adaptTo(Session.class);
             session.move(source.getPath(), destinationParent.getPath() + "/" + nodename);
             if (ResourceUtil.isFile(sourceParent) && !sourceParent.hasChildren()) {
                 resolver.delete(sourceParent); // otherwise tmpdir would be inconsistent.
