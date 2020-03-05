@@ -94,6 +94,11 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
     public static final String PATH_CONFIGROOT = "/conf";
     public static final String DIR_REPLICATION = "/replication";
 
+    /**
+     * {@link ReleaseChangeProcess#getType()} for this kind of replication.
+     */
+    public static final String TYPE_REMOTE = "Remote";
+
     protected volatile Configuration config;
 
     protected volatile CloseableHttpClient httpClient;
@@ -579,6 +584,11 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         @Override
         public String getDescription() {
             return description;
+        }
+
+        @Override
+        public String getType() {
+            return TYPE_REMOTE;
         }
 
         @Nullable
