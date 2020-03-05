@@ -395,7 +395,10 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
             }
         } else {
             Resource sourceParent = source.getParent();
-            resolver.move(source.getPath(), destinationParent.getPath());
+            // use JCR move because of OAK-bugs: this is sometimes treated as copy and delete, which even fails
+            // should be resolver.move(source.getPath(), destinationParent.getPath());
+            Session session = destinationParent.getResourceResolver().adaptTo(Session.class);
+            session.move(source.getPath(), destinationParent.getPath() + "/" + nodename);
             if (ResourceUtil.isFile(sourceParent) && !sourceParent.hasChildren()) {
                 resolver.delete(sourceParent); // otherwise tmpdir would be inconsistent.
             }
