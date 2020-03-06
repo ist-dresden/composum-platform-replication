@@ -20,8 +20,9 @@
                        class="composum-platform-replication-node_target-url form-control widget text-field-widget"/>
             </div>
             <div class="form-group">
+                <input type="hidden" name="credentialId@Delete" value="true" class="sling-post-delete-hint"/>
                 <label>${cpn:i18n(slingRequest,'Credentials')}</label>
-                <input type="text" name="credentialsKey" value="${model.property.credentialsKey}"
+                <input type="text" name="credentialId" value="${model.property.credentialsKey}"
                        class="composum-platform-replication-node_credentials form-control widget text-field-widget"/>
             </div>
         </div>
