@@ -46,7 +46,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
-import java.io.StringWriter;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
@@ -73,7 +72,7 @@ import static com.composum.platform.replication.remotereceiver.RemotePublication
 /**
  * Provides a Java interface for accessing the remote publication receiver.
  */
-public class RemotePublicationReceiverFacade {
+public class RemotePublicationReceiverFacade implements PublicationReceiverFacade {
 
     private static final Logger LOG = LoggerFactory.getLogger(RemotePublicationReceiverFacade.class);
 
@@ -127,18 +126,9 @@ public class RemotePublicationReceiverFacade {
         return replicationConfig.getTargetUrl() + "." + operation.name() + "." + ext.name();
     }
 
-    /**
-     * Starts an update process on the remote side. To clean up resources, either
-     * {@link #commitUpdate(UpdateInfo, Set, Stream, ExceptionThrowingRunnable)} or
-     * {@link #abortUpdate(UpdateInfo)} must be called afterwards.
-     *
-     * @param releaseRoot the root of the release containing {path} (may be equal to {path})
-     * @param path        the root content path that should be considered. Might be the root of a release, or any
-     *                    subdirectory.
-     * @return the basic information about the update which must be used for all related calls on this update.
-     */
+    @Override
     @Nonnull
-    public UpdateInfo startUpdate(@NotNull String releaseRoot, @Nonnull String path) throws RemotePublicationFacadeException, RepositoryException {
+    public UpdateInfo startUpdate(@NotNull String releaseRoot, @Nonnull String path) throws PublicationReceiverFacadeException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 proxyManagerService, credentialService);
         List<NameValuePair> form = new ArrayList<>();
@@ -154,23 +144,14 @@ public class RemotePublicationReceiverFacade {
                         httpClientContext, post, RemotePublicationReceiverServlet.StatusWithReleaseData.class, null);
         if (status.updateInfo == null || StringUtils.isBlank(status.updateInfo.updateId)) { // impossible
             throw ExceptionUtil.logAndThrow(LOG,
-                    new RemotePublicationFacadeException("Received no updateId for " + path, null, status, null));
+                    new PublicationReceiverFacadeException("Received no updateId for " + path, null, status, null));
         }
         return status.updateInfo;
     }
 
-    /**
-     * Starts an update process on the remote side. To clean up resources, either
-     * {@link #commitUpdate(UpdateInfo, Set, Stream, ExceptionThrowingRunnable)} or
-     * {@link #abortUpdate(UpdateInfo)} must be called afterwards.
-     *
-     * @param path            the root content path that should be considered. Might be the root of a release, or any
-     *                        subdirectory.
-     * @param releaseRootPath the root of the release containing {path} (may be equal to {path})
-     * @return the basic information about the update which must be used for all related calls on this update.
-     */
+    @Override
     @Nonnull
-    public RemotePublicationReceiverServlet.StatusWithReleaseData releaseInfo(@NotNull String releaseRootPath) throws RemotePublicationFacadeException, RepositoryException {
+    public RemotePublicationReceiverServlet.StatusWithReleaseData releaseInfo(@NotNull String releaseRootPath) throws PublicationReceiverFacadeException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 proxyManagerService, credentialService);
         String uri = uriString(releaseInfo, json, releaseRootPath);
@@ -185,18 +166,11 @@ public class RemotePublicationReceiverFacade {
         return status;
     }
 
-    /**
-     * Queries the versions of versionables below {paths} on the remote side and returns in the status which
-     * resources of the remote side have a different version and which do not exist.
-     *
-     * @param paths       the paths to query
-     * @param contentPath a path that is a common parent to all paths - just a safety feature that a broken / faked
-     *                    response cannot compare unwanted areas of the content.
-     */
+    @Override
     @Nonnull
     public RemotePublicationReceiverServlet.ContentStateStatus contentState(
             @Nonnull UpdateInfo updateInfo, @Nonnull Collection<String> paths, ResourceResolver resolver, String contentPath)
-            throws RemotePublicationFacadeException, RepositoryException {
+            throws PublicationReceiverFacadeException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 proxyManagerService, credentialService);
         List<NameValuePair> form = new ArrayList<>();
@@ -219,15 +193,11 @@ public class RemotePublicationReceiverFacade {
         return status;
     }
 
-    /**
-     * Transmits the versions of versionables below {paths} to the remote side, which returns a list of paths
-     * that have different versions or do not exists with {@link Status#data(String)}({@value Status#DATA}) attribute
-     * {@link RemoteReceiverConstants#PARAM_PATH} as List&lt;String>.
-     */
+    @Override
     @Nonnull
     public Status compareContent(@Nonnull UpdateInfo updateInfo, @Nonnull Collection<String> paths,
                                  ResourceResolver resolver, String contentPath)
-            throws URISyntaxException, RemotePublicationFacadeException, RepositoryException {
+            throws URISyntaxException, PublicationReceiverFacadeException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 proxyManagerService, credentialService);
         URI uri = uriBuilder(compareContent, json, contentPath)
@@ -251,11 +221,9 @@ public class RemotePublicationReceiverFacade {
         return status;
     }
 
-    /**
-     * Uploads the resource tree to the remote machine.
-     */
+    @Override
     @Nonnull
-    public Status pathupload(@Nonnull UpdateInfo updateInfo, @Nonnull Resource resource) throws RemotePublicationFacadeException, URISyntaxException, RepositoryException {
+    public Status pathupload(@Nonnull UpdateInfo updateInfo, @Nonnull Resource resource) throws PublicationReceiverFacadeException, URISyntaxException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 proxyManagerService, credentialService);
         URI uri = uriBuilder(pathUpload, zip, resource.getPath())
@@ -269,18 +237,13 @@ public class RemotePublicationReceiverFacade {
         return status;
     }
 
-    /**
-     * Replaces the content with the updated content and deletes obsolete paths.
-     *
-     * @param checkForParallelModifications executed at the last possible time before the request is completed, to allow
-     *                                      checking for parallel modifications of the source
-     */
+    @Override
     @Nonnull
     public Status commitUpdate(@Nonnull UpdateInfo updateInfo, @Nonnull String newReleaseChangeNumber,
                                @Nonnull Set<String> deletedPaths,
                                @Nonnull Stream<ChildrenOrderInfo> relevantOrderings,
                                @Nonnull ExceptionThrowingRunnable<? extends Exception> checkForParallelModifications)
-            throws RemotePublicationFacadeException, RepositoryException {
+            throws PublicationReceiverFacadeException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 proxyManagerService, credentialService);
         Gson gson = new GsonBuilder().create();
@@ -324,11 +287,9 @@ public class RemotePublicationReceiverFacade {
         return status;
     }
 
-    /**
-     * Aborts the update, deleting the temporary directory on the remote side.
-     */
+    @Override
     @Nonnull
-    public Status abortUpdate(@Nonnull UpdateInfo updateInfo) throws RemotePublicationFacadeException, RepositoryException {
+    public Status abortUpdate(@Nonnull UpdateInfo updateInfo) throws PublicationReceiverFacadeException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 proxyManagerService, credentialService);
         List<NameValuePair> form = new ArrayList<>();
@@ -345,11 +306,9 @@ public class RemotePublicationReceiverFacade {
         return status;
     }
 
-    /**
-     * Compares children order and attributes of the parents.
-     */
+    @Override
     public Status compareParents(String releaseRoot, ResourceResolver resolver, Stream<ChildrenOrderInfo> relevantOrderings,
-                                 Stream<NodeAttributeComparisonInfo> attributeInfos) throws RemotePublicationFacadeException, RepositoryException {
+                                 Stream<NodeAttributeComparisonInfo> attributeInfos) throws PublicationReceiverFacadeException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 proxyManagerService, credentialService);
         Gson gson = new GsonBuilder().create();
@@ -386,7 +345,7 @@ public class RemotePublicationReceiverFacade {
     @Nonnull
     protected <T extends Status> T callRemotePublicationReceiver(
             @Nonnull String logmessage, @Nonnull HttpClientContext httpClientContext, @Nonnull HttpUriRequest request,
-            @Nonnull Class<T> statusClass, @Nullable Gson gson) throws RemotePublicationFacadeException {
+            @Nonnull Class<T> statusClass, @Nullable Gson gson) throws PublicationReceiverFacadeException {
         gson = gson != null ? gson : new GsonBuilder().create();
         T status = null;
         StatusLine statusLine = null;
@@ -406,57 +365,15 @@ public class RemotePublicationReceiverFacade {
                 }
             } else {
                 throw ExceptionUtil.logAndThrow(LOG,
-                        new RemotePublicationFacadeException("Received invalid status from remote system for " + logmessage,
+                        new PublicationReceiverFacadeException("Received invalid status from remote system for " + logmessage,
                                 null, status, statusLine));
             }
         } catch (IOException e) {
-            throw ExceptionUtil.logAndThrow(LOG, new RemotePublicationFacadeException(
+            throw ExceptionUtil.logAndThrow(LOG, new PublicationReceiverFacadeException(
                     "Trouble accessing remote service for " + logmessage, e, status,
                     statusLine));
         }
         return status;
     }
 
-    /**
-     * Exception that signifies a problem with the replication.
-     */
-    public static class RemotePublicationFacadeException extends Exception {
-        protected final Status status;
-        protected final Integer statusCode;
-        protected final String reasonPhrase;
-
-        public RemotePublicationFacadeException(String message, Throwable throwable, Status status, StatusLine statusLine) {
-            super(message, throwable);
-            this.status = status;
-            this.statusCode = statusLine != null ? statusLine.getStatusCode() : null;
-            this.reasonPhrase = statusLine != null ? statusLine.getReasonPhrase() : null;
-        }
-
-        @Nullable
-        public Status getStatus() {
-            return status;
-        }
-
-        @Override
-        public String toString() {
-            final StringBuilder sb = new StringBuilder(super.toString()).append("{");
-            if (statusCode != null) {
-                sb.append(", statusCode=").append(statusCode);
-            }
-            if (reasonPhrase != null) {
-                sb.append(", reasonPhrase='").append(reasonPhrase).append('\'');
-            }
-            if (status != null) {
-                try (StringWriter statusString = new StringWriter()) {
-                    status.toJson(new JsonWriter(statusString));
-                    sb.append(", status=").append(statusString.toString());
-                } catch (IOException e) {
-                    LOG.error("" + e, e);
-                    sb.append(", status=Cannot deserialize: ").append(e);
-                }
-            }
-            sb.append('}');
-            return sb.toString();
-        }
-    }
 }

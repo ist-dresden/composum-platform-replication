@@ -100,7 +100,7 @@ public interface RemotePublicationReceiver {
 
         @Override
         public String toString() {
-            final StringBuilder sb = new StringBuilder("RemotePublicationFacadeException{");
+            final StringBuilder sb = new StringBuilder("PublicationReceiverFacadeException{");
             sb.append("message='").append(getMessage()).append('\'');
             sb.append(", retryadvice=").append(retryadvice);
             sb.append('}');

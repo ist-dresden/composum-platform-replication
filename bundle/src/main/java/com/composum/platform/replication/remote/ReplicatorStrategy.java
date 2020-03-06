@@ -3,10 +3,7 @@ package com.composum.platform.replication.remote;
 import com.composum.platform.replication.json.ChildrenOrderInfo;
 import com.composum.platform.replication.json.NodeAttributeComparisonInfo;
 import com.composum.platform.replication.json.VersionableTree;
-import com.composum.platform.replication.remotereceiver.RemotePublicationConfig;
-import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverFacade;
-import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet;
-import com.composum.platform.replication.remotereceiver.UpdateInfo;
+import com.composum.platform.replication.remotereceiver.*;
 import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.logging.Message;
 import com.composum.sling.core.logging.MessageContainer;
@@ -50,7 +47,7 @@ public class ReplicatorStrategy {
     @Nonnull
     protected final String originalSourceReleaseChangeNumber;
     @Nonnull
-    protected final RemotePublicationReceiverFacade publisher;
+    protected final PublicationReceiverFacade publisher;
     @Nonnull
     protected final MessageContainer messages;
 
@@ -64,7 +61,7 @@ public class ReplicatorStrategy {
 
     protected ReplicatorStrategy(@Nonnull Set<String> changedPaths, @Nonnull StagingReleaseManager.Release release,
                                  @Nonnull BeanContext context, @Nonnull RemotePublicationConfig replicationConfig,
-                                 @Nonnull MessageContainer messages, @Nonnull RemotePublicationReceiverFacade publisher) {
+                                 @Nonnull MessageContainer messages, @Nonnull PublicationReceiverFacade publisher) {
         this.changedPaths = changedPaths;
         this.release = release;
         this.originalSourceReleaseChangeNumber = release.getChangeNumber();
@@ -166,7 +163,7 @@ public class ReplicatorStrategy {
             cleanupUpdateInfo = null;
 
             messages.add(Message.info("Replication done for {}", updateInfo.updateId));
-        } catch (RuntimeException | RemotePublicationReceiverFacade.RemotePublicationFacadeException | URISyntaxException | RepositoryException e) {
+        } catch (RuntimeException | RemotePublicationReceiverFacade.PublicationReceiverFacadeException | URISyntaxException | RepositoryException e) {
             messages.add(Message.error("Remote publishing failed for {} because of {}",
                     cleanupUpdateInfo != null ? cleanupUpdateInfo.updateId : "",
                     String.valueOf(e)), e);
@@ -250,7 +247,7 @@ public class ReplicatorStrategy {
                         .flatMap(this::childrenExcludingVersionables));
     }
 
-    protected void abortIfNecessary(@Nonnull UpdateInfo updateInfo) throws RemotePublicationReceiverFacade.RemotePublicationFacadeException,
+    protected void abortIfNecessary(@Nonnull UpdateInfo updateInfo) throws RemotePublicationReceiverFacade.PublicationReceiverFacadeException,
             ReleaseChangeEventListener.ReplicationFailedException {
         if (abortAtNextPossibility) {
             messages.add(Message.info("Aborting because that was requested: {}", updateInfo.updateId));
@@ -268,7 +265,7 @@ public class ReplicatorStrategy {
         }
     }
 
-    protected void abort(@Nonnull UpdateInfo updateInfo) throws RemotePublicationReceiverFacade.RemotePublicationFacadeException {
+    protected void abort(@Nonnull UpdateInfo updateInfo) throws RemotePublicationReceiverFacade.PublicationReceiverFacadeException {
         Status status = null;
         try {
             status = publisher.abortUpdate(updateInfo);
@@ -279,18 +276,18 @@ public class ReplicatorStrategy {
                 cleanupUpdateInfo = null;
             }
         } catch (RepositoryException e) {
-            throw new RemotePublicationReceiverFacade.RemotePublicationFacadeException("Error calling abort", e, status, null);
+            throw new RemotePublicationReceiverFacade.PublicationReceiverFacadeException("Error calling abort", e, status, null);
         }
 
     }
 
     @Nullable
-    public UpdateInfo remoteReleaseInfo() throws RemotePublicationReceiverFacade.RemotePublicationFacadeException {
+    public UpdateInfo remoteReleaseInfo() throws RemotePublicationReceiverFacade.PublicationReceiverFacadeException {
         RemotePublicationReceiverServlet.StatusWithReleaseData status = null;
         try {
             status = publisher.releaseInfo(release.getReleaseRoot().getPath());
         } catch (RepositoryException e) {
-            throw new RemotePublicationReceiverFacade.RemotePublicationFacadeException("Error calling " +
+            throw new RemotePublicationReceiverFacade.PublicationReceiverFacadeException("Error calling " +
                     "releaseInfo", e, status, null);
         }
         if (status == null || !status.isValid()) {
@@ -316,7 +313,7 @@ public class ReplicatorStrategy {
     }
 
     @Nullable
-    public ReleaseChangeEventPublisher.CompareResult compareTree(int details) throws RemotePublicationReceiverFacade.RemotePublicationFacadeException, ReleaseChangeEventListener.ReplicationFailedException {
+    public ReleaseChangeEventPublisher.CompareResult compareTree(int details) throws RemotePublicationReceiverFacade.PublicationReceiverFacadeException, ReleaseChangeEventListener.ReplicationFailedException {
         try {
             ReleaseChangeEventPublisher.CompareResult result = new ReleaseChangeEventPublisher.CompareResult();
             RemotePublicationReceiverServlet.StatusWithReleaseData releaseInfoStatus = publisher.releaseInfo(release.getReleaseRoot().getPath());

@@ -3,11 +3,8 @@ package com.composum.platform.replication.remote;
 import com.composum.platform.commons.credentials.CredentialService;
 import com.composum.platform.commons.proxy.ProxyManagerService;
 import com.composum.platform.commons.util.CachedCalculation;
-import com.composum.platform.replication.remotereceiver.RemotePublicationConfig;
-import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverFacade;
-import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverFacade.RemotePublicationFacadeException;
-import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet;
-import com.composum.platform.replication.remotereceiver.UpdateInfo;
+import com.composum.platform.replication.remotereceiver.*;
+import com.composum.platform.replication.remotereceiver.PublicationReceiverFacade.PublicationReceiverFacadeException;
 import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.ResourceHandle;
 import com.composum.sling.core.logging.Message;
@@ -218,7 +215,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         protected volatile String mark;
         protected volatile MessageContainer messages = new MessageContainer(LOG);
         protected final Object changedPathsChangeLock = new Object();
-        protected final CachedCalculation<UpdateInfo, RemotePublicationFacadeException> remoteReleaseInfo;
+        protected final CachedCalculation<UpdateInfo, PublicationReceiverFacadeException> remoteReleaseInfo;
 
         @Nonnull
         protected volatile Set<String> changedPaths = new LinkedHashSet<>();
@@ -247,7 +244,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             active = null;
         }
 
-        protected UpdateInfo remoteReleaseInfo() throws RemotePublicationFacadeException {
+        protected UpdateInfo remoteReleaseInfo() throws RemotePublicationReceiverFacade.PublicationReceiverFacadeException {
             if (!isEnabled()) {
                 return null;
             }
@@ -397,7 +394,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             }
             try {
                 return strategy.compareTree(details);
-            } catch (RemotePublicationFacadeException e) {
+            } catch (RemotePublicationReceiverFacade.PublicationReceiverFacadeException e) {
                 throw new ReplicationFailedException(e.getMessage(), e, null);
             }
         }
@@ -427,7 +424,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             ResourceResolver releaseResolver = releaseManager.getResolverForRelease(release, null, false);
             BeanContext.Service context = new BeanContext.Service(releaseResolver);
 
-            RemotePublicationReceiverFacade publisher = new RemotePublicationReceiverFacade(replicationConfig,
+            PublicationReceiverFacade publisher = new RemotePublicationReceiverFacade(replicationConfig,
                     context, httpClient, () -> config, nodesConfig, proxyManagerService, credentialService);
             return new ReplicatorStrategy(processedChangedPaths, release, context, replicationConfig, messages, publisher);
         }
@@ -598,7 +595,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             UpdateInfo updateInfo = null;
             try {
                 updateInfo = remoteReleaseInfo.giveValue();
-            } catch (RemotePublicationFacadeException e) {
+            } catch (PublicationReceiverFacadeException e) {
                 LOG.error("" + e, e);
             }
             return updateInfo != null ? updateInfo.lastReplication : null;
@@ -610,7 +607,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
             UpdateInfo updateInfo = null;
             try {
                 updateInfo = remoteReleaseInfo.giveValue();
-            } catch (RemotePublicationFacadeException e) {
+            } catch (RemotePublicationReceiverFacade.PublicationReceiverFacadeException e) {
                 LOG.error("" + e, e);
             }
             Boolean result = null;
@@ -635,7 +632,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         public void updateSynchronized() {
             try {
                 remoteReleaseInfo.giveValue(null, true); // updates cache
-            } catch (RemotePublicationFacadeException e) {
+            } catch (PublicationReceiverFacadeException e) {
                 LOG.error("" + e, e);
             }
         }
