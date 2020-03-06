@@ -568,6 +568,9 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
 
         @Override
         public void abort() {
+            if (runningStrategy == null) { // reset status.
+                state = idle;
+            }
             abort(false);
         }
 
