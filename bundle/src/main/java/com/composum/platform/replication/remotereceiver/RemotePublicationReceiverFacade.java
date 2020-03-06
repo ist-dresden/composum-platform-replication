@@ -128,7 +128,7 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
 
     @Override
     @Nonnull
-    public UpdateInfo startUpdate(@NotNull String releaseRoot, @Nonnull String path) throws PublicationReceiverFacadeException, RepositoryException {
+    public StatusWithReleaseData startUpdate(@NotNull String releaseRoot, @Nonnull String path) throws PublicationReceiverFacadeException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 proxyManagerService, credentialService);
         List<NameValuePair> form = new ArrayList<>();
@@ -139,19 +139,19 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
         post.setEntity(entity);
 
         LOG.info("Start update in release {} for path {}", releaseRoot, path);
-        RemotePublicationReceiverServlet.StatusWithReleaseData status =
+        StatusWithReleaseData status =
                 callRemotePublicationReceiver("Starting update with " + path,
-                        httpClientContext, post, RemotePublicationReceiverServlet.StatusWithReleaseData.class, null);
+                        httpClientContext, post, StatusWithReleaseData.class, null);
         if (status.updateInfo == null || StringUtils.isBlank(status.updateInfo.updateId)) { // impossible
             throw ExceptionUtil.logAndThrow(LOG,
                     new PublicationReceiverFacadeException("Received no updateId for " + path, null, status, null));
         }
-        return status.updateInfo;
+        return status;
     }
 
     @Override
     @Nonnull
-    public RemotePublicationReceiverServlet.StatusWithReleaseData releaseInfo(@NotNull String releaseRootPath) throws PublicationReceiverFacadeException, RepositoryException {
+    public StatusWithReleaseData releaseInfo(@NotNull String releaseRootPath) throws PublicationReceiverFacadeException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 proxyManagerService, credentialService);
         String uri = uriString(releaseInfo, json, releaseRootPath);
@@ -160,15 +160,15 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
         if (LOG.isDebugEnabled()) {
             LOG.debug("Get releaseinfo for path {}", releaseRootPath);
         }
-        RemotePublicationReceiverServlet.StatusWithReleaseData status =
+        StatusWithReleaseData status =
                 callRemotePublicationReceiver("Get releaseinfo for " + releaseRootPath,
-                        httpClientContext, method, RemotePublicationReceiverServlet.StatusWithReleaseData.class, null);
+                        httpClientContext, method, StatusWithReleaseData.class, null);
         return status;
     }
 
     @Override
     @Nonnull
-    public RemotePublicationReceiverServlet.ContentStateStatus contentState(
+    public ContentStateStatus contentState(
             @Nonnull UpdateInfo updateInfo, @Nonnull Collection<String> paths, ResourceResolver resolver, String contentPath)
             throws PublicationReceiverFacadeException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
@@ -187,9 +187,9 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
         Gson gson = new GsonBuilder().registerTypeAdapterFactory(
                 new VersionableTree.VersionableTreeDeserializer(null, resolver, contentPath)
         ).create();
-        RemotePublicationReceiverServlet.ContentStateStatus status =
+        ContentStateStatus status =
                 callRemotePublicationReceiver("Querying content for " + paths,
-                        httpClientContext, post, RemotePublicationReceiverServlet.ContentStateStatus.class, gson);
+                        httpClientContext, post, ContentStateStatus.class, gson);
         return status;
     }
 

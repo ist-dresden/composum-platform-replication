@@ -64,7 +64,7 @@ public class ReplicationSetup extends AbstractSlingBean {
     public Map<String, ReplicationType> getReplicationTypes() {
         // ToDo scan available services...
         if (replicationTypes == null) {
-            replicationTypes = new LinkedHashMap<>() {{
+            replicationTypes = new LinkedHashMap<String, ReplicationType>() {{
                 put(InplaceReplicationType.SERVICE_ID, new InplaceReplicationType());
                 put(RemoteReplicationType.SERVICE_ID, new RemoteReplicationType());
             }};

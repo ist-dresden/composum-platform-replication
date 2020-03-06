@@ -3,9 +3,13 @@ package com.composum.platform.replication.remotereceiver;
 import com.composum.platform.commons.util.ExceptionThrowingRunnable;
 import com.composum.platform.replication.json.ChildrenOrderInfo;
 import com.composum.platform.replication.json.NodeAttributeComparisonInfo;
+import com.composum.platform.replication.json.VersionableTree;
 import com.composum.sling.core.servlet.Status;
+import com.google.gson.GsonBuilder;
 import com.google.gson.stream.JsonWriter;
 import org.apache.http.StatusLine;
+import org.apache.sling.api.SlingHttpServletRequest;
+import org.apache.sling.api.SlingHttpServletResponse;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.jetbrains.annotations.NotNull;
@@ -27,6 +31,7 @@ import java.util.stream.Stream;
  * This can be implemented locally in the server, but could also be routed remotely to a publisher host.
  */
 public interface PublicationReceiverFacade {
+
     /**
      * Starts an update process on the remote side. To clean up resources, either
      * {@link #commitUpdate(UpdateInfo, Set, Stream, ExceptionThrowingRunnable)} or
@@ -38,7 +43,7 @@ public interface PublicationReceiverFacade {
      * @return the basic information about the update which must be used for all related calls on this update.
      */
     @Nonnull
-    UpdateInfo startUpdate(@NotNull String releaseRoot, @Nonnull String path) throws RemotePublicationReceiverFacade.PublicationReceiverFacadeException, RepositoryException;
+    StatusWithReleaseData startUpdate(@NotNull String releaseRoot, @Nonnull String path) throws RemotePublicationReceiverFacade.PublicationReceiverFacadeException, RepositoryException;
 
     /**
      * Starts an update process on the remote side. To clean up resources, either
@@ -51,7 +56,7 @@ public interface PublicationReceiverFacade {
      * @return the basic information about the update which must be used for all related calls on this update.
      */
     @Nonnull
-    RemotePublicationReceiverServlet.StatusWithReleaseData releaseInfo(@NotNull String releaseRootPath) throws RemotePublicationReceiverFacade.PublicationReceiverFacadeException, RepositoryException;
+    StatusWithReleaseData releaseInfo(@NotNull String releaseRootPath) throws RemotePublicationReceiverFacade.PublicationReceiverFacadeException, RepositoryException;
 
     /**
      * Queries the versions of versionables below {paths} on the remote side and returns in the status which
@@ -62,7 +67,7 @@ public interface PublicationReceiverFacade {
      *                    response cannot compare unwanted areas of the content.
      */
     @Nonnull
-    RemotePublicationReceiverServlet.ContentStateStatus contentState(
+    ContentStateStatus contentState(
             @Nonnull UpdateInfo updateInfo, @Nonnull Collection<String> paths, ResourceResolver resolver, String contentPath)
             throws RemotePublicationReceiverFacade.PublicationReceiverFacadeException, RepositoryException;
 
@@ -149,6 +154,59 @@ public interface PublicationReceiverFacade {
             }
             sb.append('}');
             return sb.toString();
+        }
+    }
+
+    /**
+     * Extends Status to write data about all versionables below resource without needing to save everything in
+     * memory - the data is fetched on the fly during JSON serialization.
+     */
+    class ContentStateStatus extends Status {
+
+        /**
+         * The attribute; need to register serializer - see {@link VersionableTree}.
+         */
+        protected VersionableTree versionables;
+
+        public VersionableTree getVersionables() {
+            return versionables;
+        }
+
+        public ContentStateStatus(@Nonnull final GsonBuilder gsonBuilder, @Nonnull SlingHttpServletRequest request,
+                                  @Nonnull SlingHttpServletResponse response, @Nonnull Logger logger) {
+            super(gsonBuilder, request, response, logger);
+        }
+
+        /**
+         * @deprecated for instantiation by GSon only
+         */
+        @Deprecated
+        public ContentStateStatus() {
+            super(null, null);
+        }
+
+    }
+
+    /**
+     * Reads the result of {@link RemotePublicationReceiverServlet.StartUpdateOperation} into memory.
+     */
+    class StatusWithReleaseData extends Status {
+
+        /**
+         * The created update data.
+         */
+        public UpdateInfo updateInfo;
+
+        /**
+         * @deprecated for instantiation by GSon only
+         */
+        @Deprecated
+        public StatusWithReleaseData() {
+            super(null, null);
+        }
+
+        public StatusWithReleaseData(SlingHttpServletRequest request, SlingHttpServletResponse response, Logger log) {
+            super(request, response, log);
         }
     }
 }

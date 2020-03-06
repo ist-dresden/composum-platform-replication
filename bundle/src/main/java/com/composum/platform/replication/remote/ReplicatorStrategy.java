@@ -89,7 +89,7 @@ public class ReplicatorStrategy {
             requireNonNull(commonParent);
             progress = 0;
 
-            UpdateInfo updateInfo = publisher.startUpdate(release.getReleaseRoot().getPath(), commonParent);
+            UpdateInfo updateInfo = publisher.startUpdate(release.getReleaseRoot().getPath(), commonParent).updateInfo;
             cleanupUpdateInfo = updateInfo;
             RemotePublisherService.LOG.info("Received UpdateInfo {}", updateInfo);
 
@@ -99,7 +99,7 @@ public class ReplicatorStrategy {
             }
             messages.add(Message.info("Update {} started", updateInfo.updateId));
 
-            RemotePublicationReceiverServlet.ContentStateStatus contentState = publisher.contentState(updateInfo,
+            PublicationReceiverFacade.ContentStateStatus contentState = publisher.contentState(updateInfo,
                     changedPaths, resolver, release.getReleaseRoot().getPath());
             if (!contentState.isValid()) {
                 messages.add(Message.error("Received invalid status on contentState for {}", updateInfo.updateId));
@@ -283,7 +283,7 @@ public class ReplicatorStrategy {
 
     @Nullable
     public UpdateInfo remoteReleaseInfo() throws RemotePublicationReceiverFacade.PublicationReceiverFacadeException {
-        RemotePublicationReceiverServlet.StatusWithReleaseData status = null;
+        PublicationReceiverFacade.StatusWithReleaseData status = null;
         try {
             status = publisher.releaseInfo(release.getReleaseRoot().getPath());
         } catch (RepositoryException e) {
@@ -316,7 +316,7 @@ public class ReplicatorStrategy {
     public ReleaseChangeEventPublisher.CompareResult compareTree(int details) throws RemotePublicationReceiverFacade.PublicationReceiverFacadeException, ReleaseChangeEventListener.ReplicationFailedException {
         try {
             ReleaseChangeEventPublisher.CompareResult result = new ReleaseChangeEventPublisher.CompareResult();
-            RemotePublicationReceiverServlet.StatusWithReleaseData releaseInfoStatus = publisher.releaseInfo(release.getReleaseRoot().getPath());
+            PublicationReceiverFacade.StatusWithReleaseData releaseInfoStatus = publisher.releaseInfo(release.getReleaseRoot().getPath());
             UpdateInfo updateInfo = releaseInfoStatus.updateInfo;
             if (!releaseInfoStatus.isValid() || updateInfo == null) {
                 RemotePublisherService.LOG.error("Retrieve remote releaseinfo failed for {}", this.replicationConfig);
@@ -327,7 +327,7 @@ public class ReplicatorStrategy {
 
             // get info on the remote versionables and check which are changed / not present here
             String commonParent = SlingResourceUtil.commonParent(changedPaths);
-            RemotePublicationReceiverServlet.ContentStateStatus contentState =
+            PublicationReceiverFacade.ContentStateStatus contentState =
                     publisher.contentState(updateInfo, changedPaths, resolver, commonParent);
             if (!contentState.isValid() || contentState.getVersionables() == null) {
                 throw new ReleaseChangeEventListener.ReplicationFailedException("Querying content state failed for " + replicationConfig + " " +

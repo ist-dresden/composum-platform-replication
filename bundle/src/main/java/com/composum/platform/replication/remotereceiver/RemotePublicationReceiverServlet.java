@@ -153,7 +153,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
             String targetDir = requireNonNull(service.getTargetDir());
             VersionableTree.VersionableTreeSerializer factory = new VersionableTree.VersionableTreeSerializer(targetDir);
             GsonBuilder gsonBuilder = new GsonBuilder().registerTypeAdapterFactory(factory);
-            ContentStateStatus status = new ContentStateStatus(gsonBuilder, request, response, LOG);
+            PublicationReceiverFacade.ContentStateStatus status = new PublicationReceiverFacade.ContentStateStatus(gsonBuilder, request, response, LOG);
 
             String contentPath = XSS.filter(request.getRequestPathInfo().getSuffix());
             String[] additionalPaths = XSS.filter(request.getParameterValues(RemoteReceiverConstants.PARAM_PATH));
@@ -180,32 +180,6 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
             }
         }
 
-
-    }
-
-    /**
-     * Extends Status to write data about all versionables below resource without needing to save everything in
-     * memory - the data is fetched on the fly during JSON serialization.
-     */
-    public static class ContentStateStatus extends Status {
-
-        /** The attribute; need to register serializer - see {@link VersionableTree}. */
-        protected VersionableTree versionables;
-
-        public VersionableTree getVersionables() {
-            return versionables;
-        }
-
-        public ContentStateStatus(@Nonnull final GsonBuilder gsonBuilder, @Nonnull SlingHttpServletRequest request,
-                                  @Nonnull SlingHttpServletResponse response, @Nonnull Logger logger) {
-            super(gsonBuilder, request, response, logger);
-        }
-
-        /** @deprecated for instantiation by GSon only */
-        @Deprecated
-        public ContentStateStatus() {
-            super(null, null);
-        }
 
     }
 
@@ -241,7 +215,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         @Override
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle ignored)
                 throws IOException, ServletException {
-            StatusWithReleaseData status = new StatusWithReleaseData(request, response, LOG);
+            PublicationReceiverFacade.StatusWithReleaseData status = new PublicationReceiverFacade.StatusWithReleaseData(request, response, LOG);
             String contentPath = XSS.filter(request.getRequestPathInfo().getSuffix());
             String releaseRootPath = XSS.filter(request.getParameter(RemoteReceiverConstants.PARAM_RELEASEROOT));
             if (isNotBlank(releaseRootPath) && isNotBlank(contentPath) &&
@@ -261,23 +235,6 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
             status.sendJson();
         }
 
-    }
-
-    /** Reads the result of {@link StartUpdateOperation} into memory. */
-    public static class StatusWithReleaseData extends Status {
-
-        /** The created update data. */
-        public UpdateInfo updateInfo;
-
-        /** @deprecated for instantiation by GSon only */
-        @Deprecated
-        public StatusWithReleaseData() {
-            super(null, null);
-        }
-
-        public StatusWithReleaseData(SlingHttpServletRequest request, SlingHttpServletResponse response, Logger log) {
-            super(request, response, log);
-        }
     }
 
     /** Receives a package and saves it in the temporary folder. */
@@ -393,7 +350,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource)
                 throws IOException, ServletException {
             String suffix = XSS.filter(request.getRequestPathInfo().getSuffix());
-            StatusWithReleaseData status = new StatusWithReleaseData(request, response, LOG);
+            PublicationReceiverFacade.StatusWithReleaseData status = new PublicationReceiverFacade.StatusWithReleaseData(request, response, LOG);
             try {
                 status.updateInfo = service.releaseInfo(suffix);
             } catch (LoginException e) { // serious misconfiguration
