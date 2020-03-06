@@ -1,9 +1,9 @@
 package com.composum.platform.replication.remotereceiver;
 
 import com.composum.platform.commons.json.JsonArrayAsIterable;
-import com.composum.platform.replication.json.ChildrenOrderInfo;
-import com.composum.platform.replication.json.NodeAttributeComparisonInfo;
-import com.composum.platform.replication.json.VersionableInfo;
+import com.composum.sling.platform.staging.replication.json.ChildrenOrderInfo;
+import com.composum.sling.platform.staging.replication.json.NodeAttributeComparisonInfo;
+import com.composum.sling.platform.staging.replication.json.VersionableInfo;
 import org.apache.jackrabbit.vault.fs.config.ConfigurationException;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;

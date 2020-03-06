@@ -1,6 +1,8 @@
 package com.composum.platform.replication.remotereceiver;
 
 import com.composum.sling.platform.staging.StagingReleaseManager;
+import com.composum.sling.platform.staging.replication.json.ChildrenOrderInfo;
+import com.composum.sling.platform.staging.replication.json.NodeAttributeComparisonInfo;
 
 import java.util.regex.Pattern;
 
@@ -22,10 +24,12 @@ public interface RemoteReceiverConstants {
      */
     String PARAM_RELEASEROOT = "releaseRoot";
 
-    /** Parameter for {@link com.composum.platform.replication.json.ChildrenOrderInfo}s. */
+    /**
+     * Parameter for {@link ChildrenOrderInfo}s.
+     */
     String PARAM_CHILDORDERINGS = "childOrderings";
 
-    /** Parameter for {@link com.composum.platform.replication.json.NodeAttributeComparisonInfo}s. */
+    /** Parameter for {@link NodeAttributeComparisonInfo}s. */
     String PARAM_ATTRIBUTEINFOS = "attributeInfos";
 
     /** Mandatory of the parameter to contain the update id (except for startupdate). */

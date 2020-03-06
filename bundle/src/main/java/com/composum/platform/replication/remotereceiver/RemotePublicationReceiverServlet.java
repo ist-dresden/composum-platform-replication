@@ -1,9 +1,9 @@
 package com.composum.platform.replication.remotereceiver;
 
 import com.composum.platform.commons.json.JsonArrayAsIterable;
-import com.composum.platform.replication.json.ChildrenOrderInfo;
-import com.composum.platform.replication.json.NodeAttributeComparisonInfo;
-import com.composum.platform.replication.json.VersionableTree;
+import com.composum.sling.platform.staging.replication.json.ChildrenOrderInfo;
+import com.composum.sling.platform.staging.replication.json.NodeAttributeComparisonInfo;
+import com.composum.sling.platform.staging.replication.json.VersionableTree;
 import com.composum.sling.core.ResourceHandle;
 import com.composum.sling.core.servlet.AbstractServiceServlet;
 import com.composum.sling.core.servlet.ServletOperation;
@@ -11,6 +11,7 @@ import com.composum.sling.core.servlet.ServletOperationSet;
 import com.composum.sling.core.servlet.Status;
 import com.composum.sling.core.util.SlingResourceUtil;
 import com.composum.sling.core.util.XSS;
+import com.composum.sling.platform.staging.replication.json.VersionableInfo;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonParseException;
@@ -184,7 +185,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
     }
 
     /**
-     * Receives a number of {@link com.composum.platform.replication.json.VersionableInfo} in a PUT request and
+     * Receives a number of {@link VersionableInfo} in a PUT request and
      * compares them to the current content. The paths that differ or do not exist are returned in the response
      * {@link Status#data(String)}({@value Status#DATA}) attribute {@link RemoteReceiverConstants#PARAM_PATH} as List&lt;String>.
      */
