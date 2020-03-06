@@ -1,5 +1,6 @@
 package com.composum.platform.replication.remote;
 
+import com.composum.sling.platform.staging.replication.UpdateInfo;
 import com.composum.sling.platform.staging.replication.json.ChildrenOrderInfo;
 import com.composum.sling.platform.staging.replication.json.NodeAttributeComparisonInfo;
 import com.composum.sling.platform.staging.replication.json.VersionableTree;

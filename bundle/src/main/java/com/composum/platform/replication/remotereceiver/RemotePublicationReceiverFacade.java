@@ -1,9 +1,11 @@
 package com.composum.platform.replication.remotereceiver;
 
 import com.composum.platform.commons.credentials.CredentialService;
+import com.composum.platform.commons.json.JsonHttpEntity;
 import com.composum.platform.commons.proxy.ProxyManagerService;
 import com.composum.platform.commons.util.ExceptionThrowingRunnable;
 import com.composum.platform.commons.util.ExceptionUtil;
+import com.composum.sling.platform.staging.replication.UpdateInfo;
 import com.composum.sling.platform.staging.replication.json.ChildrenOrderInfo;
 import com.composum.sling.platform.staging.replication.json.NodeAttributeComparisonInfo;
 import com.composum.sling.platform.staging.replication.json.VersionableTree;
