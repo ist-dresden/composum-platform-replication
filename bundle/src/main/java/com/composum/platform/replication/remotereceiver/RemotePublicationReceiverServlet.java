@@ -220,10 +220,12 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
             PublicationReceiverFacade.StatusWithReleaseData status = new PublicationReceiverFacade.StatusWithReleaseData(request, response, LOG);
             String contentPath = XSS.filter(request.getRequestPathInfo().getSuffix());
             String releaseRootPath = XSS.filter(request.getParameter(RemoteReceiverConstants.PARAM_RELEASEROOT));
+            String srcPath = XSS.filter(request.getParameter(RemoteReceiverConstants.PARAM_SRCPATH));
+            String targetPath = XSS.filter(request.getParameter(RemoteReceiverConstants.PARAM_TARGETPATH));
             if (isNotBlank(releaseRootPath) && isNotBlank(contentPath) &&
                     SlingResourceUtil.isSameOrDescendant(releaseRootPath, contentPath)) {
                 try {
-                    status.updateInfo = service.startUpdate(releaseRootPath, contentPath);
+                    status.updateInfo = service.startUpdate(releaseRootPath, contentPath, srcPath, targetPath);
                 } catch (LoginException e) { // serious misconfiguration
                     LOG.error("Could not get service resolver: " + e, e);
                     throw new ServletException("Could not get service resolver", e);

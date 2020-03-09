@@ -129,13 +129,17 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
         return replicationConfig.getTargetUrl() + "." + operation.name() + "." + ext.name();
     }
 
-    @Override
     @Nonnull
-    public StatusWithReleaseData startUpdate(@NotNull String releaseRoot, @Nonnull String path) throws PublicationReceiverFacadeException, RepositoryException {
+    @Override
+    public StatusWithReleaseData startUpdate(@NotNull String releaseRoot, @Nonnull String path,
+                                             @Nullable String srcPath, @Nullable String targetPath)
+            throws PublicationReceiverFacadeException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 proxyManagerService, credentialService);
         List<NameValuePair> form = new ArrayList<>();
         form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_RELEASEROOT, releaseRoot));
+        form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_SRCPATH, srcPath));
+        form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_TARGETPATH, targetPath));
         UrlEncodedFormEntity entity = new UrlEncodedFormEntity(form, Consts.UTF_8);
         String uri = uriString(startUpdate, json, path);
         HttpPost post = new HttpPost(uri);

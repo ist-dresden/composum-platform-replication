@@ -29,8 +29,10 @@ public interface RemotePublicationReceiver {
      */
     String getTargetDir();
 
-    /** Prepares the temporary directory for an update operation. Take care to remove it later! */
-    UpdateInfo startUpdate(@Nonnull String releaseRootPath, @Nonnull String contentPath)
+    /**
+     * Prepares the temporary directory for an update operation. Take care to remove it later!
+     */
+    UpdateInfo startUpdate(@Nonnull String releaseRootPath, @Nonnull String contentPath, @Nullable String srcPath, @Nullable String targetPath)
             throws PersistenceException, LoginException, RemotePublicationReceiverException, RepositoryException;
 
     /** Uploads one package into the temporary directory, taking note of the root path for later moving to content. */
