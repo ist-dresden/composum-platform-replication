@@ -1,6 +1,6 @@
 package com.composum.platform.replication.inplace;
 
-import com.composum.platform.replication.ReplicationType;
+import com.composum.sling.platform.staging.replication.ReplicationType;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;

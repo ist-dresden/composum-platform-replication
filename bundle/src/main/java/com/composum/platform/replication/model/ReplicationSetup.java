@@ -1,6 +1,7 @@
 package com.composum.platform.replication.model;
 
-import com.composum.platform.replication.ReplicationType;
+import com.composum.sling.platform.staging.replication.ReplicationConfig;
+import com.composum.sling.platform.staging.replication.ReplicationType;
 import com.composum.platform.replication.inplace.InplaceReplicationType;
 import com.composum.platform.replication.remote.RemoteReplicationType;
 import com.composum.sling.core.AbstractSlingBean;
@@ -14,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import static com.composum.platform.replication.ReplicationConstants.RT_REPLICATION_SETUP;
+import static com.composum.sling.platform.staging.replication.ReplicationConstants.RT_REPLICATION_SETUP;
 
 public class ReplicationSetup extends AbstractSlingBean {
 

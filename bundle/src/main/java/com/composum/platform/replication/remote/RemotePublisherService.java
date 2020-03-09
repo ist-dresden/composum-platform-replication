@@ -4,7 +4,8 @@ import com.composum.platform.commons.credentials.CredentialService;
 import com.composum.platform.commons.proxy.ProxyManagerService;
 import com.composum.platform.commons.util.CachedCalculation;
 import com.composum.platform.replication.remotereceiver.*;
-import com.composum.platform.replication.remotereceiver.PublicationReceiverFacade.PublicationReceiverFacadeException;
+import com.composum.sling.platform.staging.replication.PublicationReceiverFacade;
+import com.composum.sling.platform.staging.replication.PublicationReceiverFacade.PublicationReceiverFacadeException;
 import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.ResourceHandle;
 import com.composum.sling.core.logging.Message;
@@ -14,6 +15,7 @@ import com.composum.sling.platform.staging.ReleaseChangeEventListener;
 import com.composum.sling.platform.staging.ReleaseChangeEventPublisher;
 import com.composum.sling.platform.staging.ReleaseChangeProcess;
 import com.composum.sling.platform.staging.StagingReleaseManager;
+import com.composum.sling.platform.staging.replication.ReplicatorStrategy;
 import com.composum.sling.platform.staging.replication.UpdateInfo;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.builder.ToStringBuilder;
@@ -502,7 +504,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
         public int getCompletionPercentage() {
             switch (state) {
                 case processing:
-                    return runningStrategy != null ? runningStrategy.progress : 0;
+                    return runningStrategy != null ? runningStrategy.getProgress() : 0;
                 case success:
                 case error:
                     return 100;

@@ -2,8 +2,8 @@ package com.composum.platform.replication.remotereceiver;
 
 import com.composum.platform.commons.credentials.CredentialService;
 import com.composum.platform.commons.proxy.ProxyManagerService;
-import com.composum.platform.replication.ReplicationType;
-import com.composum.platform.replication.model.ReplicationConfig;
+import com.composum.sling.platform.staging.replication.ReplicationType;
+import com.composum.sling.platform.staging.replication.ReplicationConfig;
 import com.composum.platform.replication.remote.RemoteReplicationType;
 import com.composum.sling.core.AbstractSlingBean;
 import com.composum.sling.core.util.ResourceUtil;
