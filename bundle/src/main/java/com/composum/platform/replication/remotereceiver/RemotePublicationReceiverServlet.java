@@ -1,10 +1,6 @@
 package com.composum.platform.replication.remotereceiver;
 
 import com.composum.platform.commons.json.JsonArrayAsIterable;
-import com.composum.sling.platform.staging.replication.PublicationReceiverFacade;
-import com.composum.sling.platform.staging.replication.json.ChildrenOrderInfo;
-import com.composum.sling.platform.staging.replication.json.NodeAttributeComparisonInfo;
-import com.composum.sling.platform.staging.replication.json.VersionableTree;
 import com.composum.sling.core.ResourceHandle;
 import com.composum.sling.core.servlet.AbstractServiceServlet;
 import com.composum.sling.core.servlet.ServletOperation;
@@ -12,7 +8,12 @@ import com.composum.sling.core.servlet.ServletOperationSet;
 import com.composum.sling.core.servlet.Status;
 import com.composum.sling.core.util.SlingResourceUtil;
 import com.composum.sling.core.util.XSS;
+import com.composum.sling.platform.staging.replication.PublicationReceiverFacade;
+import com.composum.sling.platform.staging.replication.ReplicationPaths;
+import com.composum.sling.platform.staging.replication.json.ChildrenOrderInfo;
+import com.composum.sling.platform.staging.replication.json.NodeAttributeComparisonInfo;
 import com.composum.sling.platform.staging.replication.json.VersionableInfo;
+import com.composum.sling.platform.staging.replication.json.VersionableTree;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonParseException;
@@ -21,11 +22,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.vault.fs.config.ConfigurationException;
 import org.apache.sling.api.SlingHttpServletRequest;
 import org.apache.sling.api.SlingHttpServletResponse;
-import org.apache.sling.api.resource.LoginException;
-import org.apache.sling.api.resource.PersistenceException;
-import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ResourceResolver;
-import org.apache.sling.api.resource.ResourceResolverFactory;
+import org.apache.sling.api.resource.*;
 import org.apache.sling.api.servlets.HttpConstants;
 import org.apache.sling.api.servlets.ServletResolverConstants;
 import org.osgi.framework.Constants;
@@ -40,20 +37,10 @@ import javax.jcr.RepositoryException;
 import javax.servlet.Servlet;
 import javax.servlet.ServletException;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
-import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_ATTRIBUTEINFOS;
-import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_CHILDORDERINGS;
-import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_DELETED_PATH;
-import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_RELEASE_CHANGENUMBER;
-import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PARAM_UPDATEID;
-import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.PATTERN_UPDATEID;
+import static com.composum.platform.replication.remotereceiver.RemoteReceiverConstants.*;
 import static java.util.Objects.requireNonNull;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
 
@@ -122,6 +109,8 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         operations.setOperation(ServletOperationSet.Method.POST, Extension.json, Operation.abortUpdate,
                 new AbortUpdateOperation());
 
+        operations.setOperation(ServletOperationSet.Method.PUT, Extension.json, Operation.releaseInfo,
+                new ReleaseInfoOperation());
         operations.setOperation(ServletOperationSet.Method.GET, Extension.json, Operation.releaseInfo,
                 new ReleaseInfoOperation());
 
@@ -130,7 +119,9 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 new CompareParentsOperation());
     }
 
-    /** Creates the service resolver used to update the content. */
+    /**
+     * Creates the service resolver used to update the content.
+     */
     protected ResourceResolver makeResolver() throws LoginException {
         return resolverFactory.getServiceResourceResolver(null);
     }
@@ -152,7 +143,8 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         @Override
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response,
                          @Nullable ResourceHandle ignoredResource) throws IOException, ServletException {
-            String targetDir = requireNonNull(service.getTargetDir());
+            // FIXME(hps,11.03.20) move to service.
+            String targetDir = requireNonNull(service.getChangeRoot());
             VersionableTree.VersionableTreeSerializer factory = new VersionableTree.VersionableTreeSerializer(targetDir);
             GsonBuilder gsonBuilder = new GsonBuilder().registerTypeAdapterFactory(factory);
             PublicationReceiverFacade.ContentStateStatus status = new PublicationReceiverFacade.ContentStateStatus(gsonBuilder, request, response, LOG);
@@ -160,8 +152,12 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
             String contentPath = XSS.filter(request.getRequestPathInfo().getSuffix());
             String[] additionalPaths = XSS.filter(request.getParameterValues(RemoteReceiverConstants.PARAM_PATH));
             List<String> paths = new ArrayList<>();
-            if (StringUtils.isNotBlank(contentPath)) { paths.add(contentPath); }
-            if (additionalPaths != null) { paths.addAll(Arrays.asList(additionalPaths)); }
+            if (StringUtils.isNotBlank(contentPath)) {
+                paths.add(contentPath);
+            }
+            if (additionalPaths != null) {
+                paths.addAll(Arrays.asList(additionalPaths));
+            }
 
             try (ResourceResolver resolver = makeResolver()) {
                 try {
@@ -197,9 +193,10 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 throws IOException, ServletException {
             Status status = new Status(request, response, LOG);
             String updateId = XSS.filter(request.getParameter(PARAM_UPDATEID));
-            String contentPath = XSS.filter(request.getRequestPathInfo().getSuffix());
+            ReplicationPaths replicationPaths = null;
             try {
-                List<String> diffpaths = service.compareContent(contentPath, updateId, request.getReader());
+                replicationPaths = new ReplicationPaths(request);
+                List<String> diffpaths = service.compareContent(replicationPaths, updateId, request.getReader());
                 status.data(Status.DATA).put(RemoteReceiverConstants.PARAM_PATH, diffpaths);
             } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
                 status.error("Error comparing content for {} : {}", updateId, e.toString(), e);
@@ -211,37 +208,33 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         }
     }
 
-    /** Creates a temporary directory to unpack stuff to replace our content. */
+    /**
+     * Creates a temporary directory to unpack stuff to replace our content.
+     */
     class StartUpdateOperation implements ServletOperation {
 
         @Override
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle ignored)
                 throws IOException, ServletException {
             PublicationReceiverFacade.StatusWithReleaseData status = new PublicationReceiverFacade.StatusWithReleaseData(request, response, LOG);
-            String contentPath = XSS.filter(request.getRequestPathInfo().getSuffix());
-            String releaseRootPath = XSS.filter(request.getParameter(RemoteReceiverConstants.PARAM_RELEASEROOT));
-            String srcPath = XSS.filter(request.getParameter(RemoteReceiverConstants.PARAM_SRCPATH));
-            String targetPath = XSS.filter(request.getParameter(RemoteReceiverConstants.PARAM_TARGETPATH));
-            if (isNotBlank(releaseRootPath) && isNotBlank(contentPath) &&
-                    SlingResourceUtil.isSameOrDescendant(releaseRootPath, contentPath)) {
-                try {
-                    status.updateInfo = service.startUpdate(releaseRootPath, contentPath, srcPath, targetPath);
-                } catch (LoginException e) { // serious misconfiguration
-                    LOG.error("Could not get service resolver: " + e, e);
-                    throw new ServletException("Could not get service resolver", e);
-                } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
-                    status.error("Error starting update for {} , {} : {}", contentPath,
-                            releaseRootPath, e.toString(), e);
-                }
-            } else {
-                status.error("Broken parameters {} : {}", releaseRootPath, contentPath);
+            ReplicationPaths replicationPaths = null;
+            try {
+                replicationPaths = new ReplicationPaths(request);
+                status.updateInfo = service.startUpdate(replicationPaths);
+            } catch (LoginException e) { // serious misconfiguration
+                LOG.error("Could not get service resolver: " + e, e);
+                throw new ServletException("Could not get service resolver", e);
+            } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
+                status.error("Error starting update for {} , {}", replicationPaths, e.toString(), e);
             }
             status.sendJson();
         }
 
     }
 
-    /** Receives a package and saves it in the temporary folder. */
+    /**
+     * Receives a package and saves it in the temporary folder.
+     */
     class PathUploadOperation implements ServletOperation {
 
         @Override
@@ -298,7 +291,9 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 Set<String> deletedPaths = new HashSet<>();
                 expectName(jsonReader, PARAM_DELETED_PATH, status);
                 jsonReader.beginArray();
-                while (jsonReader.hasNext()) { deletedPaths.add(jsonReader.nextString()); }
+                while (jsonReader.hasNext()) {
+                    deletedPaths.add(jsonReader.nextString());
+                }
                 jsonReader.endArray();
 
                 expectName(jsonReader, PARAM_CHILDORDERINGS, status);
@@ -353,15 +348,16 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         @Override
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource)
                 throws IOException, ServletException {
-            String suffix = XSS.filter(request.getRequestPathInfo().getSuffix());
+            ReplicationPaths replicationPaths = null;
             PublicationReceiverFacade.StatusWithReleaseData status = new PublicationReceiverFacade.StatusWithReleaseData(request, response, LOG);
             try {
-                status.updateInfo = service.releaseInfo(suffix);
+                replicationPaths = new ReplicationPaths(request);
+                status.updateInfo = service.releaseInfo(replicationPaths);
             } catch (LoginException e) { // serious misconfiguration
                 LOG.error("Could not get service resolver: " + e, e);
                 throw new ServletException("Could not get service resolver", e);
-            } catch (RuntimeException e) {
-                status.error("Cannot get release info for {}: {}", suffix, e.toString(), e);
+            } catch (RuntimeException | RepositoryException e) {
+                status.error("Cannot get release info for {}: {}", replicationPaths, e.toString(), e);
             }
             status.sendJson();
         }
@@ -373,10 +369,12 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 throws IOException, ServletException {
             Status status = new Status(request, response, LOG);
             Gson gson = new GsonBuilder().create();
-            String releaseRoot = XSS.filter(request.getRequestPathInfo().getSuffix());
-
+            ReplicationPaths replicationPaths = null;
             try (JsonReader jsonReader = new JsonReader(request.getReader())) {
+                replicationPaths = new ReplicationPaths(request);
                 jsonReader.beginObject();
+                expectName(jsonReader, PARAM_REPLICATIONPATHS, status);
+                replicationPaths = gson.fromJson(jsonReader, ReplicationPaths.class);
 
                 JsonArrayAsIterable<ChildrenOrderInfo> childOrderings =
                         new JsonArrayAsIterable<>(jsonReader, ChildrenOrderInfo.class, gson, PARAM_CHILDORDERINGS);
@@ -384,10 +382,10 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                         new JsonArrayAsIterable<>(jsonReader, NodeAttributeComparisonInfo.class, gson,
                                 PARAM_ATTRIBUTEINFOS);
 
-                List<String> differentChildorderings = service.compareChildorderings(releaseRoot, childOrderings);
+                List<String> differentChildorderings = service.compareChildorderings(replicationPaths, childOrderings);
                 status.data(PARAM_CHILDORDERINGS).put(PARAM_PATH, differentChildorderings);
 
-                List<String> differentParentAttributes = service.compareAttributes(releaseRoot, attributeInfos);
+                List<String> differentParentAttributes = service.compareAttributes(replicationPaths, attributeInfos);
                 status.data(PARAM_ATTRIBUTEINFOS).put(PARAM_PATH, differentParentAttributes);
 
                 jsonReader.endObject();

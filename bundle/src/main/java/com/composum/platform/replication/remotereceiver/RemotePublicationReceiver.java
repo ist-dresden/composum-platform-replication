@@ -1,6 +1,7 @@
 package com.composum.platform.replication.remotereceiver;
 
 import com.composum.platform.commons.json.JsonArrayAsIterable;
+import com.composum.sling.platform.staging.replication.ReplicationPaths;
 import com.composum.sling.platform.staging.replication.UpdateInfo;
 import com.composum.sling.platform.staging.replication.json.ChildrenOrderInfo;
 import com.composum.sling.platform.staging.replication.json.NodeAttributeComparisonInfo;
@@ -24,15 +25,15 @@ public interface RemotePublicationReceiver {
     boolean isEnabled();
 
     /**
-     * From the configuration the target directory where we synchronize to - in production use / , but while
+     * From the configuration a directory where we synchronize to - in production use / , but while
      * testing / debugging this might be elsewhere, e.g. /tmp/composum/platform/replicationtest .
      */
-    String getTargetDir();
+    String getChangeRoot();
 
     /**
      * Prepares the temporary directory for an update operation. Take care to remove it later!
      */
-    UpdateInfo startUpdate(@Nonnull String releaseRootPath, @Nonnull String contentPath, @Nullable String srcPath, @Nullable String targetPath)
+    UpdateInfo startUpdate(@Nonnull ReplicationPaths replicationPaths)
             throws PersistenceException, LoginException, RemotePublicationReceiverException, RepositoryException;
 
     /** Uploads one package into the temporary directory, taking note of the root path for later moving to content. */
@@ -52,25 +53,29 @@ public interface RemotePublicationReceiver {
      * returns the paths where differences in the version number exist / paths that do not exist.
      */
     @Nonnull
-    List<String> compareContent(@Nullable String contentPath, @Nullable String updateId,
+    List<String> compareContent(@Nullable ReplicationPaths replicationPaths, @Nullable String updateId,
                                 @Nonnull BufferedReader jsonInputReader)
             throws LoginException, RemotePublicationReceiverException, RepositoryException, IOException;
 
-    /** Aborts the update operation and deletes the temporary directory. */
+    /**
+     * Aborts the update operation and deletes the temporary directory.
+     */
     void abort(@Nullable String updateId)
             throws LoginException, RemotePublicationReceiverException, RepositoryException, PersistenceException;
 
-    /** Gets general info about a release without starting an update. */
+    /**
+     * Gets general info about a release without starting an update.
+     */
     @Nullable
-    UpdateInfo releaseInfo(@Nullable String releaseRoot) throws LoginException;
+    UpdateInfo releaseInfo(@Nonnull ReplicationPaths replicationPaths) throws LoginException, RepositoryException;
 
     /**
      * Reads childorderings as {@link ChildrenOrderInfo} and compares these to whatever we have in our repository,
      * and returns the paths where it's different.
      */
     @Nonnull
-    List<String> compareChildorderings(@Nullable String releaseRoot,
-                                       @Nonnull JsonArrayAsIterable<ChildrenOrderInfo> childOrderings)
+    List<String> compareChildorderings(@Nonnull ReplicationPaths replicationPaths,
+                                       @Nonnull Iterable<ChildrenOrderInfo> childOrderings)
             throws LoginException, RemotePublicationReceiverException, RepositoryException;
 
     /**
@@ -78,8 +83,8 @@ public interface RemotePublicationReceiver {
      * in our repository, and returns the paths where it's different.
      */
     @Nonnull
-    List<String> compareAttributes(@Nullable String releaseRoot,
-                                   @Nonnull JsonArrayAsIterable<NodeAttributeComparisonInfo> attributeInfos) throws LoginException, RemotePublicationReceiverException;
+    List<String> compareAttributes(@Nonnull ReplicationPaths replicationPaths,
+                                   @Nonnull Iterable<NodeAttributeComparisonInfo> attributeInfos) throws LoginException, RemotePublicationReceiverException;
 
     class RemotePublicationReceiverException extends Exception {
 

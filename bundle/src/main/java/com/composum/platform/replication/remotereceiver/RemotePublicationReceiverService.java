@@ -6,6 +6,7 @@ import com.composum.sling.core.util.ResourceUtil;
 import com.composum.sling.core.util.SlingResourceUtil;
 import com.composum.sling.platform.staging.StagingConstants;
 import com.composum.sling.platform.staging.impl.NodeTreeSynchronizer;
+import com.composum.sling.platform.staging.replication.ReplicationPaths;
 import com.composum.sling.platform.staging.replication.UpdateInfo;
 import com.composum.sling.platform.staging.replication.json.ChildrenOrderInfo;
 import com.composum.sling.platform.staging.replication.json.NodeAttributeComparisonInfo;
@@ -66,6 +67,11 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
 
     private static final Logger LOG = LoggerFactory.getLogger(RemotePublicationReceiverService.class);
 
+    /**
+     * Prefix to create metadata path for replicated content.
+     */
+    public static final String PATH_METADATA = "/var";
+
     protected volatile Configuration config;
 
     @Reference
@@ -110,19 +116,14 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     }
 
     @Override
-    public String getTargetDir() {
-        return config.targetDir();
+    public String getChangeRoot() {
+        return config.changeRoot();
     }
 
     @Override
-    public UpdateInfo startUpdate(@Nonnull String releaseRootPath, @Nonnull String contentPath,
-                                  @Nullable String srcPath, @Nullable String targetPath)
+    public UpdateInfo startUpdate(@Nonnull ReplicationPaths replicationPaths)
             throws PersistenceException, LoginException, RemotePublicationReceiverException, RepositoryException {
-        LOG.info("Start update called for {}, {}, {}, {}", releaseRootPath, contentPath, srcPath, targetPath);
-        srcPath = StringUtils.defaultString(srcPath, releaseRootPath);
-        targetPath = StringUtils.defaultString(targetPath, releaseRootPath);
-        checkDescendant(releaseRootPath, contentPath, "contentPath not subpath of release root");
-        checkDescendant(releaseRootPath, srcPath, "srcPath not subpath of release root");
+        LOG.info("Start update called for {}", replicationPaths);
         try (ResourceResolver resolver = makeResolver()) {
 
             UpdateInfo updateInfo = new UpdateInfo();
@@ -131,12 +132,12 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
             Resource tmpLocation = getTmpLocation(resolver, updateInfo.updateId, true);
 
             ModifiableValueMap vm = requireNonNull(tmpLocation.adaptTo(ModifiableValueMap.class));
-            vm.put(RemoteReceiverConstants.ATTR_TOP_CONTENTPATH, contentPath);
-            vm.put(RemoteReceiverConstants.ATTR_RELEASEROOT_PATH, releaseRootPath);
-            vm.put(RemoteReceiverConstants.ATTR_SRCPATH, srcPath);
-            vm.put(RemoteReceiverConstants.ATTR_TARGETPATH, targetPath);
+            vm.put(RemoteReceiverConstants.ATTR_TOP_CONTENTPATH, replicationPaths.getContentPath());
+            vm.put(RemoteReceiverConstants.ATTR_RELEASEROOT_PATH, replicationPaths.getReleaseRoot());
+            vm.put(RemoteReceiverConstants.ATTR_SRCPATH, replicationPaths.getSourcePath());
+            vm.put(RemoteReceiverConstants.ATTR_TARGETPATH, replicationPaths.getTargetPath());
 
-            fillUpdateInfo(updateInfo, resolver, releaseRootPath);
+            fillUpdateInfo(updateInfo, resolver, replicationPaths);
             if (StringUtils.isNotBlank(updateInfo.originalPublisherReleaseChangeId)) {
                 vm.put(ATTR_OLDPUBLISHERCONTENT_RELEASECHANGEID, updateInfo.originalPublisherReleaseChangeId);
             }
@@ -145,71 +146,57 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
         }
     }
 
-    /**
-     * Safety check that the {descendantPath} is the same as {rootPath} or a descendant.
-     * That'd be a weird internal error - doesn't make sense to put that to the user.
-     */
-    protected void checkDescendant(String rootPath, String descendantPath, String errormessage) throws IllegalArgumentException {
-        if (!SlingResourceUtil.isSameOrDescendant(rootPath, descendantPath)) {
-            LOG.error("Illegal call: {} should be descendant of {} : {}", descendantPath, rootPath, errormessage);
-            throw new IllegalArgumentException(errormessage);
-        }
-    }
-
-    protected void fillUpdateInfo(UpdateInfo updateInfo, ResourceResolver resolver, String releaseRootPath) {
-        Resource releaseRoot = getReleaseRoot(resolver, releaseRootPath);
-        updateInfo.originalPublisherReleaseChangeId = getReleaseChangeId(resolver, releaseRootPath);
-        Calendar lastReplicationDate = releaseRoot != null ?
-                releaseRoot.getValueMap().get(PROP_LAST_REPLICATION_DATE, Calendar.class)
+    protected void fillUpdateInfo(UpdateInfo updateInfo, ResourceResolver resolver, ReplicationPaths replicationPaths)
+            throws RepositoryException {
+        Resource metaResource = getMetaResource(resolver, replicationPaths, false);
+        updateInfo.originalPublisherReleaseChangeId = getReleaseChangeId(metaResource);
+        Calendar lastReplicationDate = metaResource != null ?
+                metaResource.getValueMap().get(PROP_LAST_REPLICATION_DATE, Calendar.class)
                 : null;
         updateInfo.lastReplication = lastReplicationDate != null ? lastReplicationDate.getTimeInMillis() : null;
     }
 
     @Nullable
-    protected Resource getReleaseRoot(ResourceResolver resolver, String releaseRootPath) {
-        return resolver.getResource(appendPaths(getTargetDir(), releaseRootPath));
+    protected Resource getMetaResource(ResourceResolver resolver, ReplicationPaths replicationPaths, boolean createIfNecessary)
+            throws RepositoryException {
+        Resource resource = resolver.getResource(SlingResourceUtil.appendPaths(PATH_METADATA, replicationPaths.getDestination()));
+        if (createIfNecessary && resource == null) {
+            resource = ResourceUtil.getOrCreateResource(resolver, replicationPaths.getDestination());
+        }
+        return resource;
     }
 
     @Nullable
     @Override
-    public UpdateInfo releaseInfo(@Nullable String releaseRootPath) throws LoginException {
-        UpdateInfo result = null;
+    public UpdateInfo releaseInfo(@Nonnull ReplicationPaths replicationPaths) throws LoginException, RepositoryException {
+        UpdateInfo result;
         if (LOG.isDebugEnabled()) {
-            LOG.debug("ReleaseInfo called for {}", releaseRootPath);
+            LOG.debug("ReleaseInfo called for {}", replicationPaths);
         }
-        if (StringUtils.isNotBlank(releaseRootPath)) {
-            try (ResourceResolver resolver = makeResolver()) {
-                Resource releaseRoot = getReleaseRoot(resolver, releaseRootPath);
-                if (releaseRoot != null) {
-                    result = new UpdateInfo();
-                    fillUpdateInfo(result, resolver, releaseRootPath);
-                }
-            }
+        try (ResourceResolver resolver = makeResolver()) {
+            result = new UpdateInfo();
+            fillUpdateInfo(result, resolver, replicationPaths);
         }
         return result;
     }
 
     @Nonnull
     @Override
-    public List<String> compareContent(String contentPath, @Nullable String updateId, @Nonnull BufferedReader json)
+    public List<String> compareContent(@Nullable ReplicationPaths replicationPaths, @Nullable String updateId, @Nonnull BufferedReader json)
             throws LoginException, RemotePublicationReceiverException, RepositoryException, IOException {
-        // FIXME(hps,09.03.20) introduce remapping
-        LOG.info("Compare content {} - {}", updateId, contentPath);
+        LOG.info("Compare content {} - {}", updateId, replicationPaths);
         try (ResourceResolver resolver = makeResolver(); Reader ignored = json) {
-            String path = contentPath;
+            ReplicationPaths usedReplicationPaths = replicationPaths;
             if (StringUtils.isNotBlank(updateId)) {
                 Resource tmpLocation = getTmpLocation(resolver, updateId, false);
                 ValueMap vm = tmpLocation.getValueMap();
-                String releaseRootPath = vm.get(ATTR_RELEASEROOT_PATH, String.class);
-                if (StringUtils.isBlank(contentPath)) {
-                    path = vm.get(ATTR_TOP_CONTENTPATH, String.class);
-                } else if (!StringUtils.startsWith(path, releaseRootPath)) { // safety-check - that'd be a bug.
-                    throw new IllegalArgumentException("contentpath " + path + " is not subpath of release root " + releaseRootPath);
-                }
+                usedReplicationPaths = new ReplicationPaths(vm);
             }
+            String path = usedReplicationPaths.getContentPath();
+            path = path != null ? usedReplicationPaths.translate(path) : usedReplicationPaths.getDestination();
 
             VersionableTree.VersionableTreeDeserializer factory =
-                    new VersionableTree.VersionableTreeDeserializer(config.targetDir(), resolver, path);
+                    new VersionableTree.VersionableTreeDeserializer(config.changeRoot(), resolver, path);
             Gson gson = new GsonBuilder().registerTypeAdapterFactory(factory).create();
             VersionableTree versionableTree = gson.fromJson(json, VersionableTree.class);
             List<String> result = new ArrayList<>();
@@ -220,6 +207,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
         }
     }
 
+    // The packages are made for the untranslated paths. We have to consider the targetPath later.
     @Override
     public void pathUpload(@Nullable String updateId, @Nonnull String packageRootPath, @Nonnull InputStream inputStream)
             throws LoginException, RemotePublicationReceiverException, RepositoryException, IOException, ConfigurationException {
@@ -227,11 +215,8 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
         try (ResourceResolver resolver = makeResolver()) {
             Resource tmpLocation = getTmpLocation(resolver, updateId, false);
             ModifiableValueMap vm = requireNonNull(tmpLocation.adaptTo(ModifiableValueMap.class));
-            String contentPath = vm.get(ATTR_TOP_CONTENTPATH, String.class);
-            String srcPath = vm.get(ATTR_SRCPATH, String.class);
-            String targetPath = vm.get(ATTR_TARGETPATH, String.class);
-            checkDescendant(contentPath, packageRootPath, "Contraint violated: package root not subpath of content root");
-            checkDescendant(contentPath, srcPath, "Contraint violated: package root not subpath of srcpath");
+            ReplicationPaths replicationPaths = new ReplicationPaths(vm);
+
             ZipStreamArchive archive = new ZipStreamArchive(inputStream);
             try {
                 Session session = requireNonNull(resolver.adaptTo(Session.class));
@@ -248,7 +233,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                             "system - please consult the logfile.", RemotePublicationReceiverException.RetryAdvice.NO_AUTOMATIC_RETRY);
                 }
 
-                processMove(resolver, packageRootPath, srcPath, targetPath);
+                processMove(resolver, packageRootPath, replicationPaths);
                 session.save();
             } finally {
                 archive.close();
@@ -261,11 +246,13 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
         }
     }
 
-    protected void processMove(ResourceResolver resolver, String packageRootPath, String srcPath, String targetPath) {
-        Resource resource = resolver.getResource(packageRootPath);
-        if (resource != null && !StringUtils.equals(srcPath, targetPath)) {
-            LOG.info("Processing move of {} rel from {} to {}", packageRootPath, srcPath, targetPath);
-            new MovePostprocessor(srcPath, targetPath).postprocess(resource);
+    protected void processMove(ResourceResolver resolver, String packageRootPath, ReplicationPaths replicationPaths) {
+        if (replicationPaths.isMove()) {
+            Resource resource = resolver.getResource(packageRootPath);
+            if (resource != null) {
+                LOG.info("Processing move of {} rel from {} to {}", packageRootPath, replicationPaths.getOrigin(), replicationPaths.getTargetPath());
+                replicationPaths.getMovePostprocessor().postprocess(resource);
+            }
         }
     }
 
@@ -277,23 +264,20 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
         try (ResourceResolver resolver = makeResolver()) {
             Resource tmpLocation = getTmpLocation(resolver, updateId, false);
             ValueMap vm = tmpLocation.getValueMap();
+            ReplicationPaths replicationPaths = new ReplicationPaths(vm);
             String topContentPath = vm.get(ATTR_TOP_CONTENTPATH, String.class);
-            String releaseRootPath = requireNonNull(vm.get(ATTR_RELEASEROOT_PATH, String.class));
-            String targetRoot = requireNonNull(config.targetDir());
-            String srcPath = vm.get(ATTR_SRCPATH, String.class);
-            String targetPath = vm.get(ATTR_TARGETPATH, String.class);
-            MovePostprocessor movePostprocessor = new MovePostprocessor(srcPath, targetPath);
+            String chRoot = requireNonNull(config.changeRoot());
             String @NotNull [] updatedPaths = vm.get(ATTR_UPDATEDPATHS, new String[0]);
 
-            for (String deletedPath : movePostprocessor.translate(deletedPaths)) {
+            for (String deletedPath : deletedPaths) {
                 if (!SlingResourceUtil.isSameOrDescendant(topContentPath, deletedPath)) { // safety check - Bug!
                     throw new IllegalArgumentException("Not subpath of " + topContentPath + " : " + deletedPath);
                 }
-                deletePath(resolver, tmpLocation, targetRoot, movePostprocessor.translate(deletedPath));
+                deletePath(resolver, tmpLocation, chRoot, replicationPaths.translate(deletedPath));
             }
 
-            @Nonnull String targetReleaseRootPath = appendPaths(targetRoot, releaseRootPath);
-            Resource targetReleaseRoot = ResourceUtil.getOrCreateResource(resolver, targetReleaseRootPath);
+            @Nonnull String targetRootPath = appendPaths(chRoot, replicationPaths.getDestination());
+            Resource targetRoot = ResourceUtil.getOrCreateResource(resolver, targetRootPath);
 
             for (String updatedPath : updatedPaths) {
                 if (!SlingResourceUtil.isSameOrDescendant(topContentPath, updatedPath)) { // safety check - Bug!
@@ -302,19 +286,19 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                 if (!deletedPaths.contains(updatedPath)) {
                     // if it's deleted we needed to transfer a package for it, anyway, to update it's parents
                     // attributes. So it's in updatedPath, too, but doesn't need to be moved.
-                    moveVersionable(resolver, tmpLocation, movePostprocessor.translate(updatedPath), targetRoot);
+                    moveVersionable(resolver, tmpLocation, replicationPaths.translate(updatedPath), chRoot);
                 }
             }
 
             for (String deletedPath : deletedPaths) {
-                removeOrphans(resolver, targetRoot, movePostprocessor.translate(deletedPath), targetReleaseRootPath);
+                removeOrphans(resolver, chRoot, replicationPaths.translate(deletedPath), targetRootPath);
             }
 
             for (ChildrenOrderInfo childrenOrderInfo : childOrderings) {
-                if (!SlingResourceUtil.isSameOrDescendant(releaseRootPath, childrenOrderInfo.getPath())) { // safety check - Bug!
-                    throw new IllegalArgumentException("Not subpath of " + releaseRootPath + " : " + childrenOrderInfo);
+                if (!SlingResourceUtil.isSameOrDescendant(replicationPaths.getOrigin(), childrenOrderInfo.getPath())) { // safety check - Bug!
+                    throw new IllegalArgumentException("Not subpath of " + replicationPaths.getOrigin() + " : " + childrenOrderInfo);
                 }
-                String path = appendPaths(targetRoot, movePostprocessor.translate(childrenOrderInfo.getPath()));
+                String path = appendPaths(chRoot, replicationPaths.translate(childrenOrderInfo.getPath()));
                 Resource resource = resolver.getResource(path);
                 if (resource != null) {
                     adjustChildrenOrder(resource, childrenOrderInfo.getChildNames());
@@ -324,7 +308,9 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
             }
             LOG.debug("Number of child orderings read for {} was {}", topContentPath, childOrderings.getNumberRead());
 
-            ModifiableValueMap releaseRootVm = targetReleaseRoot.adaptTo(ModifiableValueMap.class);
+            Resource metaResource = getMetaResource(resolver, replicationPaths, true);
+
+            ModifiableValueMap releaseRootVm = metaResource.adaptTo(ModifiableValueMap.class);
             releaseRootVm.put(StagingConstants.PROP_LAST_REPLICATION_DATE, Calendar.getInstance());
             releaseRootVm.put(StagingConstants.PROP_CHANGE_NUMBER, newReleaseChangeId);
             if (!nodelete) {
@@ -454,11 +440,11 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     /**
      * Removes parent nodes of the deleted nodes that do not have any (versionable) children now.
      */
-    protected void removeOrphans(@Nonnull ResourceResolver resolver, @Nonnull String targetRoot,
-                                 @Nonnull String deletedPath, @Nonnull String targetReleaseRootPath) throws PersistenceException {
-        String originalPath = appendPaths(targetRoot, deletedPath);
+    protected void removeOrphans(@Nonnull ResourceResolver resolver, @Nonnull String chRoot,
+                                 @Nonnull String deletedPath, @Nonnull String targetRootPath) throws PersistenceException {
+        String originalPath = appendPaths(chRoot, deletedPath);
         Resource candidate = SlingResourceUtil.getFirstExistingParent(resolver, originalPath);
-        while (candidate != null && SlingResourceUtil.isSameOrDescendant(targetReleaseRootPath, candidate.getPath())
+        while (candidate != null && SlingResourceUtil.isSameOrDescendant(targetRootPath, candidate.getPath())
                 && !ResourceUtil.isNodeType(candidate, ResourceUtil.MIX_VERSIONABLE) && !candidate.hasChildren()) {
             Resource todelete = candidate;
             candidate = candidate.getParent();
@@ -489,9 +475,9 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
         } else {
             ModifiableValueMap vm = tmpLocation.adaptTo(ModifiableValueMap.class);
             vm.put(ResourceUtil.PROP_LAST_MODIFIED, new Date());
-            String releaseRootPath = vm.get(RemoteReceiverConstants.ATTR_RELEASEROOT_PATH, String.class);
+            ReplicationPaths replicationPaths = new ReplicationPaths(vm);
             String originalReleaseChangeId = vm.get(ATTR_OLDPUBLISHERCONTENT_RELEASECHANGEID, String.class);
-            String releaseChangeId = getReleaseChangeId(resolver, releaseRootPath);
+            String releaseChangeId = getReleaseChangeId(getMetaResource(resolver, replicationPaths, false));
             if (releaseChangeId != null && !StringUtils.equals(releaseChangeId, originalReleaseChangeId)) {
                 LoggerFactory.getLogger(getClass()).error("Release change id changed since beginning of update: {} to" +
                         " {} . Aborting.", originalReleaseChangeId, releaseChangeId);
@@ -539,26 +525,17 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
         }
     }
 
-    @Override
     @Nonnull
-    public List<String> compareChildorderings(@Nullable String releaseRootPath,
-                                              @Nonnull JsonArrayAsIterable<ChildrenOrderInfo> childOrderings)
-            throws LoginException, RemotePublicationReceiverException {
-        LOG.info("Compare child orderings for {}", releaseRootPath);
+    @Override
+    public List<String> compareChildorderings(@Nonnull ReplicationPaths replicationPaths, @Nonnull Iterable<ChildrenOrderInfo> childOrderings)
+            throws LoginException, RemotePublicationReceiverException, RepositoryException {
+        LOG.info("Compare child orderings for {}", replicationPaths);
         List<String> result = new ArrayList<>();
+        int read = 0;
         try (ResourceResolver resolver = makeResolver()) {
-            String targetRoot = requireNonNull(config.targetDir());
-            Resource releaseRoot = StringUtils.isNotBlank(releaseRootPath) ? resolver.getResource(appendPaths(targetRoot, releaseRootPath)) : null;
-            if (releaseRoot == null) {
-                LOG.error("Release root for {} not found below {}", releaseRootPath, targetRoot);
-                throw new RemotePublicationReceiverException("Release root not found",
-                        RemotePublicationReceiverException.RetryAdvice.NO_AUTOMATIC_RETRY);
-            }
+            String chRoot = requireNonNull(config.changeRoot());
             for (ChildrenOrderInfo childrenOrderInfo : childOrderings) {
-                if (!SlingResourceUtil.isSameOrDescendant(releaseRootPath, childrenOrderInfo.getPath())) { // safety check - Bug!
-                    throw new IllegalArgumentException("Not subpath of " + releaseRootPath + " : " + childrenOrderInfo);
-                }
-                String targetPath = appendPaths(targetRoot, childrenOrderInfo.getPath());
+                String targetPath = appendPaths(chRoot, replicationPaths.translate(childrenOrderInfo.getPath()));
                 Resource resource = resolver.getResource(targetPath);
                 if (resource != null) {
                     if (!equalChildrenOrder(resource, childrenOrderInfo.getChildNames())) {
@@ -568,9 +545,10 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                     LOG.debug("resource for compareChildorderings not found: {}", targetPath);
                     result.add(childrenOrderInfo.getPath());
                 }
+                read++;
             }
         }
-        LOG.debug("Number of child orderings read for {} was {}", releaseRootPath, childOrderings.getNumberRead());
+        LOG.debug("Number of child orderings read for {} was {}", replicationPaths, read);
         return result;
     }
 
@@ -586,30 +564,21 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
         return result;
     }
 
-    @Override
     @Nonnull
-    public List<String> compareAttributes(@Nullable String releaseRootPath,
-                                          @Nonnull JsonArrayAsIterable<NodeAttributeComparisonInfo> attributeInfos)
+    @Override
+    public List<String> compareAttributes(@Nonnull ReplicationPaths replicationPaths, @Nonnull Iterable<NodeAttributeComparisonInfo> attributeInfos)
             throws LoginException, RemotePublicationReceiverException {
-        LOG.info("Compare parent attributes for {}", releaseRootPath);
+        LOG.info("Compare parent attributes for {}", replicationPaths);
         List<String> result = new ArrayList<>();
+        int read = 0;
         try (ResourceResolver resolver = makeResolver()) {
-            String targetRoot = requireNonNull(config.targetDir());
-            Resource releaseRoot = StringUtils.isNotBlank(releaseRootPath) ? resolver.getResource(appendPaths(targetRoot, releaseRootPath)) : null;
-            if (releaseRoot == null) {
-                LOG.error("Release root for {} not found below {}", releaseRootPath, targetRoot);
-                throw new RemotePublicationReceiverException("Release root not found",
-                        RemotePublicationReceiverException.RetryAdvice.NO_AUTOMATIC_RETRY);
-            }
+            String chRoot = requireNonNull(config.changeRoot());
             for (NodeAttributeComparisonInfo attributeInfo : attributeInfos) {
-                if (!SlingResourceUtil.isSameOrDescendant(releaseRootPath, attributeInfo.path)) { // safety check - Bug!
-                    throw new IllegalArgumentException("Not subpath of " + releaseRootPath + " : " + attributeInfo);
-                }
-                String targetPath = appendPaths(targetRoot, attributeInfo.path);
+                String targetPath = appendPaths(chRoot, replicationPaths.translate(attributeInfo.path));
                 Resource resource = resolver.getResource(targetPath);
                 if (resource != null) {
                     NodeAttributeComparisonInfo ourAttributeInfo =
-                            NodeAttributeComparisonInfo.of(resource, config.targetDir());
+                            NodeAttributeComparisonInfo.of(resource, config.changeRoot());
                     if (!attributeInfo.equals(ourAttributeInfo)) {
                         result.add(attributeInfo.path);
                         if (LOG.isDebugEnabled()) {
@@ -621,10 +590,10 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                     LOG.debug("resource for compareParentPaths not found: {}", targetPath);
                     result.add(attributeInfo.path);
                 }
+                read++;
             }
         }
-        LOG.debug("Number of parent attribute infos read for {} was {}", releaseRootPath,
-                attributeInfos.getNumberRead());
+        LOG.debug("Number of parent attribute infos read for {} was {}", replicationPaths, read);
         return result;
 
     }
@@ -639,9 +608,8 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     }
 
     @Nullable
-    protected String getReleaseChangeId(@Nonnull ResourceResolver resolver, @Nonnull String releaseRootPath) {
-        Resource releaseRoot = getReleaseRoot(resolver, releaseRootPath);
-        return releaseRoot != null ? releaseRoot.getValueMap().get(StagingConstants.PROP_CHANGE_NUMBER, String.class) : null;
+    protected String getReleaseChangeId(@Nullable Resource metaResource) {
+        return metaResource != null ? metaResource.getValueMap().get(StagingConstants.PROP_CHANGE_NUMBER, String.class) : null;
     }
 
     @ObjectClassDefinition(
@@ -665,7 +633,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                         " to /tmp/composum/platform/replicationtest to just have a temporary copy of the replicated content to manually " +
                         "inspect there."
         )
-        String targetDir() default "/";
+        String changeRoot() default "/";
 
         @AttributeDefinition(
                 description = "Automatic removal of stale temporary directories used for replication after this many " +

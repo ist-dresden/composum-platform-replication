@@ -19,23 +19,6 @@ public interface RemoteReceiverConstants extends ReplicationConstants {
     String PARAM_RELEASE_CHANGENUMBER = "releaseChangeNumber";
 
     /**
-     * Mandatory parameter that points to the release root. Should be deliberately used as last part in the request,
-     * to easily ensure that the whole request was transmitted.
-     */
-    String PARAM_RELEASEROOT = "releaseRoot";
-
-    /**
-     * The path of the content that is actually replicated - can be releaseRoot or a subpath.
-     */
-    String PARAM_SRCPATH = "srcPath";
-
-    /**
-     * The path where the content below {@link #PARAM_SRCPATH} us placed - if different than
-     * {@link #PARAM_SRCPATH} this might imply reference transformation.
-     */
-    String PARAM_TARGETPATH = "targetPath";
-
-    /**
      * Mandatory of the parameter to contain the update id (except for startupdate).
      */
     String PARAM_UPDATEID = "updateId";
@@ -59,7 +42,7 @@ public interface RemoteReceiverConstants extends ReplicationConstants {
     /**
      * Attribute at the publishers temporary location that saves the release Root to write into.
      */
-    String ATTR_SRCPATH = "srcPath";
+    String ATTR_SRCPATH = "sourcePath";
 
     /**
      * Attribute at the publishers temporary location that saves the release Root to write into.

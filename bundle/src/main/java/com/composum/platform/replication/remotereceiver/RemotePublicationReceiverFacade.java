@@ -5,11 +5,6 @@ import com.composum.platform.commons.json.JsonHttpEntity;
 import com.composum.platform.commons.proxy.ProxyManagerService;
 import com.composum.platform.commons.util.ExceptionThrowingRunnable;
 import com.composum.platform.commons.util.ExceptionUtil;
-import com.composum.sling.platform.staging.replication.PublicationReceiverFacade;
-import com.composum.sling.platform.staging.replication.UpdateInfo;
-import com.composum.sling.platform.staging.replication.json.ChildrenOrderInfo;
-import com.composum.sling.platform.staging.replication.json.NodeAttributeComparisonInfo;
-import com.composum.sling.platform.staging.replication.json.VersionableTree;
 import com.composum.platform.replication.remote.RemotePublisherService;
 import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Extension;
 import com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation;
@@ -18,6 +13,12 @@ import com.composum.sling.core.servlet.Status;
 import com.composum.sling.core.util.LinkUtil;
 import com.composum.sling.core.util.SlingResourceUtil;
 import com.composum.sling.nodes.NodesConfiguration;
+import com.composum.sling.platform.staging.replication.PublicationReceiverFacade;
+import com.composum.sling.platform.staging.replication.ReplicationPaths;
+import com.composum.sling.platform.staging.replication.UpdateInfo;
+import com.composum.sling.platform.staging.replication.json.ChildrenOrderInfo;
+import com.composum.sling.platform.staging.replication.json.NodeAttributeComparisonInfo;
+import com.composum.sling.platform.staging.replication.json.VersionableTree;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.stream.JsonWriter;
@@ -28,7 +29,6 @@ import org.apache.http.NameValuePair;
 import org.apache.http.StatusLine;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpUriRequest;
@@ -38,7 +38,6 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
-import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,25 +51,14 @@ import java.io.Reader;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Extension.json;
 import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Extension.zip;
-import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.abortUpdate;
-import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.commitUpdate;
-import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.compareContent;
-import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.compareParents;
-import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.contentState;
-import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.pathUpload;
-import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.releaseInfo;
-import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.startUpdate;
+import static com.composum.platform.replication.remotereceiver.RemotePublicationReceiverServlet.Operation.*;
 
 /**
  * Provides a Java interface for accessing the remote publication receiver.
@@ -131,45 +119,48 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
 
     @Nonnull
     @Override
-    public StatusWithReleaseData startUpdate(@NotNull String releaseRoot, @Nonnull String path,
-                                             @Nullable String srcPath, @Nullable String targetPath)
+    public StatusWithReleaseData startUpdate(@Nonnull ReplicationPaths replicationPaths)
             throws PublicationReceiverFacadeException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 proxyManagerService, credentialService);
         List<NameValuePair> form = new ArrayList<>();
-        form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_RELEASEROOT, releaseRoot));
-        form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_SRCPATH, srcPath));
-        form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_TARGETPATH, targetPath));
+        replicationPaths.addToForm(form);
         UrlEncodedFormEntity entity = new UrlEncodedFormEntity(form, Consts.UTF_8);
-        String uri = uriString(startUpdate, json, path);
+        String uri = uriString(startUpdate, json, replicationPaths.getContentPath());
         HttpPost post = new HttpPost(uri);
         post.setEntity(entity);
 
-        LOG.info("Start update in release {} for path {}", releaseRoot, path);
+        LOG.info("Start update in {}", replicationPaths);
         StatusWithReleaseData status =
-                callRemotePublicationReceiver("Starting update with " + path,
+                callRemotePublicationReceiver("Starting update with " + replicationPaths,
                         httpClientContext, post, StatusWithReleaseData.class, null);
         if (status.updateInfo == null || StringUtils.isBlank(status.updateInfo.updateId)) { // impossible
             throw ExceptionUtil.logAndThrow(LOG,
-                    new PublicationReceiverFacadeException("Received no updateId for " + path, null, status, null));
+                    new PublicationReceiverFacadeException("Received no updateId for " + replicationPaths, null, status, null));
         }
         return status;
     }
 
-    @Override
     @Nonnull
-    public StatusWithReleaseData releaseInfo(@NotNull String releaseRootPath) throws PublicationReceiverFacadeException, RepositoryException {
+    @Override
+    public StatusWithReleaseData releaseInfo(@Nonnull ReplicationPaths replicationPaths)
+            throws PublicationReceiverFacadeException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 proxyManagerService, credentialService);
-        String uri = uriString(releaseInfo, json, releaseRootPath);
-        HttpGet method = new HttpGet(uri);
+
+        List<NameValuePair> form = new ArrayList<>();
+        replicationPaths.addToForm(form);
+        UrlEncodedFormEntity entity = new UrlEncodedFormEntity(form, Consts.UTF_8);
+        String uri = uriString(releaseInfo, json, replicationPaths.getContentPath());
+        HttpPost post = new HttpPost(uri);
+        post.setEntity(entity);
 
         if (LOG.isDebugEnabled()) {
-            LOG.debug("Get releaseinfo for path {}", releaseRootPath);
+            LOG.debug("Get releaseinfo for {}", replicationPaths);
         }
         StatusWithReleaseData status =
-                callRemotePublicationReceiver("Get releaseinfo for " + releaseRootPath,
-                        httpClientContext, method, StatusWithReleaseData.class, null);
+                callRemotePublicationReceiver("Get releaseinfo for " + replicationPaths,
+                        httpClientContext, post, StatusWithReleaseData.class, null);
         return status;
     }
 
@@ -314,8 +305,10 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
     }
 
     @Override
-    public Status compareParents(String releaseRoot, ResourceResolver resolver, Stream<ChildrenOrderInfo> relevantOrderings,
-                                 Stream<NodeAttributeComparisonInfo> attributeInfos) throws PublicationReceiverFacadeException, RepositoryException {
+    public Status compareParents(@Nonnull ReplicationPaths replicationPaths, @Nonnull ResourceResolver resolver,
+                                 @Nonnull Stream<ChildrenOrderInfo> relevantOrderings,
+                                 @Nonnull Stream<NodeAttributeComparisonInfo> attributeInfos)
+            throws PublicationReceiverFacadeException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 proxyManagerService, credentialService);
         Gson gson = new GsonBuilder().create();
@@ -324,6 +317,8 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
             @Override
             protected void writeTo(@Nonnull JsonWriter jsonWriter) throws IOException {
                 jsonWriter.beginObject();
+                jsonWriter.name(RemoteReceiverConstants.PARAM_REPLICATIONPATHS);
+                gson.toJson(replicationPaths, replicationPaths.getClass(), jsonWriter);
 
                 jsonWriter.name(RemoteReceiverConstants.PARAM_CHILDORDERINGS).beginArray();
                 relevantOrderings.forEachOrdered(childrenOrderInfo ->
@@ -339,12 +334,12 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
             }
         };
 
-        String uri = uriString(compareParents, json, releaseRoot);
+        String uri = uriString(compareParents, json);
         HttpPut put = new HttpPut(uri);
         put.setEntity(entity);
 
-        LOG.info("Comparing parents for {}", releaseRoot);
-        Status status = callRemotePublicationReceiver("Comparing parents for " + releaseRoot,
+        LOG.info("Comparing parents for {}", replicationPaths);
+        Status status = callRemotePublicationReceiver("Comparing parents for " + replicationPaths,
                 httpClientContext, put, Status.class, null);
         return status;
     }
