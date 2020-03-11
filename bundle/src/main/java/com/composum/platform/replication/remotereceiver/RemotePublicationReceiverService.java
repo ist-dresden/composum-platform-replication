@@ -134,8 +134,12 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
             ModifiableValueMap vm = requireNonNull(tmpLocation.adaptTo(ModifiableValueMap.class));
             vm.put(RemoteReceiverConstants.ATTR_TOP_CONTENTPATH, replicationPaths.getContentPath());
             vm.put(RemoteReceiverConstants.ATTR_RELEASEROOT_PATH, replicationPaths.getReleaseRoot());
-            vm.put(RemoteReceiverConstants.ATTR_SRCPATH, replicationPaths.getSourcePath());
-            vm.put(RemoteReceiverConstants.ATTR_TARGETPATH, replicationPaths.getTargetPath());
+            if (replicationPaths.getSourcePath() != null) {
+                vm.put(RemoteReceiverConstants.ATTR_SRCPATH, replicationPaths.getSourcePath());
+            }
+            if (replicationPaths.getTargetPath() != null) {
+                vm.put(RemoteReceiverConstants.ATTR_TARGETPATH, replicationPaths.getTargetPath());
+            }
 
             fillUpdateInfo(updateInfo, resolver, replicationPaths);
             if (StringUtils.isNotBlank(updateInfo.originalPublisherReleaseChangeId)) {

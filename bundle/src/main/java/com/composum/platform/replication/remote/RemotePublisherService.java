@@ -300,6 +300,8 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                 }
             }
 
+            restart = restart || (!changedPaths.isEmpty() && runningStrategy == null);
+
             if (restart) {
                 if (runningStrategy != null) {
                     runningStrategy.setAbortAtNextPossibility();

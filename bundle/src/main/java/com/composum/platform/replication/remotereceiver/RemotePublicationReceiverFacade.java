@@ -109,11 +109,12 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
         return new URIBuilder(uriString(operation, ext, path));
     }
 
-    protected String uriString(Operation operation, Extension ext, String path) {
-        return uriString(operation, ext) + LinkUtil.encodePath(path);
+    protected String uriString(@Nonnull Operation operation, @Nonnull Extension ext, @Nullable String path) {
+        return uriString(operation, ext) +
+                (StringUtils.isNotBlank(path) ? LinkUtil.encodePath(path) : "");
     }
 
-    protected String uriString(Operation operation, Extension ext) {
+    protected String uriString(@Nonnull Operation operation, @Nonnull Extension ext) {
         return replicationConfig.getTargetUrl() + "." + operation.name() + "." + ext.name();
     }
 

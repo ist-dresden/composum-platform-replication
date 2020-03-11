@@ -109,7 +109,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         operations.setOperation(ServletOperationSet.Method.POST, Extension.json, Operation.abortUpdate,
                 new AbortUpdateOperation());
 
-        operations.setOperation(ServletOperationSet.Method.PUT, Extension.json, Operation.releaseInfo,
+        operations.setOperation(ServletOperationSet.Method.POST, Extension.json, Operation.releaseInfo,
                 new ReleaseInfoOperation());
         operations.setOperation(ServletOperationSet.Method.GET, Extension.json, Operation.releaseInfo,
                 new ReleaseInfoOperation());
@@ -195,7 +195,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
             String updateId = XSS.filter(request.getParameter(PARAM_UPDATEID));
             ReplicationPaths replicationPaths = null;
             try {
-                replicationPaths = new ReplicationPaths(request);
+                replicationPaths = ReplicationPaths.optional(request);
                 List<String> diffpaths = service.compareContent(replicationPaths, updateId, request.getReader());
                 status.data(Status.DATA).put(RemoteReceiverConstants.PARAM_PATH, diffpaths);
             } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
