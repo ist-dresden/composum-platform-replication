@@ -143,9 +143,11 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         @Override
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response,
                          @Nullable ResourceHandle ignoredResource) throws IOException, ServletException {
-            // FIXME(hps,11.03.20) move to service.
+            // FIXME(hps,11.03.20) move to service. Also this depends on targetPath
             String targetDir = requireNonNull(service.getChangeRoot());
-            VersionableTree.VersionableTreeSerializer factory = new VersionableTree.VersionableTreeSerializer(targetDir);
+            VersionableTree.VersionableTreeSerializer factory = new VersionableTree.VersionableTreeSerializer(
+                    (p) -> SlingResourceUtil.appendPaths(targetDir, p) // FIXME(hps,12.03.20) wrong.
+            );
             GsonBuilder gsonBuilder = new GsonBuilder().registerTypeAdapterFactory(factory);
             PublicationReceiverFacade.ContentStateStatus status = new PublicationReceiverFacade.ContentStateStatus(gsonBuilder, request, response, LOG);
 

@@ -11,7 +11,6 @@ import com.composum.sling.platform.staging.replication.UpdateInfo;
 import com.composum.sling.platform.staging.replication.json.ChildrenOrderInfo;
 import com.composum.sling.platform.staging.replication.json.NodeAttributeComparisonInfo;
 import com.composum.sling.platform.staging.replication.json.VersionableTree;
-import com.composum.sling.platform.staging.replication.postprocess.MovePostprocessor;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -196,11 +195,11 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                 ValueMap vm = tmpLocation.getValueMap();
                 usedReplicationPaths = new ReplicationPaths(vm);
             }
-            String path = usedReplicationPaths.getContentPath();
-            path = path != null ? usedReplicationPaths.translate(path) : usedReplicationPaths.getDestination();
 
             VersionableTree.VersionableTreeDeserializer factory =
-                    new VersionableTree.VersionableTreeDeserializer(config.changeRoot(), resolver, path);
+                    new VersionableTree.VersionableTreeDeserializer(
+                            usedReplicationPaths.translateMapping(config.changeRoot()), resolver,
+                            usedReplicationPaths.getContentPath());
             Gson gson = new GsonBuilder().registerTypeAdapterFactory(factory).create();
             VersionableTree versionableTree = gson.fromJson(json, VersionableTree.class);
             List<String> result = new ArrayList<>();
@@ -582,7 +581,8 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                 Resource resource = resolver.getResource(targetPath);
                 if (resource != null) {
                     NodeAttributeComparisonInfo ourAttributeInfo =
-                            NodeAttributeComparisonInfo.of(resource, config.changeRoot());
+                            NodeAttributeComparisonInfo.of(resource,
+                                    replicationPaths.inverseTranslateMapping(config.changeRoot()));
                     if (!attributeInfo.equals(ourAttributeInfo)) {
                         result.add(attributeInfo.path);
                         if (LOG.isDebugEnabled()) {
