@@ -91,25 +91,12 @@ public class ContentStateOperationTest {
 
     @Test
     public void checkSerialization() throws Exception {
-        ResourceBuilder releaseRootBuilder = context.build().resource("/content/some/site", ResourceUtil.PROP_MIXINTYPES,
-                array(TYPE_MIX_RELEASE_ROOT)).commit();
-        releaseRootBuilder.resource("folder1/page11/jcr:content",
-                ResourceUtil.PROP_MIXINTYPES, new String[]{TYPE_VERSIONABLE, TYPE_MIX_REPLICATEDVERSIONABLE},
-                StagingConstants.PROP_REPLICATED_VERSION, "f1p11uuid");
-        releaseRootBuilder.resource("folder2/page21/jcr:content",
-                ResourceUtil.PROP_MIXINTYPES, new String[]{TYPE_VERSIONABLE, TYPE_MIX_REPLICATEDVERSIONABLE},
-                StagingConstants.PROP_REPLICATED_VERSION, "f2p21uuid");
-        releaseRootBuilder.resource("folder1/page11/sub111/jcr:content",
-                ResourceUtil.PROP_MIXINTYPES, new String[]{TYPE_VERSIONABLE, TYPE_MIX_REPLICATEDVERSIONABLE},
-                StagingConstants.PROP_REPLICATED_VERSION, "f1p11s111uuid");
-        releaseRootBuilder.resource("folder1/page11/sub112/jcr:content",
-                ResourceUtil.PROP_MIXINTYPES, new String[]{TYPE_VERSIONABLE, TYPE_MIX_REPLICATEDVERSIONABLE},
-                StagingConstants.PROP_REPLICATED_VERSION, "f1p11s212uuid");
-        Resource releaseRoot = releaseRootBuilder.commit().getCurrentParent();
+        Resource releaseRoot = setupForSerialization();
         ResourceHandle page11 = ResourceHandle.use(releaseRoot.getChild("folder1/page11"));
 
         MockSlingHttpServletRequest request = context.request();
         MockSlingHttpServletResponse response = context.response();
+        request.setQueryString("releaseRoot=/content/some/site");
 
         RemotePublicationReceiverServlet.ContentStateOperation cso = servlet.new ContentStateOperation();
         MockRequestPathInfo rpi = (MockRequestPathInfo) request.getRequestPathInfo();
@@ -128,6 +115,47 @@ public class ContentStateOperationTest {
         ec.checkThat(status.getStatus(), is(200));
         ec.checkThat(status.versionables.size(), is(3));
         ec.checkThat(status.versionables.get(1).get("version"), is("f1p11s111uuid"));
+    }
+
+    @Test
+    public void checkSerializationWithTarget() throws Exception {
+        Resource releaseRoot = setupForSerialization();
+        ResourceHandle page11 = ResourceHandle.use(releaseRoot.getChild("folder1/page11"));
+
+        MockSlingHttpServletRequest request = context.request();
+        MockSlingHttpServletResponse response = context.response();
+        request.setQueryString("releaseRoot=/content/whatever&targetPath=/content/some/site");
+
+        RemotePublicationReceiverServlet.ContentStateOperation cso = servlet.new ContentStateOperation();
+        MockRequestPathInfo rpi = (MockRequestPathInfo) request.getRequestPathInfo();
+        rpi.setSuffix("/content/whatever/folder1");
+        cso.doIt(request, response, page11);
+        ec.checkThat(response.getStatus(), is(200));
+        ec.checkThat(response.getOutputAsString(),
+                is("{\"versionables\":[" +
+                        "{\"path\":\"/content/whatever/folder1/page11/jcr:content\",\"version\":\"f1p11uuid\"}," +
+                        "{\"path\":\"/content/whatever/folder1/page11/sub111/jcr:content\",\"version\":\"f1p11s111uuid\"}," +
+                        "{\"path\":\"/content/whatever/folder1/page11/sub112/jcr:content\",\"version\":\"f1p11s212uuid\"}]," +
+                        "\"status\":200,\"success\":true,\"warning\":false}"));
+    }
+
+    @Nonnull
+    protected Resource setupForSerialization() {
+        ResourceBuilder releaseRootBuilder = context.build().resource("/content/some/site", ResourceUtil.PROP_MIXINTYPES,
+                array(TYPE_MIX_RELEASE_ROOT)).commit();
+        releaseRootBuilder.resource("folder1/page11/jcr:content",
+                ResourceUtil.PROP_MIXINTYPES, new String[]{TYPE_VERSIONABLE, TYPE_MIX_REPLICATEDVERSIONABLE},
+                StagingConstants.PROP_REPLICATED_VERSION, "f1p11uuid");
+        releaseRootBuilder.resource("folder2/page21/jcr:content",
+                ResourceUtil.PROP_MIXINTYPES, new String[]{TYPE_VERSIONABLE, TYPE_MIX_REPLICATEDVERSIONABLE},
+                StagingConstants.PROP_REPLICATED_VERSION, "f2p21uuid");
+        releaseRootBuilder.resource("folder1/page11/sub111/jcr:content",
+                ResourceUtil.PROP_MIXINTYPES, new String[]{TYPE_VERSIONABLE, TYPE_MIX_REPLICATEDVERSIONABLE},
+                StagingConstants.PROP_REPLICATED_VERSION, "f1p11s111uuid");
+        releaseRootBuilder.resource("folder1/page11/sub112/jcr:content",
+                ResourceUtil.PROP_MIXINTYPES, new String[]{TYPE_VERSIONABLE, TYPE_MIX_REPLICATEDVERSIONABLE},
+                StagingConstants.PROP_REPLICATED_VERSION, "f1p11s212uuid");
+        return releaseRootBuilder.commit().getCurrentParent();
     }
 
     private static class TestStatusWithAttributes extends Status {

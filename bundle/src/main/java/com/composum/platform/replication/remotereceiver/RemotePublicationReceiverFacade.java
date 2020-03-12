@@ -168,12 +168,13 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
     @Override
     @Nonnull
     public ContentStateStatus contentState(
-            @Nonnull UpdateInfo updateInfo, @Nonnull Collection<String> paths, ResourceResolver resolver, String contentPath)
+            @Nonnull UpdateInfo updateInfo, @Nonnull Collection<String> paths, ResourceResolver resolver, @Nonnull ReplicationPaths replicationPaths)
             throws PublicationReceiverFacadeException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 proxyManagerService, credentialService);
         List<NameValuePair> form = new ArrayList<>();
         form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId));
+        replicationPaths.addToForm(form);
         for (String path : paths) {
             form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_PATH, path));
         }
@@ -184,7 +185,7 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
 
         LOG.info("Querying content state for {} , {}", updateInfo.updateId, paths);
         Gson gson = new GsonBuilder().registerTypeAdapterFactory(
-                new VersionableTree.VersionableTreeDeserializer(null, resolver, contentPath)
+                new VersionableTree.VersionableTreeDeserializer(null, resolver, replicationPaths.getOrigin())
         ).create();
         ContentStateStatus status =
                 callRemotePublicationReceiver("Querying content for " + paths,
@@ -195,13 +196,14 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
     @Override
     @Nonnull
     public Status compareContent(@Nonnull UpdateInfo updateInfo, @Nonnull Collection<String> paths,
-                                 ResourceResolver resolver, String contentPath)
+                                 ResourceResolver resolver, ReplicationPaths replicationPaths)
             throws URISyntaxException, PublicationReceiverFacadeException, RepositoryException {
         HttpClientContext httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                 proxyManagerService, credentialService);
-        URI uri = uriBuilder(compareContent, json, contentPath)
-                .addParameter(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId)
-                .build();
+        URIBuilder uriBuilder = uriBuilder(compareContent, json, replicationPaths.getContentPath())
+                .addParameter(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId);
+        replicationPaths.addToUriBuilder(uriBuilder);
+        URI uri = uriBuilder.build();
         HttpPut put = new HttpPut(uri);
         Gson gson = new GsonBuilder().registerTypeAdapterFactory(
                 new VersionableTree.VersionableTreeSerializer(null)

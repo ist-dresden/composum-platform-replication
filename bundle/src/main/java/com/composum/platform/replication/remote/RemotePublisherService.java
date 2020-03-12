@@ -543,7 +543,7 @@ public class RemotePublisherService implements ReleaseChangeEventListener {
                     LOG.error("Can't get service resolver" + e, e);
                 }
             }
-            return active;
+            return Boolean.TRUE.equals(active);
         }
 
         @Override
