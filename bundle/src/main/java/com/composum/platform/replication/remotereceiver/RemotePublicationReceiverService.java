@@ -124,6 +124,10 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
             throws PersistenceException, LoginException, RemotePublicationReceiverException, RepositoryException {
         LOG.info("Start update called for {}", replicationPaths);
         try (ResourceResolver resolver = makeResolver()) {
+            // make sure the meta resource and target can be created
+            getMetaResource(resolver, replicationPaths, true);
+            ResourceUtil.getOrCreateResource(resolver,
+                    SlingResourceUtil.appendPaths(config.changeRoot(), replicationPaths.getDestination()), ResourceUtil.TYPE_SLING_FOLDER);
 
             UpdateInfo updateInfo = new UpdateInfo();
             updateInfo.updateId = "upd-" + RandomStringUtils.random(12, 0, 0, true, true, null, random);
@@ -162,9 +166,10 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     @Nullable
     protected Resource getMetaResource(ResourceResolver resolver, ReplicationPaths replicationPaths, boolean createIfNecessary)
             throws RepositoryException {
-        Resource resource = resolver.getResource(SlingResourceUtil.appendPaths(PATH_METADATA, replicationPaths.getDestination()));
+        String metapath = appendPaths(PATH_METADATA, replicationPaths.getDestination());
+        Resource resource = resolver.getResource(metapath);
         if (createIfNecessary && resource == null) {
-            resource = ResourceUtil.getOrCreateResource(resolver, replicationPaths.getDestination());
+            resource = ResourceUtil.getOrCreateResource(resolver, metapath, ResourceUtil.TYPE_SLING_FOLDER);
         }
         return resource;
     }
@@ -236,7 +241,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                             "system - please consult the logfile.", RemotePublicationReceiverException.RetryAdvice.NO_AUTOMATIC_RETRY);
                 }
 
-                processMove(resolver, packageRootPath, replicationPaths);
+                processMove(resolver, SlingResourceUtil.appendPaths(tmpLocation.getPath(), packageRootPath), replicationPaths);
                 session.save();
             } finally {
                 archive.close();
@@ -271,12 +276,15 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
             String topContentPath = vm.get(ATTR_TOP_CONTENTPATH, String.class);
             String chRoot = requireNonNull(config.changeRoot());
             String @NotNull [] updatedPaths = vm.get(ATTR_UPDATEDPATHS, new String[0]);
+            Resource metaResource = getMetaResource(resolver, replicationPaths, true);
+            ResourceUtil.getOrCreateResource(resolver,
+                    SlingResourceUtil.appendPaths(chRoot, replicationPaths.getDestination()), ResourceUtil.TYPE_SLING_FOLDER);
 
             for (String deletedPath : deletedPaths) {
                 if (!SlingResourceUtil.isSameOrDescendant(topContentPath, deletedPath)) { // safety check - Bug!
                     throw new IllegalArgumentException("Not subpath of " + topContentPath + " : " + deletedPath);
                 }
-                deletePath(resolver, tmpLocation, chRoot, replicationPaths.translate(deletedPath));
+                deletePath(resolver, tmpLocation, deletedPath, replicationPaths, chRoot);
             }
 
             @Nonnull String targetRootPath = appendPaths(chRoot, replicationPaths.getDestination());
@@ -289,7 +297,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                 if (!deletedPaths.contains(updatedPath)) {
                     // if it's deleted we needed to transfer a package for it, anyway, to update it's parents
                     // attributes. So it's in updatedPath, too, but doesn't need to be moved.
-                    moveVersionable(resolver, tmpLocation, replicationPaths.translate(updatedPath), chRoot);
+                    moveVersionable(resolver, tmpLocation, updatedPath, replicationPaths, chRoot);
                 }
             }
 
@@ -310,8 +318,6 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
                 }
             }
             LOG.debug("Number of child orderings read for {} was {}", topContentPath, childOrderings.getNumberRead());
-
-            Resource metaResource = getMetaResource(resolver, replicationPaths, true);
 
             ModifiableValueMap releaseRootVm = metaResource.adaptTo(ModifiableValueMap.class);
             releaseRootVm.put(StagingConstants.PROP_LAST_REPLICATION_DATE, Calendar.getInstance());
@@ -375,15 +381,18 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
      * the release in the target has been created.
      */
     protected void moveVersionable(@Nonnull ResourceResolver resolver, @Nonnull Resource tmpLocation,
-                                   @Nonnull String updatedPath, @Nonnull String targetRoot)
+                                   @Nonnull String updatedPath, @Nonnull ReplicationPaths replicationPaths, @Nonnull String chRoot)
             throws RepositoryException, PersistenceException {
         NodeTreeSynchronizer synchronizer = new NodeTreeSynchronizer();
-        Resource source = tmpLocation;
-        Resource destination = requireNonNull(resolver.getResource(targetRoot), targetRoot);
-        for (String pathsegment : StringUtils.removeStart(ResourceUtil.getParent(updatedPath), "/").split("/")) {
-            source = requireNonNull(source.getChild(pathsegment), updatedPath);
-            destination = ResourceUtil.getOrCreateChild(destination, pathsegment, ResourceUtil.TYPE_UNSTRUCTURED);
-            synchronizer.updateAttributes(ResourceHandle.use(source), ResourceHandle.use(destination), ImmutableBiMap.of());
+        Resource source = tmpLocation.getChild(SlingResourceUtil.relativePath("/", replicationPaths.getOrigin()));
+        Resource destination = requireNonNull(resolver.getResource(SlingResourceUtil.appendPaths(chRoot, replicationPaths.getDestination())));
+        String relPath = ResourceUtil.getParent(SlingResourceUtil.relativePath(replicationPaths.getOrigin(), updatedPath));
+        if (relPath != null) {
+            for (String pathsegment : relPath.split("/")) {
+                source = requireNonNull(source.getChild(pathsegment), updatedPath);
+                destination = ResourceUtil.getOrCreateChild(destination, pathsegment, ResourceUtil.TYPE_SLING_FOLDER);
+                synchronizer.updateAttributes(ResourceHandle.use(source), ResourceHandle.use(destination), ImmutableBiMap.of());
+            }
         }
         String nodename = ResourceUtil.getName(updatedPath);
         source = requireNonNull(source.getChild(nodename), updatedPath);
@@ -418,20 +427,23 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     }
 
     protected void deletePath(@Nonnull ResourceResolver resolver, @Nonnull Resource tmpLocation,
-                              @Nonnull String targetRoot, @Nonnull String deletedPath) throws PersistenceException, RepositoryException {
+                              @Nonnull String deletedPath, ReplicationPaths replicationPaths, @Nonnull String chRoot) throws PersistenceException, RepositoryException {
         NodeTreeSynchronizer synchronizer = new NodeTreeSynchronizer();
-        Resource source = tmpLocation;
-        Resource destination = requireNonNull(resolver.getResource(targetRoot), targetRoot);
-        for (String pathsegment : StringUtils.removeStart(ResourceUtil.getParent(deletedPath), "/").split("/")) {
-            source = source.getChild(pathsegment);
-            destination = destination.getChild(pathsegment);
-            if (source == null || destination == null) {
-                break;
+        Resource source = tmpLocation.getChild(SlingResourceUtil.relativePath("/", replicationPaths.getOrigin()));
+        Resource destination = requireNonNull(resolver.getResource(SlingResourceUtil.appendPaths(chRoot, replicationPaths.getDestination())));
+        String relPath = ResourceUtil.getParent(SlingResourceUtil.relativePath(replicationPaths.getOrigin(), deletedPath));
+        if (relPath != null) {
+            for (String pathsegment : relPath.split("/")) {
+                source = source.getChild(pathsegment);
+                destination = destination.getChild(pathsegment);
+                if (source == null || destination == null) {
+                    break;
+                }
+                synchronizer.updateAttributes(ResourceHandle.use(source), ResourceHandle.use(destination), ImmutableBiMap.of());
             }
-            synchronizer.updateAttributes(ResourceHandle.use(source), ResourceHandle.use(destination), ImmutableBiMap.of());
         }
 
-        Resource deletedResource = resolver.getResource(appendPaths(targetRoot, deletedPath));
+        Resource deletedResource = resolver.getResource(appendPaths(chRoot, replicationPaths.translate(deletedPath)));
         if (deletedResource != null) {
             LOG.info("Deleting {}", deletedPath);
             resolver.delete(deletedResource);
