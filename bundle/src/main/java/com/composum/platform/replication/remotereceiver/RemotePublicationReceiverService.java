@@ -69,7 +69,7 @@ public class RemotePublicationReceiverService implements RemotePublicationReceiv
     /**
      * Prefix to create metadata path for replicated content.
      */
-    public static final String PATH_METADATA = "/var";
+    public static final String PATH_METADATA = "/var/composum/replication";
 
     protected volatile Configuration config;
 
