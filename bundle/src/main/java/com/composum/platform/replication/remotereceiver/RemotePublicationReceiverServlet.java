@@ -166,6 +166,8 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                     }
 
                     List<Resource> resources = paths.stream()
+                            .map(replicationPaths::trimToOrigin)
+                            .filter(Objects::nonNull)
                             .map(replicationPaths.translateMapping(chRoot))
                             .map(resolver::getResource)
                             .filter(Objects::nonNull)
