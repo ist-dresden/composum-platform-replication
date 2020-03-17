@@ -12,11 +12,8 @@ import com.composum.sling.nodes.NodesConfiguration;
 import com.composum.sling.platform.staging.ReleaseChangeEventListener;
 import com.composum.sling.platform.staging.ReleaseChangeProcess;
 import com.composum.sling.platform.staging.StagingReleaseManager;
-import com.composum.sling.platform.staging.replication.AbstractReplicationService;
-import com.composum.sling.platform.staging.replication.PublicationReceiverFacade;
+import com.composum.sling.platform.staging.replication.*;
 import com.composum.sling.platform.staging.replication.PublicationReceiverFacade.PublicationReceiverFacadeException;
-import com.composum.sling.platform.staging.replication.ReplicatorStrategy;
-import com.composum.sling.platform.staging.replication.UpdateInfo;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
@@ -184,18 +181,6 @@ public class RemotePublisherService extends AbstractReplicationService<RemoteRel
             super(releaseRoot);
             readConfig(config);
             remoteReleaseInfo = new CachedCalculation<>(this::remoteReleaseInfo, 60000);
-        }
-
-        /**
-         * Called as often as possible to adapt to config changes.
-         */
-        public void readConfig(@Nonnull RemotePublicationConfig remotePublicationConfig) {
-            configPath = requireNonNull(remotePublicationConfig.getPath());
-            name = remotePublicationConfig.getName();
-            description = remotePublicationConfig.getDescription();
-            enabled = remotePublicationConfig.isEnabled();
-            mark = remotePublicationConfig.getStage();
-            active = null;
         }
 
         protected UpdateInfo remoteReleaseInfo() throws RemotePublicationReceiverFacade.PublicationReceiverFacadeException {
