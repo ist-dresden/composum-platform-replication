@@ -2,12 +2,10 @@ package com.composum.platform.replication.remotereceiver;
 
 import com.composum.platform.commons.credentials.CredentialService;
 import com.composum.platform.commons.proxy.ProxyManagerService;
-import com.composum.sling.platform.staging.replication.ReplicationType;
-import com.composum.sling.platform.staging.replication.ReplicationConfig;
 import com.composum.platform.replication.remote.RemoteReplicationType;
-import com.composum.sling.core.AbstractSlingBean;
 import com.composum.sling.core.util.ResourceUtil;
-import com.composum.sling.platform.security.AccessMode;
+import com.composum.sling.platform.staging.replication.AbstractReplicationConfig;
+import com.composum.sling.platform.staging.replication.ReplicationType;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.client.protocol.HttpClientContext;
@@ -21,46 +19,17 @@ import java.net.URISyntaxException;
 
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
 
-/** Bean modeling a remote publication configuration - subnode below /conf/{sitepath}/{site}/replication/ . */
-public class RemotePublicationConfig extends AbstractSlingBean implements ReplicationConfig {
+/**
+ * Bean modeling a remote publication configuration - subnode below /conf/{sitepath}/{site}/replication/ .
+ */
+public class RemotePublicationConfig extends AbstractReplicationConfig {
     private static final Logger LOG = LoggerFactory.getLogger(RemotePublicationConfig.class);
 
-    /** Property name for {@link #getUrl()}. */
-    public static final String PROP_URL = "targetUrl";
-    /** Property name for {@link #getProxyKey()}. */
-    public static final String PROP_PROXY_KEY = "proxyKey";
-
-    protected static final ReplicationType REMOTE_REPLICATION_TYPE = new RemoteReplicationType();
-
-    /** Optional human-readable description. */
-    @Override
-    public String getDescription() {
-        return getProperty(ResourceUtil.PROP_DESCRIPTION, String.class);
-    }
+    public static final ReplicationType REMOTE_REPLICATION_TYPE = new RemoteReplicationType();
 
     /**
-     * The release mark (mostly {@link com.composum.sling.platform.security.AccessMode#PUBLIC} /
-     * {@link com.composum.sling.platform.security.AccessMode#PREVIEW}) for which the release is replicated.
-     * If empty, there is no replication.
+     * URL of the {@link RemotePublicationReceiverServlet} on the remote system.
      */
-    @Nonnull
-    @Override
-    public String getStage() {
-        return getProperty(PN_STAGE, AccessMode.PUBLIC.name());
-    }
-
-    /** Whether this replication is enabled - default true. */
-    @Override
-    public boolean isEnabled() {
-        return getProperty(PN_IS_ENABLED, Boolean.TRUE);
-    }
-
-    @Override
-    public boolean isEditable() {
-        return getProperty(PN_IS_EDITABLE, true);
-    }
-
-    /** URL of the {@link RemotePublicationReceiverServlet} on the remote system. */
     public URI getTargetUrl() {
         String targetUrl = getProperty(PROP_URL, "");
         try {
@@ -84,43 +53,32 @@ public class RemotePublicationConfig extends AbstractSlingBean implements Replic
     }
 
 
-    /** Optional, the path we replicate - must be the site or a subpath of the site. */
-    @Nonnull
-    @Override
-    public String getSourcePath() {
-        return getProperty(PN_SOURCE_PATH, String.class);
-    }
-
-    /** Optional, the path we replicate to. If not given, this is equivalent to the source Path. */
-    @Override
-    public String getTargetPath() {
-        return getProperty(PN_TARGET_PATH, String.class);
-    }
-
     @Nonnull
     @Override
     public ReplicationType getReplicationType() {
         return REMOTE_REPLICATION_TYPE;
     }
 
-    @Nonnull
-    @Override
-    public String getConfigResourceType() {
-        return getProperty(ResourceUtil.PROP_RESOURCE_TYPE, String.class);
-    }
-
-    /** Optionally, the key of the proxy we need to use to reach the remote system. */
+    /**
+     * Optionally, the key of the proxy we need to use to reach the remote system.
+     */
     public String getProxyKey() {
         return getProperty(PROP_PROXY_KEY, String.class);
     }
 
-    /** Property name for {@link #getCredentialId()}. */
+    /**
+     * Property name for {@link #getCredentialId()}.
+     */
     public static final String PROP_CREDENTIAL_ID = "credentialId";
 
-    /** @see #getCredentialId() */
+    /**
+     * @see #getCredentialId()
+     */
     private transient String credentialId;
 
-    /** Optional ID to retrieve the credentials from the {@link com.composum.platform.commons.credentials.CredentialService}. */
+    /**
+     * Optional ID to retrieve the credentials from the {@link com.composum.platform.commons.credentials.CredentialService}.
+     */
     public String getCredentialId() {
         if (credentialId == null) {
             credentialId = getProperty(PROP_CREDENTIAL_ID, "");

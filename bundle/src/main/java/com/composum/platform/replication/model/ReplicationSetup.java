@@ -2,7 +2,7 @@ package com.composum.platform.replication.model;
 
 import com.composum.sling.platform.staging.replication.ReplicationConfig;
 import com.composum.sling.platform.staging.replication.ReplicationType;
-import com.composum.platform.replication.inplace.InplaceReplicationType;
+import com.composum.sling.platform.staging.replication.inplace.InplaceReplicationType;
 import com.composum.platform.replication.remote.RemoteReplicationType;
 import com.composum.sling.core.AbstractSlingBean;
 import com.composum.sling.cpnl.CpnlElFunctions;
