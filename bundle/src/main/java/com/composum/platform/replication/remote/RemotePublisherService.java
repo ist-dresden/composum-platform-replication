@@ -12,11 +12,8 @@ import com.composum.sling.nodes.NodesConfiguration;
 import com.composum.sling.platform.staging.ReleaseChangeEventListener;
 import com.composum.sling.platform.staging.ReleaseChangeProcess;
 import com.composum.sling.platform.staging.StagingReleaseManager;
-import com.composum.sling.platform.staging.replication.AbstractReplicationService;
-import com.composum.sling.platform.staging.replication.PublicationReceiverFacade;
+import com.composum.sling.platform.staging.replication.*;
 import com.composum.sling.platform.staging.replication.PublicationReceiverFacade.PublicationReceiverFacadeException;
-import com.composum.sling.platform.staging.replication.ReplicationType;
-import com.composum.sling.platform.staging.replication.UpdateInfo;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.sling.api.resource.Resource;
@@ -45,14 +42,9 @@ import java.io.IOException;
 )
 @Designate(ocd = RemotePublisherService.Configuration.class)
 public class RemotePublisherService
-        extends AbstractReplicationService<RemoteReleasePublishingProcess, RemotePublicationConfig> {
+        extends AbstractReplicationService<RemotePublicationConfig, RemoteReleasePublishingProcess> {
 
     protected static final Logger LOG = LoggerFactory.getLogger(RemotePublisherService.class);
-
-    /**
-     * {@link ReleaseChangeProcess#getType()} for this kind of replication.
-     */
-    public static final String TYPE_REMOTE = "remote";
 
     protected volatile Configuration config;
 
@@ -140,8 +132,8 @@ public class RemotePublisherService
 
         @Nonnull
         @Override
-        protected PublicationReceiverFacade createTargetFacade(@Nonnull RemotePublicationConfig replicationConfig, @Nonnull BeanContext context) {
-            return new RemotePublicationReceiverFacade(replicationConfig,
+        protected PublicationReceiverFacade createTargetFacade(@Nonnull AbstractReplicationConfig replicationConfig, @Nonnull BeanContext context) {
+            return new RemotePublicationReceiverFacade((RemotePublicationConfig) replicationConfig,
                     context, httpClient, () -> config, nodesConfig, proxyManagerService, credentialService);
         }
 
