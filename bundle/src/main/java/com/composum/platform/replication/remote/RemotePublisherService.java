@@ -138,9 +138,9 @@ public class RemotePublisherService
             remoteReleaseInfo = new CachedCalculation<>(this::remoteReleaseInfo, 60000);
         }
 
-        @Override
         @Nonnull
-        protected PublicationReceiverFacade createTargetFacade(@Nonnull RemotePublicationConfig replicationConfig, @Nonnull BeanContext.Service context) {
+        @Override
+        protected PublicationReceiverFacade createTargetFacade(@Nonnull RemotePublicationConfig replicationConfig, @Nonnull BeanContext context) {
             return new RemotePublicationReceiverFacade(replicationConfig,
                     context, httpClient, () -> config, nodesConfig, proxyManagerService, credentialService);
         }
