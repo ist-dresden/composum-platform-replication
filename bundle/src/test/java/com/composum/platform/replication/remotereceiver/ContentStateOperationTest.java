@@ -5,6 +5,7 @@ import com.composum.sling.core.servlet.Status;
 import com.composum.sling.core.util.ResourceUtil;
 import com.composum.sling.core.util.ServiceHandle;
 import com.composum.sling.platform.staging.StagingConstants;
+import com.composum.sling.platform.staging.replication.impl.PublicationReceiverBackendService;
 import com.composum.sling.platform.testing.testutil.AnnotationWithDefaults;
 import com.composum.sling.platform.testing.testutil.ErrorCollectorAlwaysPrintingFailures;
 import com.google.gson.Gson;
@@ -23,7 +24,6 @@ import org.apache.sling.testing.mock.sling.junit.SlingContext;
 import org.apache.sling.testing.mock.sling.servlet.MockSlingHttpServletRequest;
 import org.apache.sling.testing.mock.sling.servlet.MockSlingHttpServletResponse;
 import org.apache.sling.xss.XSSFilter;
-import org.apache.sling.xss.impl.XSSAPIImpl;
 import org.apache.sling.xss.impl.XSSFilterImpl;
 import org.junit.Before;
 import org.junit.Rule;
@@ -62,7 +62,7 @@ public class ContentStateOperationTest {
 
     protected RemotePublicationReceiverServlet servlet;
 
-    protected RemotePublicationReceiverService service;
+    protected PublicationReceiverBackendService service;
 
     @Before
     public void setup() throws Exception {
@@ -70,16 +70,16 @@ public class ContentStateOperationTest {
         ResourceResolver uncloseableResourceResolver = Mockito.spy(context.resourceResolver());
         Mockito.doNothing().when(uncloseableResourceResolver).close();
         when(resolverFactory.getServiceResourceResolver(null)).thenReturn(uncloseableResourceResolver);
-        RemotePublicationReceiverService.Configuration config = AnnotationWithDefaults.of(RemotePublicationReceiverService.Configuration.class);
+        PublicationReceiverBackendService.Configuration config = AnnotationWithDefaults.of(PublicationReceiverBackendService.Configuration.class);
 
         InputStreamReader cndReader = new InputStreamReader(getClass().getResourceAsStream("/stagingNodetypes.cnd"));
         NodeType[] nodeTypes = CndImporter.registerNodeTypes(cndReader, context.resourceResolver().adaptTo(Session.class));
         assertEquals(5, nodeTypes.length);
 
         servlet = new RemotePublicationReceiverServlet();
-        service = new RemotePublicationReceiverService();
-        service.config = config;
-        service.resolverFactory = resolverFactory;
+        service = new PublicationReceiverBackendService();
+        FieldUtils.writeDeclaredField(service, "config", config, true);
+        FieldUtils.writeDeclaredField(service, "resolverFactory", resolverFactory, true);
         servlet.resolverFactory = resolverFactory;
         servlet.service = service;
 

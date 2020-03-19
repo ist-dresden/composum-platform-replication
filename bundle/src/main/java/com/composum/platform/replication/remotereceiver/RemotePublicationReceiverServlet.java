@@ -6,10 +6,10 @@ import com.composum.sling.core.servlet.AbstractServiceServlet;
 import com.composum.sling.core.servlet.ServletOperation;
 import com.composum.sling.core.servlet.ServletOperationSet;
 import com.composum.sling.core.servlet.Status;
-import com.composum.sling.core.util.SlingResourceUtil;
 import com.composum.sling.core.util.XSS;
 import com.composum.sling.platform.staging.replication.PublicationReceiverFacade;
 import com.composum.sling.platform.staging.replication.ReplicationPaths;
+import com.composum.sling.platform.staging.replication.impl.PublicationReceiverBackend;
 import com.composum.sling.platform.staging.replication.json.ChildrenOrderInfo;
 import com.composum.sling.platform.staging.replication.json.NodeAttributeComparisonInfo;
 import com.composum.sling.platform.staging.replication.json.VersionableInfo;
@@ -69,7 +69,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
     protected ResourceResolverFactory resolverFactory;
 
     @Reference
-    protected RemotePublicationReceiver service;
+    protected PublicationReceiverBackend service;
 
     @Override
     protected boolean isEnabled() {
@@ -207,7 +207,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 replicationPaths = ReplicationPaths.optional(request);
                 List<String> diffpaths = service.compareContent(replicationPaths, updateId, request.getReader());
                 status.data(Status.DATA).put(RemoteReceiverConstants.PARAM_PATH, diffpaths);
-            } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
+            } catch (PublicationReceiverBackend.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
                 status.error("Error comparing content for {} : {}", updateId, e.toString(), e);
             } catch (LoginException e) { // serious misconfiguration
                 LOG.error("Could not get service resolver: " + e, e);
@@ -233,7 +233,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
             } catch (LoginException e) { // serious misconfiguration
                 LOG.error("Could not get service resolver: " + e, e);
                 throw new ServletException("Could not get service resolver", e);
-            } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
+            } catch (PublicationReceiverBackend.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
                 status.error("Error starting update for {} , {}", replicationPaths, e.toString(), e);
             }
             status.sendJson();
@@ -262,7 +262,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 } catch (ConfigurationException e) { // on importer.run
                     LOG.error("" + e, e);
                     status.error("Import failed.", e.toString());
-                } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
+                } catch (PublicationReceiverBackend.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
                     LOG.error("" + e, e);
                     status.error("Import failed: {}", e.toString());
                 }
@@ -317,7 +317,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                     } catch (LoginException e) { // serious misconfiguration
                         LOG.error("Could not get service resolver: " + e, e);
                         throw new ServletException("Could not get service resolver", e);
-                    } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
+                    } catch (PublicationReceiverBackend.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
                         status.error("Import failed for {}: {}", updateId, e.toString(), e);
                     }
                 }
@@ -344,7 +344,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 } catch (LoginException e) { // serious misconfiguration
                     LOG.error("Could not get service resolver: " + e, e);
                     throw new ServletException("Could not get service resolver", e);
-                } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
+                } catch (PublicationReceiverBackend.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
                     status.error("Import failed for {}: {}", updateId, e.toString(), e);
                 }
             }
@@ -401,7 +401,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
             } catch (LoginException e) { // serious misconfiguration
                 LOG.error("Could not get service resolver: " + e, e);
                 throw new ServletException("Could not get service resolver", e);
-            } catch (RemotePublicationReceiver.RemotePublicationReceiverException | RepositoryException | RuntimeException | IOException e) {
+            } catch (PublicationReceiverBackend.RemotePublicationReceiverException | RepositoryException | RuntimeException | IOException e) {
                 status.error("Compare childorderings failed: {}", e.toString(), e);
             }
 
