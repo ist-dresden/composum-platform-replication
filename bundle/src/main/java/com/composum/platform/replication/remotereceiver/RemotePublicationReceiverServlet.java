@@ -143,37 +143,30 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
         @Override
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response,
                          @Nullable ResourceHandle ignoredResource) throws IOException, ServletException {
-            // FIXME(hps,11.03.20) move to service. Also this depends on targetPath
+            String chRoot = requireNonNull(service.getChangeRoot());
+            ReplicationPaths replicationPaths = new ReplicationPaths(request);
+            String contentPath = replicationPaths.getContentPath();
+            String[] additionalPaths = XSS.filter(request.getParameterValues(RemoteReceiverConstants.PARAM_PATH));
+            List<String> paths = new ArrayList<>();
+            if (StringUtils.isNotBlank(contentPath)) {
+                paths.add(contentPath);
+            }
+            if (additionalPaths != null) {
+                paths.addAll(Arrays.asList(additionalPaths));
+            }
+
             PublicationReceiverFacade.ContentStateStatus status = null;
             try (ResourceResolver resolver = makeResolver()) {
-                String chRoot = requireNonNull(service.getChangeRoot());
-                ReplicationPaths replicationPaths = new ReplicationPaths(request);
-                String contentPath = replicationPaths.getContentPath();
-                VersionableTree.VersionableTreeSerializer factory = new VersionableTree.VersionableTreeSerializer(
-                        replicationPaths.inverseTranslateMapping(chRoot)
-                );
-                GsonBuilder gsonBuilder = new GsonBuilder().registerTypeAdapterFactory(factory);
-                status = new PublicationReceiverFacade.ContentStateStatus(gsonBuilder, request, response, LOG);
-
                 try {
-                    String[] additionalPaths = XSS.filter(request.getParameterValues(RemoteReceiverConstants.PARAM_PATH));
-                    List<String> paths = new ArrayList<>();
-                    if (StringUtils.isNotBlank(contentPath)) {
-                        paths.add(contentPath);
-                    }
-                    if (additionalPaths != null) {
-                        paths.addAll(Arrays.asList(additionalPaths));
-                    }
+                    VersionableTree.VersionableTreeSerializer factory = new VersionableTree.VersionableTreeSerializer(
+                            replicationPaths.inverseTranslateMapping(chRoot)
+                    );
+                    GsonBuilder gsonBuilder = new GsonBuilder().registerTypeAdapterFactory(factory);
+                    status = new PublicationReceiverFacade.ContentStateStatus(gsonBuilder, request, response, LOG);
 
-                    List<Resource> resources = paths.stream()
-                            .map(replicationPaths::trimToOrigin)
-                            .filter(Objects::nonNull)
-                            .map(replicationPaths.translateMapping(chRoot))
-                            .map(resolver::getResource)
-                            .filter(Objects::nonNull)
-                            .collect(Collectors.toList());
-                    status.versionables = new VersionableTree();
-                    status.versionables.setSearchtreeRoots(resources);
+                    VersionableTree versionableTree = service.contentStatus(replicationPaths, paths, resolver);
+
+                    status.versionables = versionableTree;
                 } catch (RuntimeException e) {
                     status.withLogging(LOG).error("Error getting content state {} : {}", contentPath, e.toString(), e);
                 }
@@ -186,7 +179,6 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 throw new ServletException("Internal error", e);
             }
         }
-
 
     }
 
