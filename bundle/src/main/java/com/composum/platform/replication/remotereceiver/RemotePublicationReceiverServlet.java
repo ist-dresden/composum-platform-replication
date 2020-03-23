@@ -195,9 +195,13 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
             Status status = new Status(request, response, LOG);
             String updateId = XSS.filter(request.getParameter(PARAM_UPDATEID));
             ReplicationPaths replicationPaths = null;
-            try {
+            Gson gson = new GsonBuilder().create();
+            try (JsonReader jsonReader = new JsonReader(request.getReader());
+                 JsonArrayAsIterable<VersionableInfo> versionableInfos =
+                         new JsonArrayAsIterable<>(jsonReader, VersionableInfo.class, gson, null)
+            ) {
                 replicationPaths = ReplicationPaths.optional(request);
-                List<String> diffpaths = service.compareContent(replicationPaths, updateId, request.getReader());
+                List<String> diffpaths = service.compareContent(replicationPaths, updateId, versionableInfos.stream());
                 status.data(Status.DATA).put(RemoteReceiverConstants.PARAM_PATH, diffpaths);
             } catch (PublicationReceiverBackend.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
                 status.error("Error comparing content for {} : {}", updateId, e.toString(), e);
