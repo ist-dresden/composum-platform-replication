@@ -376,7 +376,6 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
             Gson gson = new GsonBuilder().create();
             ReplicationPaths replicationPaths = null;
             try (JsonReader jsonReader = new JsonReader(request.getReader())) {
-                replicationPaths = new ReplicationPaths(request);
                 jsonReader.beginObject();
                 expectName(jsonReader, PARAM_REPLICATIONPATHS, status);
                 replicationPaths = gson.fromJson(jsonReader, ReplicationPaths.class);
