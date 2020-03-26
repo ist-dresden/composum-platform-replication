@@ -3,12 +3,14 @@ package com.composum.platform.replication.remotereceiver;
 import com.composum.platform.commons.credentials.CredentialService;
 import com.composum.platform.commons.proxy.ProxyManagerService;
 import com.composum.platform.replication.remote.RemoteReplicationType;
+import com.composum.sling.core.BeanContext;
 import com.composum.sling.core.util.ResourceUtil;
 import com.composum.sling.platform.staging.replication.AbstractReplicationConfig;
 import com.composum.sling.platform.staging.replication.ReplicationType;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.client.protocol.HttpClientContext;
+import org.apache.sling.api.resource.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,15 +25,30 @@ import static org.apache.commons.lang3.StringUtils.isNotBlank;
  * Bean modeling a remote publication configuration - subnode below /conf/{sitepath}/{site}/replication/ .
  */
 public class RemotePublicationConfig extends AbstractReplicationConfig {
+    public static final ReplicationType REMOTE_REPLICATION_TYPE = new RemoteReplicationType();
+    /**
+     * Property name for {@link #getCredentialId()}.
+     */
+    public static final String PROP_CREDENTIAL_ID = "credentialId";
+
     private static final Logger LOG = LoggerFactory.getLogger(RemotePublicationConfig.class);
 
-    public static final ReplicationType REMOTE_REPLICATION_TYPE = new RemoteReplicationType();
+    protected String targetUrl;
+    protected String proxyKey;
+    protected String credentialId;
+
+    @Override
+    public void initialize(BeanContext context, Resource resource) {
+        super.initialize(context, resource);
+        this.targetUrl = getProperty(PROP_URL, "");
+        this.proxyKey = getProperty(PROP_PROXY_KEY, String.class);
+        this.credentialId = getProperty(PROP_CREDENTIAL_ID, "");
+    }
 
     /**
      * URL of the {@link RemotePublicationReceiverServlet} on the remote system.
      */
     public URI getTargetUrl() {
-        String targetUrl = getProperty(PROP_URL, "");
         try {
             return targetUrl != null ? new URI(targetUrl) : null;
         } catch (URISyntaxException e) {
@@ -52,7 +69,6 @@ public class RemotePublicationConfig extends AbstractReplicationConfig {
         return builder.toString();
     }
 
-
     @Nonnull
     @Override
     public ReplicationType getReplicationType() {
@@ -63,26 +79,13 @@ public class RemotePublicationConfig extends AbstractReplicationConfig {
      * Optionally, the key of the proxy we need to use to reach the remote system.
      */
     public String getProxyKey() {
-        return getProperty(PROP_PROXY_KEY, String.class);
+        return proxyKey;
     }
-
-    /**
-     * Property name for {@link #getCredentialId()}.
-     */
-    public static final String PROP_CREDENTIAL_ID = "credentialId";
-
-    /**
-     * @see #getCredentialId()
-     */
-    private transient String credentialId;
 
     /**
      * Optional ID to retrieve the credentials from the {@link com.composum.platform.commons.credentials.CredentialService}.
      */
     public String getCredentialId() {
-        if (credentialId == null) {
-            credentialId = getProperty(PROP_CREDENTIAL_ID, "");
-        }
         return credentialId;
     }
 

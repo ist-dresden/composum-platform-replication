@@ -80,11 +80,6 @@ public class ReplicationConfigNode extends ResourceModel implements ReplicationC
         return getProperty(PN_IS_ENABLED, Boolean.FALSE);
     }
 
-    @Override
-    public boolean isEditable() {
-        return getProperty(PN_IS_EDITABLE, Boolean.FALSE);
-    }
-
     @Nonnull
     @Override
     public String getConfigResourceType() {
