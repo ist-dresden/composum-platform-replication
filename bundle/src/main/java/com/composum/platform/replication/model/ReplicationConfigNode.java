@@ -66,6 +66,11 @@ public class ReplicationConfigNode extends ResourceModel implements ReplicationC
         return getProperty(PN_TARGET_PATH, String.class);
     }
 
+    @Override
+    public boolean isEditable() {
+        return getProperty(PN_IS_EDITABLE, Boolean.FALSE);
+    }
+
     @Nonnull
     @Override
     public ReplicationType getReplicationType() {
@@ -78,6 +83,13 @@ public class ReplicationConfigNode extends ResourceModel implements ReplicationC
     @Override
     public boolean isEnabled() {
         return getProperty(PN_IS_ENABLED, Boolean.FALSE);
+    }
+
+    @Nonnull
+    @Override
+    public String getConfigResourceType() {
+        String resourceType = getProperty(ResourceUtil.PROP_RESOURCE_TYPE, "");
+        return StringUtils.isBlank(resourceType) ? getReplicationType().getResourceType() : resourceType;
     }
 
     public String getProxyOptions() {
