@@ -142,6 +142,14 @@ public class RemotePublisherService
             return getReplicationType().getServiceId();
         }
 
+        /**
+         * False: remote replication is never implicit.
+         */
+        @Override
+        public boolean isImplicit() {
+            return false;
+        }
+
         @Override
         protected UpdateInfo getTargetReleaseInfo() {
             try {

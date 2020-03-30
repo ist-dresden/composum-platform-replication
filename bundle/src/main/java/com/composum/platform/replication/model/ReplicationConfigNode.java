@@ -80,13 +80,6 @@ public class ReplicationConfigNode extends ResourceModel implements ReplicationC
         return getProperty(PN_IS_ENABLED, Boolean.FALSE);
     }
 
-    @Nonnull
-    @Override
-    public String getConfigResourceType() {
-        String resourceType = getProperty(ResourceUtil.PROP_RESOURCE_TYPE, "");
-        return StringUtils.isBlank(resourceType) ? getReplicationType().getResourceType() : resourceType;
-    }
-
     public String getProxyOptions() {
         if (proxyOptions == null) {
             StringBuilder result = new StringBuilder(":" + I18N.get(context.getRequest(), "no proxy"));
