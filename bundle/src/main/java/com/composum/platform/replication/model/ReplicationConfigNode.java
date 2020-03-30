@@ -70,7 +70,7 @@ public class ReplicationConfigNode extends ResourceModel implements ReplicationC
     @Override
     public ReplicationType getReplicationType() {
         // ToDo retrieve replication type
-        String key = getProperty(PN_REPLICATIN_TYPE, InplaceReplicationType.SERVICE_ID);
+        String key = getProperty(PN_REPLICATION_TYPE, InplaceReplicationType.SERVICE_ID);
         return InplaceReplicationType.SERVICE_ID.equals(key)
                 ? new InplaceReplicationType() : new RemoteReplicationType();
     }
