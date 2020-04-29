@@ -13,7 +13,6 @@ import com.composum.sling.platform.staging.ReleaseChangeEventListener;
 import com.composum.sling.platform.staging.ReleaseChangeProcess;
 import com.composum.sling.platform.staging.StagingReleaseManager;
 import com.composum.sling.platform.staging.replication.*;
-import com.composum.sling.platform.staging.replication.PublicationReceiverFacade.PublicationReceiverFacadeException;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.sling.api.resource.Resource;
@@ -36,7 +35,7 @@ import java.io.IOException;
  */
 @Component(
         service = ReleaseChangeEventListener.class,
-        property = {Constants.SERVICE_DESCRIPTION + "=Composum Platform Remote Publisher Service"},
+        property = {Constants.SERVICE_DESCRIPTION + "=Composum Platform Remote Replication Service"},
         configurationPolicy = ConfigurationPolicy.REQUIRE,
         immediate = true
 )
@@ -123,7 +122,7 @@ public class RemotePublisherService
     }
 
     protected class RemoteReleasePublishingProcess extends AbstractReplicationProcess implements ReleaseChangeProcess {
-        protected final CachedCalculation<UpdateInfo, PublicationReceiverFacadeException> remoteReleaseInfo;
+        protected final CachedCalculation<UpdateInfo, ReplicationException> remoteReleaseInfo;
 
         public RemoteReleasePublishingProcess(@Nonnull Resource releaseRoot, @Nonnull RemotePublicationConfig config) {
             super(releaseRoot, config);
@@ -154,7 +153,7 @@ public class RemotePublisherService
         protected UpdateInfo getTargetReleaseInfo() {
             try {
                 return remoteReleaseInfo.giveValue();
-            } catch (PublicationReceiverFacadeException e) {
+            } catch (ReplicationException e) {
                 LOG.error("" + e, e);
                 return null;
             }
@@ -164,7 +163,7 @@ public class RemotePublisherService
         public void updateSynchronized() {
             try {
                 remoteReleaseInfo.giveValue(null, true); // updates cache
-            } catch (PublicationReceiverFacadeException e) {
+            } catch (ReplicationException e) {
                 LOG.error("" + e, e);
             }
         }
@@ -172,7 +171,7 @@ public class RemotePublisherService
     }
 
     @ObjectClassDefinition(
-            name = "Composum Platform Remote Publisher Service Configuration",
+            name = "Composum Platform Remote Replication Service Configuration",
             description = "Configures a service that publishes release changes to remote systems"
     )
     public @interface Configuration {

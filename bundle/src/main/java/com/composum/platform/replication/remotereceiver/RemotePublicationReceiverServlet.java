@@ -8,6 +8,7 @@ import com.composum.sling.core.servlet.ServletOperationSet;
 import com.composum.sling.core.servlet.Status;
 import com.composum.sling.core.util.XSS;
 import com.composum.sling.platform.staging.replication.PublicationReceiverFacade;
+import com.composum.sling.platform.staging.replication.ReplicationException;
 import com.composum.sling.platform.staging.replication.ReplicationPaths;
 import com.composum.sling.platform.staging.replication.impl.PublicationReceiverBackend;
 import com.composum.sling.platform.staging.replication.json.ChildrenOrderInfo;
@@ -173,10 +174,10 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 status.sendJson(); // resolver still has to be open since VersionableTreeSerializer streams data
             } catch (LoginException e) { // serious misconfiguration
                 LOG.error("Could not get service resolver: " + e, e);
-                throw new ServletException("Could not get service resolver", e);
+                status.error("Could not get service resolver in publish server", e);
             } catch (RuntimeException e) {
                 LOG.error("" + e, e);
-                throw new ServletException("Internal error", e);
+                status.error("Internal error in publish server", e);
             }
         }
 
@@ -203,11 +204,10 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 replicationPaths = ReplicationPaths.optional(request);
                 List<String> diffpaths = service.compareContent(replicationPaths, updateId, versionableInfos.stream());
                 status.data(Status.DATA).put(RemoteReceiverConstants.PARAM_PATH, diffpaths);
-            } catch (PublicationReceiverBackend.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
-                status.error("Error comparing content for {} : {}", updateId, e.toString(), e);
-            } catch (LoginException e) { // serious misconfiguration
-                LOG.error("Could not get service resolver: " + e, e);
-                throw new ServletException("Could not get service resolver", e);
+            } catch (ReplicationException e) {
+                e.writeIntoStatus(status);
+            } catch (RuntimeException e) {
+                status.error("Internal error at publish server comparing content for {} : {}", updateId, e.toString(), e);
             }
             status.sendJson();
         }
@@ -226,11 +226,10 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
             try {
                 replicationPaths = new ReplicationPaths(request);
                 status.updateInfo = service.startUpdate(replicationPaths);
-            } catch (LoginException e) { // serious misconfiguration
-                LOG.error("Could not get service resolver: " + e, e);
-                throw new ServletException("Could not get service resolver", e);
-            } catch (PublicationReceiverBackend.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
-                status.error("Error starting update for {} , {}", replicationPaths, e.toString(), e);
+            } catch (ReplicationException e) {
+                e.writeIntoStatus(status);
+            } catch (RuntimeException e) {
+                status.error("Internal error at publish server starting update for {} , {}", replicationPaths, e.toString(), e);
             }
             status.sendJson();
         }
@@ -244,7 +243,7 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
 
         @Override
         public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource)
-                throws IOException, ServletException {
+                throws IOException {
             Status status = new Status(request, response, LOG);
             String packageRootPath = XSS.filter(request.getRequestPathInfo().getSuffix());
             String updateId = status.getRequiredParameter(PARAM_UPDATEID, PATTERN_UPDATEID, "UpdateId required");
@@ -252,18 +251,13 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
 
                 try {
                     service.pathUpload(updateId, packageRootPath, request.getInputStream());
-                } catch (LoginException e) { // serious misconfiguration
-                    LOG.error("Could not get service resolver:" + e, e);
-                    throw new ServletException("Could not get service resolver", e);
-                } catch (ConfigurationException e) { // on importer.run
-                    LOG.error("" + e, e);
-                    status.error("Import failed.", e.toString());
-                } catch (PublicationReceiverBackend.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
-                    LOG.error("" + e, e);
-                    status.error("Import failed: {}", e.toString());
+                } catch (ReplicationException e) {
+                    e.writeIntoStatus(status);
+                } catch (RuntimeException e) {
+                    status.error("Import of {} failed at publish server for {}", packageRootPath, updateId, e);
                 }
             } else {
-                status.error("Broken parameters pkg {}, upd {}", packageRootPath, updateId);
+                status.error("Broken parameters at publish server: pkg {}, upd {}", packageRootPath, updateId);
             }
             status.sendJson();
         }
@@ -271,16 +265,16 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
 
     class CommitUpdateOperation implements ServletOperation {
         @Override
-        public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource)
-                throws IOException, ServletException {
+        public void doIt(@Nonnull SlingHttpServletRequest request, @Nonnull SlingHttpServletResponse response, @Nullable ResourceHandle resource) throws IOException {
             Status status = new Status(request, response, LOG);
             Gson gson = new GsonBuilder().create();
+            String updateId = null;
 
             try (JsonReader jsonReader = new JsonReader(request.getReader())) {
                 jsonReader.beginObject();
 
                 expectName(jsonReader, PARAM_UPDATEID, status);
-                String updateId = jsonReader.nextString();
+                updateId = jsonReader.nextString();
                 if (!PATTERN_UPDATEID.matcher(updateId).matches()) {
                     status.error("Invalid updateId");
                     throw new IllegalArgumentException("Invalid updateId");
@@ -310,15 +304,14 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                     try {
                         service.commit(updateId, deletedPaths, childOrderings, newReleaseChangeId);
                         jsonReader.endObject();
-                    } catch (LoginException e) { // serious misconfiguration
-                        LOG.error("Could not get service resolver: " + e, e);
-                        throw new ServletException("Could not get service resolver", e);
-                    } catch (PublicationReceiverBackend.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
-                        status.error("Import failed for {}: {}", updateId, e.toString(), e);
+                    } catch (ReplicationException e) {
+                        e.writeIntoStatus(status);
+                    } catch (RuntimeException e) {
+                        status.error("Import failed at publish server for {}: {}", updateId, e.toString(), e);
                     }
                 }
             } catch (IOException | RuntimeException e) {
-                status.error("Reading request for commit failed", e);
+                status.error("Reading request for commit failed at publish server for update {}", updateId, e);
             }
 
             status.sendJson();
@@ -337,11 +330,10 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
             if (status.isValid()) {
                 try {
                     service.abort(updateId);
-                } catch (LoginException e) { // serious misconfiguration
-                    LOG.error("Could not get service resolver: " + e, e);
-                    throw new ServletException("Could not get service resolver", e);
-                } catch (PublicationReceiverBackend.RemotePublicationReceiverException | RepositoryException | PersistenceException | RuntimeException e) {
-                    status.error("Import failed for {}: {}", updateId, e.toString(), e);
+                } catch (ReplicationException e) {
+                    e.writeIntoStatus(status);
+                } catch (RuntimeException e) {
+                    status.error("Abort update failed at publish server update for {}", updateId, e);
                 }
             }
             status.sendJson();
@@ -358,11 +350,10 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
             try {
                 replicationPaths = new ReplicationPaths(request);
                 status.updateInfo = service.releaseInfo(replicationPaths);
-            } catch (LoginException e) { // serious misconfiguration
-                LOG.error("Could not get service resolver: " + e, e);
-                throw new ServletException("Could not get service resolver", e);
-            } catch (RuntimeException | RepositoryException e) {
-                status.error("Cannot get release info for {}: {}", replicationPaths, e.toString(), e);
+            } catch (ReplicationException e) {
+                e.writeIntoStatus(status);
+            } catch (RuntimeException e) {
+                status.error("Internal error at publish server when getting release info for {}", replicationPaths, e);
             }
             status.sendJson();
         }
@@ -393,11 +384,10 @@ public class RemotePublicationReceiverServlet extends AbstractServiceServlet {
                 status.data(PARAM_ATTRIBUTEINFOS).put(PARAM_PATH, differentParentAttributes);
 
                 jsonReader.endObject();
-            } catch (LoginException e) { // serious misconfiguration
-                LOG.error("Could not get service resolver: " + e, e);
-                throw new ServletException("Could not get service resolver", e);
-            } catch (PublicationReceiverBackend.RemotePublicationReceiverException | RepositoryException | RuntimeException | IOException e) {
-                status.error("Compare childorderings failed: {}", e.toString(), e);
+            } catch (ReplicationException e) {
+                e.writeIntoStatus(status);
+            } catch (RuntimeException | IOException e) {
+                status.error("Compare parents failed at publish server for {}", replicationPaths, e);
             }
 
             status.sendJson();
