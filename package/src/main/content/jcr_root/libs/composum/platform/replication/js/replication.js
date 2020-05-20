@@ -68,7 +68,7 @@
             },
 
             onTypeSelected: function (event, type) {
-                core.getHtml(replication.const.url.base + '/' + type + '.empty.html' + this.data.path,
+                core.getHtml(replication.const.url.base + '/' + type + '.empty.html' + core.encodePath(this.data.path),
                     _.bind(function (content) {
                         this.$content.html(content);
                         CPM.widgets.setUp(this.$content);
@@ -102,7 +102,7 @@
             },
 
             reload: function () {
-                var url = '/libs/' + this.$el.data('type') + '.reload.html' + this.$el.data('path');
+                var url = '/libs/' + this.$el.data('type') + '.reload.html' + core.encodePath(this.$el.data('path'));
                 core.getHtml(url, _.bind(function (content) {
                     this.$el.html(content);
                     this.initContent();
@@ -156,10 +156,11 @@
             },
 
             reload: function () {
-                core.getHtml(replication.const.url.setup + this.$el.data('path'), _.bind(function (content) {
-                    this.$el.html(content);
-                    this.initContent();
-                }, this));
+                core.getHtml(replication.const.url.setup + core.encodePath(this.$el.data('path')),
+                    _.bind(function (content) {
+                        this.$el.html(content);
+                        this.initContent();
+                    }, this));
             }
         });
 
