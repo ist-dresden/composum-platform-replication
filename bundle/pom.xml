@@ -86,6 +86,11 @@
         <dependency>
             <groupId>org.apache.sling</groupId>
             <artifactId>org.apache.sling.xss</artifactId>
+            <!-- This is an evil JAR with several old versions of libraries as embedded dependencies that aren't exported
+            and can conflict with your code. Scope optional at least means that that doesn't conflict with artifacts
+            using a bundle that uses the sling.xss bundle. https://issues.apache.org/jira/browse/SLING-8404
+             -->
+            <scope>optional</scope>
         </dependency>
 
         <!-- JCR API, Jackrabbit, VLT -->
@@ -100,6 +105,10 @@
         <dependency>
             <groupId>org.apache.jackrabbit</groupId>
             <artifactId>jackrabbit-jcr-commons</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.jackrabbit.vault</groupId>
+            <artifactId>org.apache.jackrabbit.vault</artifactId>
         </dependency>
 
         <!-- JSON -->
