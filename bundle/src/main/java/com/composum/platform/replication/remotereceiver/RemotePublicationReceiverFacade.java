@@ -110,7 +110,7 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
             return new URIBuilder(url);
         } catch (URISyntaxException e) {
             throw new ReplicationException(Message.error("Invalid URL used in replication - please check configuration: {}",
-                    url), null);
+                    url), e);
         }
     }
 
@@ -128,7 +128,7 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
             return uriBuilder.build();
         } catch (URISyntaxException e) {
             throw new ReplicationException(Message.error("Invalid URL used in replication - please check configuration: {}",
-                    uriBuilder.toString()), null);
+                    uriBuilder.toString()), e);
         }
     }
 
@@ -183,7 +183,7 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
             httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
                     proxyManagerService, credentialService);
         } catch (RepositoryException e) {
-            throw new ReplicationException(Message.error("Trouble initializing connection for {}", replicationConfig.getPath()), null);
+            throw new ReplicationException(Message.error("Trouble initializing connection for {}", replicationConfig.getPath()), e);
         }
         return httpClientContext;
     }
@@ -368,6 +368,7 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
     protected <T extends Status> T callRemotePublicationReceiver(
             @Nonnull String logmessage, @Nonnull HttpClientContext httpClientContext, @Nonnull HttpUriRequest request,
             @Nonnull Class<T> statusClass, @Nullable Gson gson) throws ReplicationException {
+        LOG.debug("Executing request {}", request.getURI());
         gson = gson != null ? gson : new GsonBuilder().create();
         T status = null;
         StatusLine statusLine = null;
@@ -391,7 +392,7 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
             }
         } catch (IOException e) {
             throw ExceptionUtil.logAndThrow(LOG,
-                    new RemoteReplicationException(Message.error("Trouble accessing remote service for {}", logmessage), null, status, statusLine));
+                    new RemoteReplicationException(Message.error("Trouble accessing remote service for {}", logmessage), e, status, statusLine));
         }
         return status;
     }
