@@ -262,11 +262,15 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
     @Nonnull
     public Status commitUpdate(@Nonnull UpdateInfo updateInfo, @Nonnull String newReleaseChangeNumber,
                                @Nonnull Set<String> deletedPaths,
-                               @Nonnull Stream<ChildrenOrderInfo> relevantOrderings,
+                               @Nonnull Stream<ChildrenOrderInfo> relevantOrderingsRaw,
                                @Nonnull ExceptionThrowingRunnable<? extends Exception> checkForParallelModifications)
             throws ReplicationException {
         HttpClientContext httpClientContext = createHttpClientContext();
         Gson gson = new GsonBuilder().create();
+        // FIXME(hps,13.11.20) relevantOrderingsRaw is somehow read twice if we use it in the entity directly -
+        // no idea why and no time to find out at the moment.
+        // so we copy it into a list
+        List<ChildrenOrderInfo> relevantOrderingsList = relevantOrderingsRaw.collect(Collectors.toList());
 
         HttpEntity entity = new JsonHttpEntity(null, null) {
             @Override
@@ -280,7 +284,7 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
                 }
                 jsonWriter.endArray();
                 jsonWriter.name(RemoteReceiverConstants.PARAM_CHILDORDERINGS).beginArray();
-                relevantOrderings.forEachOrdered(childrenOrderInfo ->
+                relevantOrderingsList.stream().forEachOrdered(childrenOrderInfo ->
                         gson.toJson(childrenOrderInfo, childrenOrderInfo.getClass(), jsonWriter));
 
                 jsonWriter.flush();
@@ -327,11 +331,15 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
 
     @Override
     public Status compareParents(@Nonnull ReplicationPaths replicationPaths, @Nonnull ResourceResolver resolver,
-                                 @Nonnull Stream<ChildrenOrderInfo> relevantOrderings,
+                                 @Nonnull Stream<ChildrenOrderInfo> relevantOrderingsRaw,
                                  @Nonnull Stream<NodeAttributeComparisonInfo> attributeInfos)
             throws ReplicationException {
         HttpClientContext httpClientContext = createHttpClientContext();
         Gson gson = new GsonBuilder().create();
+        // FIXME(hps,13.11.20) relevantOrderingsRaw is somehow read twice if we use it in the entity directly -
+        // no idea why and no time to find out at the moment.
+        // so we copy it into a list
+        List<ChildrenOrderInfo> relevantOrderingsList = relevantOrderingsRaw.collect(Collectors.toList());
 
         HttpEntity entity = new JsonHttpEntity(null, null) {
             @Override
@@ -341,7 +349,7 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
                 gson.toJson(replicationPaths, replicationPaths.getClass(), jsonWriter);
 
                 jsonWriter.name(RemoteReceiverConstants.PARAM_CHILDORDERINGS).beginArray();
-                relevantOrderings.forEachOrdered(childrenOrderInfo ->
+                relevantOrderingsList.stream().forEachOrdered(childrenOrderInfo ->
                         gson.toJson(childrenOrderInfo, childrenOrderInfo.getClass(), jsonWriter));
                 jsonWriter.endArray();
 
