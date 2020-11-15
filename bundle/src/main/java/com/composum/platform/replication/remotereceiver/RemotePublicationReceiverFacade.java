@@ -262,16 +262,11 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
     @Nonnull
     public Status commitUpdate(@Nonnull UpdateInfo updateInfo, @Nonnull String newReleaseChangeNumber,
                                @Nonnull Set<String> deletedPaths,
-                               @Nonnull Stream<ChildrenOrderInfo> relevantOrderingsRaw,
+                               @Nonnull Supplier<Stream<ChildrenOrderInfo>> relevantOrderings,
                                @Nonnull ExceptionThrowingRunnable<? extends Exception> checkForParallelModifications)
             throws ReplicationException {
         HttpClientContext httpClientContext = createHttpClientContext();
         Gson gson = new GsonBuilder().create();
-        // FIXME(hps,13.11.20) relevantOrderingsRaw is somehow read twice if we use it in the entity directly -
-        // no idea why and no time to find out at the moment.
-        // so we copy it into a list
-        List<ChildrenOrderInfo> relevantOrderingsList = relevantOrderingsRaw.collect(Collectors.toList());
-
         HttpEntity entity = new JsonHttpEntity(null, null) {
             @Override
             protected void writeTo(@Nonnull JsonWriter jsonWriter) throws IOException {
@@ -283,8 +278,10 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
                     jsonWriter.value(deletedPath);
                 }
                 jsonWriter.endArray();
+                jsonWriter.flush();
                 jsonWriter.name(RemoteReceiverConstants.PARAM_CHILDORDERINGS).beginArray();
-                relevantOrderingsList.stream().forEachOrdered(childrenOrderInfo ->
+                Stream<ChildrenOrderInfo> relevantOrderingsStream = relevantOrderings.get();
+                relevantOrderingsStream.forEachOrdered(childrenOrderInfo ->
                         gson.toJson(childrenOrderInfo, childrenOrderInfo.getClass(), jsonWriter));
 
                 jsonWriter.flush();
@@ -331,30 +328,26 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
 
     @Override
     public Status compareParents(@Nonnull ReplicationPaths replicationPaths, @Nonnull ResourceResolver resolver,
-                                 @Nonnull Stream<ChildrenOrderInfo> relevantOrderingsRaw,
-                                 @Nonnull Stream<NodeAttributeComparisonInfo> attributeInfos)
+                                 @Nonnull Supplier<Stream<ChildrenOrderInfo>> relevantOrderings,
+                                 @Nonnull Supplier<Stream<NodeAttributeComparisonInfo>> attributeInfos)
             throws ReplicationException {
         HttpClientContext httpClientContext = createHttpClientContext();
         Gson gson = new GsonBuilder().create();
-        // FIXME(hps,13.11.20) relevantOrderingsRaw is somehow read twice if we use it in the entity directly -
-        // no idea why and no time to find out at the moment.
-        // so we copy it into a list
-        List<ChildrenOrderInfo> relevantOrderingsList = relevantOrderingsRaw.collect(Collectors.toList());
-
         HttpEntity entity = new JsonHttpEntity(null, null) {
             @Override
             protected void writeTo(@Nonnull JsonWriter jsonWriter) throws IOException {
                 jsonWriter.beginObject();
                 jsonWriter.name(RemoteReceiverConstants.PARAM_REPLICATIONPATHS);
                 gson.toJson(replicationPaths, replicationPaths.getClass(), jsonWriter);
+                jsonWriter.flush();
 
                 jsonWriter.name(RemoteReceiverConstants.PARAM_CHILDORDERINGS).beginArray();
-                relevantOrderingsList.stream().forEachOrdered(childrenOrderInfo ->
+                relevantOrderings.get().forEachOrdered(childrenOrderInfo ->
                         gson.toJson(childrenOrderInfo, childrenOrderInfo.getClass(), jsonWriter));
                 jsonWriter.endArray();
 
                 jsonWriter.name(RemoteReceiverConstants.PARAM_ATTRIBUTEINFOS).beginArray();
-                attributeInfos.forEachOrdered(attributeInfo ->
+                attributeInfos.get().forEachOrdered(attributeInfo ->
                         gson.toJson(attributeInfo, attributeInfo.getClass(), jsonWriter));
                 jsonWriter.endArray();
 
