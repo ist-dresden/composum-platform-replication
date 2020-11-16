@@ -47,8 +47,6 @@ public class RemotePublisherService
 
     protected volatile Configuration config;
 
-    protected volatile CloseableHttpClient httpClient;
-
     @Reference
     private StagingReleaseManager releaseManager;
 
@@ -75,7 +73,6 @@ public class RemotePublisherService
     protected void activate(final Configuration theConfig) {
         LOG.info("activated");
         this.config = theConfig;
-        this.httpClient = HttpClients.createDefault();
     }
 
     @Nonnull
@@ -94,11 +91,8 @@ public class RemotePublisherService
     @Deactivate
     protected void deactivate() throws IOException {
         LOG.info("deactivated");
-        try (CloseableHttpClient ignored = httpClient) { // just make sure it's closed afterwards
-            this.config = null;
-            super.deactivate();
-            this.httpClient = null;
-        }
+        this.config = null;
+        super.deactivate();
     }
 
     @Override
@@ -132,6 +126,7 @@ public class RemotePublisherService
         @Nonnull
         @Override
         protected PublicationReceiverFacade createTargetFacade(@Nonnull AbstractReplicationConfig replicationConfig, @Nonnull BeanContext context) {
+            CloseableHttpClient httpClient = createHttpClient();
             return new RemotePublicationReceiverFacade((RemotePublicationConfig) replicationConfig,
                     context, httpClient, () -> config, nodesConfig, proxyManagerService, credentialService);
         }
@@ -168,6 +163,13 @@ public class RemotePublisherService
             }
         }
 
+    }
+
+    /**
+     * Use different http clients for each replication to avoid sharing cookies etc. - each replication can have a different user.
+     */
+    protected CloseableHttpClient createHttpClient() {
+        return HttpClients.createSystem();
     }
 
     @ObjectClassDefinition(
