@@ -87,6 +87,8 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
     @Nonnull
     protected final CloseableHttpClient httpClient;
 
+    protected HttpClientContext lazyHttpClientContext = null;
+
     public RemotePublicationReceiverFacade(@Nonnull RemotePublicationConfig replicationConfig,
                                            @Nonnull BeanContext context,
                                            @Nonnull CloseableHttpClient httpClient,
@@ -136,7 +138,6 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
     @Override
     public StatusWithReleaseData startUpdate(@Nonnull ReplicationPaths replicationPaths)
             throws ReplicationException {
-        HttpClientContext httpClientContext = createHttpClientContext();
         List<NameValuePair> form = new ArrayList<>();
         replicationPaths.addToForm(form);
         UrlEncodedFormEntity entity = new UrlEncodedFormEntity(form, Consts.UTF_8);
@@ -147,7 +148,7 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
         LOG.info("Start update in {}", replicationPaths);
         StatusWithReleaseData status =
                 callRemotePublicationReceiver("Starting update with " + replicationPaths,
-                        httpClientContext, post, StatusWithReleaseData.class, null);
+                        getHttpClientContext(), post, StatusWithReleaseData.class, null);
         if (status.updateInfo == null || StringUtils.isBlank(status.updateInfo.updateId)) { // impossible
             throw ExceptionUtil.logAndThrow(LOG,
                     new RemoteReplicationException(Message.error("Received no updateId"), null, status, null));
@@ -159,7 +160,6 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
     @Override
     public StatusWithReleaseData releaseInfo(@Nonnull ReplicationPaths replicationPaths)
             throws ReplicationException {
-        HttpClientContext httpClientContext = createHttpClientContext();
         List<NameValuePair> form = new ArrayList<>();
         replicationPaths.addToForm(form);
         UrlEncodedFormEntity entity = new UrlEncodedFormEntity(form, Consts.UTF_8);
@@ -172,20 +172,21 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
         }
         StatusWithReleaseData status =
                 callRemotePublicationReceiver("Get releaseinfo for " + replicationPaths,
-                        httpClientContext, post, StatusWithReleaseData.class, null);
+                        getHttpClientContext(), post, StatusWithReleaseData.class, null);
         return status;
     }
 
     @Nonnull
-    protected HttpClientContext createHttpClientContext() throws ReplicationException {
-        HttpClientContext httpClientContext;
-        try {
-            httpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
-                    proxyManagerService, credentialService);
-        } catch (RepositoryException e) {
-            throw new ReplicationException(Message.error("Trouble initializing connection for {}", replicationConfig.getPath()), e);
+    protected HttpClientContext getHttpClientContext() throws ReplicationException {
+        if (lazyHttpClientContext == null) {
+            try {
+                lazyHttpClientContext = replicationConfig.initHttpContext(HttpClientContext.create(),
+                        proxyManagerService, credentialService);
+            } catch (RepositoryException e) {
+                throw new ReplicationException(Message.error("Trouble initializing connection for {}", replicationConfig.getPath()), e);
+            }
         }
-        return httpClientContext;
+        return lazyHttpClientContext;
     }
 
     @Override
@@ -193,7 +194,6 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
     public ContentStateStatus contentState(
             @Nonnull UpdateInfo updateInfo, @Nonnull Collection<String> paths, @Nonnull ResourceResolver resolver, @Nonnull ReplicationPaths replicationPaths)
             throws ReplicationException {
-        HttpClientContext httpClientContext = createHttpClientContext();
         List<NameValuePair> form = new ArrayList<>();
         form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId));
         replicationPaths.addToForm(form);
@@ -211,7 +211,7 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
         ).create();
         ContentStateStatus status =
                 callRemotePublicationReceiver("Querying content for " + paths,
-                        httpClientContext, post, ContentStateStatus.class, gson);
+                        getHttpClientContext(), post, ContentStateStatus.class, gson);
         return status;
     }
 
@@ -220,7 +220,6 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
     public Status compareContent(@Nonnull UpdateInfo updateInfo, @Nonnull Collection<String> paths,
                                  ResourceResolver resolver, ReplicationPaths replicationPaths)
             throws ReplicationException {
-        HttpClientContext httpClientContext = createHttpClientContext();
         URIBuilder uriBuilder = uriBuilder(compareContent, json, replicationPaths.getContentPath())
                 .addParameter(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId);
         replicationPaths.addToUriBuilder(uriBuilder);
@@ -239,14 +238,13 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
 
         LOG.info("Comparing content for {}", paths);
         Status status = callRemotePublicationReceiver("compare content " + paths,
-                httpClientContext, put, Status.class, null);
+                getHttpClientContext(), put, Status.class, null);
         return status;
     }
 
     @Override
     @Nonnull
     public Status pathupload(@Nonnull UpdateInfo updateInfo, @Nonnull Resource resource) throws ReplicationException {
-        HttpClientContext httpClientContext = createHttpClientContext();
         URI uri = buildUrl(uriBuilder(pathUpload, zip, resource.getPath())
                 .addParameter(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId));
         HttpPut put = new HttpPut(uri);
@@ -254,7 +252,7 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
 
         LOG.info("Uploading package for {}", SlingResourceUtil.getPath(resource));
         Status status = callRemotePublicationReceiver("pathupload " + resource.getPath(),
-                httpClientContext, put, Status.class, null);
+                getHttpClientContext(), put, Status.class, null);
         return status;
     }
 
@@ -265,7 +263,6 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
                                @Nonnull Supplier<Stream<ChildrenOrderInfo>> relevantOrderings,
                                @Nonnull ExceptionThrowingRunnable<? extends Exception> checkForParallelModifications)
             throws ReplicationException {
-        HttpClientContext httpClientContext = createHttpClientContext();
         Gson gson = new GsonBuilder().create();
         HttpEntity entity = new JsonHttpEntity(null, null) {
             @Override
@@ -304,14 +301,13 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
 
         LOG.info("Comitting update {} deleting {}", updateInfo.updateId, deletedPaths);
         Status status = callRemotePublicationReceiver("Committing update " + updateInfo.updateId,
-                httpClientContext, put, Status.class, null);
+                getHttpClientContext(), put, Status.class, null);
         return status;
     }
 
     @Override
     @Nonnull
     public Status abortUpdate(@Nonnull UpdateInfo updateInfo) throws ReplicationException {
-        HttpClientContext httpClientContext = createHttpClientContext();
         List<NameValuePair> form = new ArrayList<>();
         form.add(new BasicNameValuePair(RemoteReceiverConstants.PARAM_UPDATEID, updateInfo.updateId));
         UrlEncodedFormEntity entity = new UrlEncodedFormEntity(form, Consts.UTF_8);
@@ -322,7 +318,7 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
         LOG.info("Aborting update for {}", updateInfo);
         Status status =
                 callRemotePublicationReceiver("Aborting update of " + updateInfo.updateId,
-                        httpClientContext, post, Status.class, null);
+                        getHttpClientContext(), post, Status.class, null);
         return status;
     }
 
@@ -331,7 +327,6 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
                                  @Nonnull Supplier<Stream<ChildrenOrderInfo>> relevantOrderings,
                                  @Nonnull Supplier<Stream<NodeAttributeComparisonInfo>> attributeInfos)
             throws ReplicationException {
-        HttpClientContext httpClientContext = createHttpClientContext();
         Gson gson = new GsonBuilder().create();
         HttpEntity entity = new JsonHttpEntity(null, null) {
             @Override
@@ -361,7 +356,7 @@ public class RemotePublicationReceiverFacade implements PublicationReceiverFacad
 
         LOG.info("Comparing parents for {}", replicationPaths);
         Status status = callRemotePublicationReceiver("Comparing parents for " + replicationPaths,
-                httpClientContext, put, Status.class, null);
+                getHttpClientContext(), put, Status.class, null);
         return status;
     }
 
