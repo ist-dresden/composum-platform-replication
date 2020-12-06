@@ -6,7 +6,6 @@
         <groupId>com.composum.platform</groupId>
         <artifactId>cpm-platform-replication</artifactId>
         <version>1.0.0-SNAPSHOT</version>
-        <relativePath/>
     </parent>
 
     <artifactId>cpm-platform-replication-setup</artifactId>
