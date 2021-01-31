@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd ">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd ">
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
         <groupId>com.composum.platform</groupId>
         <artifactId>cpm-platform-replication</artifactId>
-        <version>1.0-SNAPSHOT</version>
+        <version>1.0.0</version>
     </parent>
 
     <artifactId>cpm-platform-replication-bundle</artifactId>
@@ -15,11 +16,16 @@
     <description>Composum Platform subproject for replicating content remotely to publish hosts Bundle</description>
 
     <properties>
-        <bundle.name>com.composum.replication</bundle.name>
+        <bundle.name>com.composum.platform.replication</bundle.name>
     </properties>
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>pl.project13.maven</groupId>
+                <artifactId>git-commit-id-plugin</artifactId>
+            </plugin>
+
             <plugin>
                 <groupId>org.apache.felix</groupId>
                 <artifactId>maven-bundle-plugin</artifactId>
@@ -29,10 +35,16 @@
                         <Bundle-Category>${bundle.category}</Bundle-Category>
                         <Bundle-SymbolicName>${bundle.name}</Bundle-SymbolicName>
                         <Include-Resource>{maven-resources}</Include-Resource>
-                        <Export-Package>com.composum.replication.*</Export-Package>
-                        <Import-Package>org.apache.felix.shell;resolution:=optional,
+                        <Export-Package>com.composum.platform.replication.*</Export-Package>
+                        <Import-Package>
+                            com.composum.sling.core.*;version="[1.11,3)",
+                            com.composum.sling.clientlibs.*;version="[1.11,3)",
+                            com.composum.sling.nodes.*;version="[1.11,3)",
+                            com.composum.sling.cpnl.*;version="[1.11,3)",
+                            org.apache.felix.shell;resolution:=optional,
                             javax.annotation.*;version="[0,4)",
-                            *</Import-Package>
+                            *
+                        </Import-Package>
                         <Embed-Dependency>*;scope=compile|runtime</Embed-Dependency>
                     </instructions>
                 </configuration>
@@ -45,17 +57,29 @@
         <!-- Composum Platform -->
         <dependency>
             <groupId>com.composum.platform</groupId>
-            <artifactId>composum-platform-models-bundle</artifactId>
+            <artifactId>composum-platform-staging-bundle</artifactId>
         </dependency>
         <dependency>
             <groupId>com.composum.platform</groupId>
             <artifactId>composum-platform-commons-bundle</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.composum.platform</groupId>
+            <artifactId>composum-platform-security-bundle</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.composum.platform</groupId>
+            <artifactId>composum-platform-testing-testutil</artifactId>
+        </dependency>
 
         <!-- Composum Nodes (Core) -->
         <dependency>
-            <groupId>com.composum.sling.core</groupId>
-            <artifactId>composum-sling-core-commons</artifactId>
+            <groupId>com.composum.nodes</groupId>
+            <artifactId>composum-nodes-commons</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.composum.nodes</groupId>
+            <artifactId>composum-nodes-console</artifactId>
         </dependency>
 
         <!-- Apache Sling -->
@@ -71,6 +95,20 @@
             <groupId>org.apache.sling</groupId>
             <artifactId>org.apache.sling.commons.osgi</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.apache.sling</groupId>
+            <artifactId>org.apache.sling.commons.threads</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.sling</groupId>
+            <artifactId>org.apache.sling.xss</artifactId>
+            <!-- This is an evil JAR with several old versions of libraries as embedded dependencies that aren't exported
+            and can conflict with your code. "Optional" at least means that that doesn't conflict with artifacts
+            using a bundle that uses the sling.xss bundle. https://issues.apache.org/jira/browse/SLING-8404
+             -->
+            <scope>provided</scope>
+            <optional>true</optional>
+        </dependency>
 
         <!-- JCR API, Jackrabbit, VLT -->
         <dependency>
@@ -84,6 +122,10 @@
         <dependency>
             <groupId>org.apache.jackrabbit</groupId>
             <artifactId>jackrabbit-jcr-commons</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.jackrabbit.vault</groupId>
+            <artifactId>org.apache.jackrabbit.vault</artifactId>
         </dependency>
 
         <!-- JSON -->
@@ -108,6 +150,10 @@
         <dependency>
             <groupId>commons-codec</groupId>
             <artifactId>commons-codec</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient-osgi</artifactId>
         </dependency>
 
         <!-- OSGi, Felix -->
@@ -136,10 +182,49 @@
             <artifactId>slf4j-simple</artifactId>
         </dependency>
 
+        <!-- Java Annotations -->
+        <dependency>
+            <groupId>com.google.code.findbugs</groupId>
+            <artifactId>jsr305</artifactId>
+        </dependency>
+
         <!-- JUnit -->
+        <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-library</artifactId>
+        </dependency>
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.sling</groupId>
+            <artifactId>org.apache.sling.testing.sling-mock-oak</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.sling</groupId>
+            <artifactId>org.apache.sling.testing.sling-mock.junit4</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.sling</groupId>
+            <artifactId>org.apache.sling.testing.logging-mock</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.sling</groupId>
+            <artifactId>org.apache.sling.testing.hamcrest</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+        </dependency>
+
+        <!-- TODO Temporary workaround for https://issues.apache.org/jira/browse/SLING-8576 . Once that's fixed this
+          should be removed. -->
+        <dependency>
+            <groupId>org.apache.sling</groupId>
+            <artifactId>org.apache.sling.scripting.core</artifactId>
+            <version>2.0.50</version>
+            <scope>test</scope>
         </dependency>
 
     </dependencies>

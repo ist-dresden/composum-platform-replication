@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.composum.platform</groupId>
         <artifactId>cpm-platform-replication</artifactId>
-        <version>1.0-SNAPSHOT</version>
+        <version>1.0.0</version>
     </parent>
 
     <artifactId>cpm-platform-replication-test-package</artifactId>
@@ -71,8 +71,8 @@
 
         <!-- Composum Core -->
         <dependency>
-            <groupId>com.composum.sling.core</groupId>
-            <artifactId>composum-sling-core-commons</artifactId>
+            <groupId>com.composum.nodes</groupId>
+            <artifactId>composum-nodes-commons</artifactId>
         </dependency>
 
         <!-- Taglib support -->
