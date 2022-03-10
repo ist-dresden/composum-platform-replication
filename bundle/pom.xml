@@ -36,10 +36,10 @@
                         <Include-Resource>{maven-resources}</Include-Resource>
                         <Export-Package>com.composum.platform.replication.*</Export-Package>
                         <Import-Package>
-                            com.composum.sling.core.*;version="[2,4)",
-                            com.composum.sling.clientlibs.*;version="[2,4)",
-                            com.composum.sling.nodes.*;version="[2,4)",
-                            com.composum.sling.cpnl.*;version="[2,4)",
+                            com.composum.sling.core.*;version="[2,5)",
+                            com.composum.sling.clientlibs.*;version="[2,5)",
+                            com.composum.sling.nodes.*;version="[2,5)",
+                            com.composum.sling.cpnl.*;version="[2,5)",
                             org.apache.felix.shell;resolution:=optional,
                             javax.annotation.*;version="[0,4)",
                             *
