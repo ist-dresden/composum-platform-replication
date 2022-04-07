@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-        xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd ">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd ">
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
         <groupId>com.composum.platform</groupId>
         <artifactId>cpm-platform-replication</artifactId>
-        <version>1.0.0</version>
+        <version>1.1.1</version>
     </parent>
 
     <artifactId>cpm-platform-replication-bundle</artifactId>
@@ -37,10 +36,10 @@
                         <Include-Resource>{maven-resources}</Include-Resource>
                         <Export-Package>com.composum.platform.replication.*</Export-Package>
                         <Import-Package>
-                            com.composum.sling.core.*;version="[1.11,3)",
-                            com.composum.sling.clientlibs.*;version="[1.11,3)",
-                            com.composum.sling.nodes.*;version="[1.11,3)",
-                            com.composum.sling.cpnl.*;version="[1.11,3)",
+                            com.composum.sling.core.*;version="[2,5)",
+                            com.composum.sling.clientlibs.*;version="[2,5)",
+                            com.composum.sling.nodes.*;version="[2,5)",
+                            com.composum.sling.cpnl.*;version="[2,5)",
                             org.apache.felix.shell;resolution:=optional,
                             javax.annotation.*;version="[0,4)",
                             *

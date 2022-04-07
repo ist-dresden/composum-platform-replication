@@ -6,21 +6,21 @@
 <cpn:component var="model" type="com.composum.platform.replication.model.ReplicationSetup" scope="request">
     <div class="composum-platform-replication-setup_panel-type panel-group"
          role="tablist" aria-multiselectable="true">
-        <c:forEach items="${model.setupByType}" var="group">
+        <c:forEach items="${model.setupByType}" var="genericGroup">
             <div class="panel panel-default">
-                <div id="${model.domId}_path-head_${group.id}" role="tab"
+                <div id="${model.domId}_path-head_${genericGroup.id}" role="tab"
                      class="panel-heading">
                     <h4 class="panel-title">
-                        <a href="#${model.domId}_path-body_${group.id}"
+                        <a href="#${model.domId}_path-body_${genericGroup.id}"
                            role="button" data-toggle="collapse" aria-expanded="true"
-                           aria-controls="${model.domId}_path-body_${group.id}">${cpn:text(group.title)}</a>
+                           aria-controls="${model.domId}_path-body_${genericGroup.id}">${cpn:text(genericGroup.title)}</a>
                     </h4>
                 </div>
-                <div id="${model.domId}_path-body_${group.id}" role="tabpanel"
-                     aria-labelledby="${model.domId}_path-head_${group.id}"
+                <div id="${model.domId}_path-body_${genericGroup.id}" role="tabpanel"
+                     aria-labelledby="${model.domId}_path-head_${genericGroup.id}"
                      class="panel-collapse collapse in">
                     <ul class="list-group">
-                        <c:forEach items="${group.set}" var="item">
+                        <c:forEach items="${genericGroup.set}" var="item">
                             <li class="list-group_item">
                                 <sling:include path="${item.path}"
                                                resourceType="${item.configResourceType}" replaceSelectors=""/>
