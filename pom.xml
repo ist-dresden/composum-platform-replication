@@ -17,7 +17,7 @@
     <description>Composum Platform subproject for replicating content remotely to publish hosts</description>
 
     <properties>
-        <composum.pages.version>1.4.0</composum.pages.version>
+        <composum.pages.version>1.5.1</composum.pages.version>
         <composum.platform.version>1.7.0</composum.platform.version>
         <release.repository.id>istrepo</release.repository.id>
         <release.repository.url>https://repo.ist-software.com/repository/maven-releases</release.repository.url>
