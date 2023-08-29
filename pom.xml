@@ -10,7 +10,7 @@
     </parent>
 
     <artifactId>cpm-platform-replication</artifactId>
-    <version>1.1.2-SNAPSHOT</version>
+    <version>1.1.2</version>
     <packaging>pom</packaging>
 
     <name>Composum Platform Replication</name>
@@ -80,4 +80,8 @@
     <module>setup</module>
     <module>package</module>
   </modules>
+
+  <scm>
+    <tag>cpm-platform-replication-1.1.2</tag>
+  </scm>
 </project>
