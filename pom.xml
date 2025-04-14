@@ -17,8 +17,8 @@
     <description>Composum Platform subproject for replicating content remotely to publish hosts</description>
 
     <properties>
-        <composum.pages.version>1.5.1</composum.pages.version>
-        <composum.platform.version>1.7.0</composum.platform.version>
+        <composum.pages.version>1.5.4-SNAPSHOT</composum.pages.version>
+        <composum.platform.version>1.7.2-SNAPSHOT</composum.platform.version>
     </properties>
 
     <dependencyManagement>
