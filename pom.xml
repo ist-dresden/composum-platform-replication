@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.composum.platform</groupId>
         <artifactId>composum-platform</artifactId>
-        <version>1.7.0</version>
+        <version>1.7.2</version>
         <relativePath />
     </parent>
 
@@ -17,8 +17,8 @@
     <description>Composum Platform subproject for replicating content remotely to publish hosts</description>
 
     <properties>
-        <composum.pages.version>1.5.4-SNAPSHOT</composum.pages.version>
-        <composum.platform.version>1.7.2-SNAPSHOT</composum.platform.version>
+        <composum.pages.version>1.5.4</composum.pages.version>
+        <composum.platform.version>1.7.2</composum.platform.version>
     </properties>
 
     <dependencyManagement>
